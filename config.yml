@@ -1,0 +1,16 @@
+plugins:
+  - name: "cron"
+    type: "scheduler"
+    enabled: true
+    settings: |
+      {
+        "test": "测试11111111"
+      }
+
+  - name: "informer"
+    type: "output"
+    enabled: true
+    settings: '{}'
+
+logging:
+  level: "info"
