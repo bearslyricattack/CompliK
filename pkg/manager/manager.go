@@ -40,19 +40,15 @@ func NewManager(eventBus *eventbus.EventBus) *Manager {
 	}
 }
 
-// LoadPlugins 批量加载插件（保留原有功能）
+// LoadPlugins 批量加载插件
 func (m *Manager) LoadPlugins(pluginConfigs []config.PluginConfig) error {
 	log.Printf("Loading %d plugins", len(pluginConfigs))
-
 	for _, pluginConfig := range pluginConfigs {
 		if err := m.LoadPlugin(pluginConfig); err != nil {
 			log.Printf("Failed to load plugin %s: %v", pluginConfig.Name, err)
-			// 继续加载其他插件，不中断
 			continue
 		}
 	}
-
-	log.Printf("Plugin loading completed. Total loaded: %d", len(m.pluginInstances))
 	return nil
 }
 
@@ -149,12 +145,7 @@ func (m *Manager) GetPluginConfig(name string) (config.PluginConfig, bool) {
 func (m *Manager) StartAll() error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-
-	log.Printf("Starting all plugins")
-	log.Printf("Plugins loaded: %d", len(m.pluginInstances))
-
 	for name, instance := range m.pluginInstances {
-		// 检查插件是否启用
 		if !instance.Config.Enabled {
 			log.Printf("Plugin %s is disabled, skipping", name)
 			continue

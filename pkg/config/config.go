@@ -2,8 +2,9 @@ package config
 
 // Config 主配置结构
 type Config struct {
-	Plugins []PluginConfig `yaml:"plugins" json:"plugins"`
-	Logging LoggingConfig  `yaml:"logging" json:"logging"`
+	Plugins    []PluginConfig `yaml:"plugins" json:"plugins"`
+	Logging    LoggingConfig  `yaml:"logging" json:"logging"`
+	Kubeconfig string         `yaml:"kubeconfig" json:"kubeconfig"`
 }
 
 // PluginConfig 插件配置

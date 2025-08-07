@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"github.com/bearslyricattack/CompliK/pkg/config"
 	"github.com/bearslyricattack/CompliK/pkg/eventbus"
+	"github.com/bearslyricattack/CompliK/pkg/k8s"
 	"github.com/bearslyricattack/CompliK/pkg/manager"
-	_ "github.com/bearslyricattack/CompliK/pkg/plugins"
+	_ "github.com/bearslyricattack/CompliK/pkg/plugins/collector"
+	_ "github.com/bearslyricattack/CompliK/pkg/plugins/compliance"
 	"log"
 	"os"
 	"os/signal"
@@ -22,22 +24,28 @@ func main() {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
-	// 创建事件总线
+	// 初始化k8s client
+	err = k8s.InitClient(cfg.Kubeconfig)
+	if err != nil {
+		log.Fatalf("Failed to initialize Kubernetes client: %v", err)
+	}
+
 	eventBus := eventbus.NewEventBus()
 
 	// 创建插件管理器
-	manager := manager.NewManager(eventBus)
+	m := manager.NewManager(eventBus)
 
 	// 读取配置，注册插件
-	manager.LoadPlugins(cfg.Plugins)
-
-	fmt.Printf("Plugins loaded: %v\n", cfg.Plugins)
-	// 启动所有插件，传入事件总线
-	if err := manager.StartAll(); err != nil {
+	err = m.LoadPlugins(cfg.Plugins)
+	if err != nil {
+		log.Fatalf("Failed to load plugins: %v", err)
+		return
+	}
+	// 启动所有插件
+	if err := m.StartAll(); err != nil {
 		log.Fatalf("Failed to start plugins: %v", err)
 	}
 
-	// 等待信号
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 

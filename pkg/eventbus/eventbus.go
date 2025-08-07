@@ -3,7 +3,7 @@ package eventbus
 import "sync"
 
 type Event struct {
-	Payload any
+	Payload interface{}
 }
 
 type (
