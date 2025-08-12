@@ -24,7 +24,7 @@ func NewEventBus() *EventBus {
 func (eb *EventBus) Publish(topic string, event Event) {
 	eb.mu.RLock()
 	defer eb.mu.RUnlock()
-	// 复制一个新的订阅者列表，避免在发布事件时修改订阅者列表
+	// Create a copy of subscribers to avoid modification during event publishing
 	subscribers := append([]EventChan{}, eb.subscribers[topic]...)
 	go func() {
 		for _, subscriber := range subscribers {
@@ -49,7 +49,6 @@ func (eb *EventBus) Unsubscribe(topic string, ch EventChan) {
 			if ch == subscriber {
 				eb.subscribers[topic] = append(subscribers[:i], subscribers[i+1:]...)
 				close(ch)
-				// 清空通道
 				for range ch {
 				}
 				return

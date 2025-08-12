@@ -1,6 +1,5 @@
 package models
 
-// IngressInfo 存储Ingress信息的结构体
 type IngressInfo struct {
 	Host        string `json:"host"`
 	Namespace   string `json:"namespace"`

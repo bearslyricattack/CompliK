@@ -1,14 +1,13 @@
-package collector
+package cron
 
 import (
 	"context"
 	"fmt"
-	"github.com/bearslyricattack/CompliK/pkg/config"
 	"github.com/bearslyricattack/CompliK/pkg/eventbus"
 	"github.com/bearslyricattack/CompliK/pkg/k8s"
-	"github.com/bearslyricattack/CompliK/pkg/manager"
 	"github.com/bearslyricattack/CompliK/pkg/models"
-	"github.com/bearslyricattack/CompliK/pkg/utils"
+	"github.com/bearslyricattack/CompliK/pkg/utils/config"
+	"github.com/bearslyricattack/CompliK/pkg/utils/logger"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"log"
 	"strings"
@@ -16,21 +15,21 @@ import (
 )
 
 func init() {
-	manager.PluginFactories["cron"] = func() manager.Plugin {
+	plugin.PluginFactories["cron"] = func() plugin.Plugin {
 		return &CronPlugin{
-			logger: utils.NewLogger(),
+			logger: logger.NewLogger(),
 		}
 	}
 }
 
 // CronPlugin 定时任务插件
 type CronPlugin struct {
-	logger *utils.Logger
+	logger *logger.Logger
 }
 
 const (
 	// IntervalHours = 60 * 24 * time.Minute
-	IntervalHours = 1 * time.Minute
+	IntervalHours = 10000 * time.Minute
 )
 
 // Name 获取插件名称
@@ -45,6 +44,15 @@ func (p *CronPlugin) Type() string {
 
 // Start 启动插件
 func (p *CronPlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
+	time.Sleep(20 * time.Second)
+	ingressList, err := p.GetIngressList()
+	if err != nil {
+		log.Printf("Failed to get ingress list: %v", err)
+	}
+	// 将结果发送到管道中
+	eventBus.Publish("cron", eventbus.Event{
+		Payload: ingressList,
+	})
 	// 启动定时任务
 	go func() {
 		// 设置定时器

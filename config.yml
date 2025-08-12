@@ -7,10 +7,17 @@ plugins:
         "test": "测试11111111"
       }
 
-  - name: "informer"
+  - name: "website"
+    type: "output"
+    enabled: true
+    settings: '{}'
+
+  - name: "result"
     type: "output"
     enabled: true
     settings: '{}'
 
 logging:
   level: "info"
+
+kubeconfig: "kubeconfig.yml"

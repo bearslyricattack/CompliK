@@ -15,7 +15,10 @@ type PluginConfig struct {
 	Settings string `yaml:"settings" json:"settings"`
 }
 
-// LoggingConfig 日志配置
 type LoggingConfig struct {
 	Level string `yaml:"level" json:"level"`
+}
+
+type ClusterConfig struct {
+	Kubeconfig string `json:"kubeconfig"`
 }

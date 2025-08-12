@@ -1,25 +1,20 @@
-package manager
+package plugin
 
 import (
 	"context"
-	"github.com/bearslyricattack/CompliK/pkg/config"
 	"github.com/bearslyricattack/CompliK/pkg/eventbus"
+	"github.com/bearslyricattack/CompliK/pkg/utils/config"
 )
 
-// Plugin 插件接口
+// Plugin represents a pluggable component with lifecycle management.
 type Plugin interface {
-	// Name 获取插件名称
 	Name() string
-
-	// Type 获取插件类型
 	Type() string
 
-	// Start 启动插件，传入上下文和事件总线
+	// Start initializes the plugin with context, config, and event bus.
 	Start(ctx context.Context, pluginConfig config.PluginConfig, eventBus *eventbus.EventBus) error
-
-	// Stop 停止插件
 	Stop(ctx context.Context) error
 }
 
-// PluginFactory 插件工厂函数类型
+// PluginFactory creates plugin instances by name.
 type PluginFactory func(name string) Plugin
