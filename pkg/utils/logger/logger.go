@@ -9,6 +9,7 @@ type Logger struct {
 	infoLogger  *log.Logger
 	warnLogger  *log.Logger
 	errorLogger *log.Logger
+	debugLogger *log.Logger
 }
 
 func NewLogger() *Logger {
@@ -16,6 +17,7 @@ func NewLogger() *Logger {
 		infoLogger:  log.New(os.Stdout, "INFO: ", log.Ldate|log.Ltime),
 		warnLogger:  log.New(os.Stdout, "WARN: ", log.Ldate|log.Ltime),
 		errorLogger: log.New(os.Stderr, "ERROR: ", log.Ldate|log.Ltime),
+		debugLogger: log.New(os.Stdout, "DEBUG: ", log.Ldate|log.Ltime),
 	}
 }
 
@@ -29,4 +31,8 @@ func (l *Logger) Warning(message string) {
 
 func (l *Logger) Error(message string) {
 	l.errorLogger.Println(message)
+}
+
+func (l *Logger) Debug(message string) {
+	l.debugLogger.Println(message)
 }

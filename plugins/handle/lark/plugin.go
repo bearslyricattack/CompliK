@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/bearslyricattack/CompliK/pkg/constants"
 	"github.com/bearslyricattack/CompliK/pkg/eventbus"
 	"github.com/bearslyricattack/CompliK/pkg/models"
 	"github.com/bearslyricattack/CompliK/pkg/plugin"
@@ -18,8 +19,13 @@ import (
 	"time"
 )
 
+const (
+	pluginName = "Lark"
+	pluginType = "Handle"
+)
+
 func init() {
-	plugin.PluginFactories["result"] = func() plugin.Plugin {
+	plugin.PluginFactories[pluginName] = func() plugin.Plugin {
 		return &ResultPlugin{
 			logger: logger.NewLogger(),
 		}
@@ -30,19 +36,16 @@ type ResultPlugin struct {
 	logger *logger.Logger
 }
 
-// Name 获取插件名称
 func (p *ResultPlugin) Name() string {
-	return "result"
+	return pluginName
 }
 
-// Type 获取插件类型
 func (p *ResultPlugin) Type() string {
-	return "result"
+	return pluginType
 }
 
-// Start 启动插件
 func (p *ResultPlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
-	subscribe := eventBus.Subscribe("result")
+	subscribe := eventBus.Subscribe(constants.HandleDatabaseTopic)
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -62,7 +65,7 @@ func (p *ResultPlugin) Start(ctx context.Context, config config.PluginConfig, ev
 					continue
 				}
 				// 发送通知
-				notifier := NewFeishuNotifier("https://www.feishu.cn/flow/api/trigger-webhook/648c09401768dfe320c5d0fe4007129b")
+				notifier := NewFeishuNotifier("https://open.feishu.cn/open-apis/bot/v2/hook/57e00497-a1da-41cd-9342-2e645f95e6ec")
 				err := notifier.SendAnalysisNotification(result)
 				if err != nil {
 					log.Printf("发送失败: %v", err)
@@ -304,7 +307,6 @@ func (f *FeishuNotifier) SendAnalysisNotification(results []models.IngressAnalys
 
 // sendMessage 发送消息的内部方法
 func (f *FeishuNotifier) sendMessage(message FeishuMessage) error {
-	// 序列化为JSON
 	jsonData, err := json.Marshal(message)
 	if err != nil {
 		return fmt.Errorf("序列化消息失败: %w", err)

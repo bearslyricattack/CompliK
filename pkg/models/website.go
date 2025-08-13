@@ -14,6 +14,7 @@ type IngressAnalysisResult struct {
 	Description string   `json:"description,omitempty"`
 	Keywords    []string `json:"keywords,omitempty"`
 	Namespace   string   `json:"namespace,omitempty"`
+	Html        string   `json:"html,omitempty"`
 }
 
 func (ar *IngressAnalysisResult) SaveToFile(dirPath string) error {

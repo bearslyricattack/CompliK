@@ -19,7 +19,7 @@ func Run(configPath string) error {
 	if err := k8s.InitClient(cfg.Kubeconfig); err != nil {
 		return fmt.Errorf("failed to initialize Kubernetes client: %w", err)
 	}
-	eventBus := eventbus.NewEventBus()
+	eventBus := eventbus.NewEventBus(100)
 	m := plugin.NewManager(eventBus)
 	if err := m.LoadPlugins(cfg.Plugins); err != nil {
 		return fmt.Errorf("failed to load plugins: %w", err)

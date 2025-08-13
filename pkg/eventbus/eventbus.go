@@ -1,42 +1,52 @@
 package eventbus
 
-import "sync"
+import (
+	"sync"
+)
 
 type Event struct {
 	Payload interface{}
 }
 
-type (
-	EventChan chan Event
-)
+type EventChan chan Event
 
 type EventBus struct {
 	mu          sync.RWMutex
 	subscribers map[string][]EventChan
+	bufferSize  int
 }
 
-func NewEventBus() *EventBus {
+func NewEventBus(bufferSize int) *EventBus {
+	if bufferSize <= 0 {
+		bufferSize = 5000
+	}
 	return &EventBus{
 		subscribers: make(map[string][]EventChan),
+		bufferSize:  bufferSize,
 	}
 }
 
 func (eb *EventBus) Publish(topic string, event Event) {
 	eb.mu.RLock()
 	defer eb.mu.RUnlock()
-	// Create a copy of subscribers to avoid modification during event publishing
 	subscribers := append([]EventChan{}, eb.subscribers[topic]...)
-	go func() {
-		for _, subscriber := range subscribers {
-			subscriber <- event
-		}
-	}()
+
+	var wg sync.WaitGroup
+	for _, subscriber := range subscribers {
+		wg.Add(1)
+		go func(ch EventChan) {
+			defer wg.Done()
+			// 直接发送，会阻塞直到通道有空间
+			ch <- event
+		}(subscriber)
+	}
+	wg.Wait() // 等待所有订阅者都收到事件
 }
 
 func (eb *EventBus) Subscribe(topic string) EventChan {
 	eb.mu.Lock()
 	defer eb.mu.Unlock()
-	ch := make(EventChan)
+	ch := make(EventChan, eb.bufferSize)
 	eb.subscribers[topic] = append(eb.subscribers[topic], ch)
 	return ch
 }

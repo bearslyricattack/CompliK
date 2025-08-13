@@ -1,4 +1,4 @@
-package website
+package utils
 
 import (
 	"fmt"
@@ -23,7 +23,6 @@ type BrowserPool struct {
 	maxAge    time.Duration
 }
 
-// NewBrowserPool 创建新的浏览器池
 func NewBrowserPool(maxSize int, maxAge time.Duration) *BrowserPool {
 	return &BrowserPool{
 		instances: make([]*BrowserInstance, 0, maxSize),
@@ -32,12 +31,10 @@ func NewBrowserPool(maxSize int, maxAge time.Duration) *BrowserPool {
 	}
 }
 
-// Get 获取浏览器实例
 func (p *BrowserPool) Get() (*BrowserInstance, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	// 查找可用的实例
 	for _, instance := range p.instances {
 		if !instance.InUse && time.Since(instance.Created) < p.maxAge {
 			instance.InUse = true
@@ -45,7 +42,6 @@ func (p *BrowserPool) Get() (*BrowserInstance, error) {
 		}
 	}
 
-	// 没有可用实例，创建新的
 	if len(p.instances) < p.maxSize {
 		instance, err := p.createInstance()
 		if err != nil {
@@ -56,10 +52,7 @@ func (p *BrowserPool) Get() (*BrowserInstance, error) {
 		return instance, nil
 	}
 
-	// 池满了，清理过期实例后重试
 	p.cleanupExpired()
-
-	// 再次尝试创建
 	if len(p.instances) < p.maxSize {
 		instance, err := p.createInstance()
 		if err != nil {
@@ -69,11 +62,9 @@ func (p *BrowserPool) Get() (*BrowserInstance, error) {
 		p.instances = append(p.instances, instance)
 		return instance, nil
 	}
-
 	return nil, fmt.Errorf("浏览器池已满，无法创建新实例")
 }
 
-// Put 归还浏览器实例
 func (p *BrowserPool) Put(instance *BrowserInstance) {
 	if instance == nil {
 		return
@@ -82,18 +73,14 @@ func (p *BrowserPool) Put(instance *BrowserInstance) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	// 检查实例是否过期
 	if time.Since(instance.Created) >= p.maxAge {
 		p.removeInstance(instance)
 		go p.cleanupInstance(instance)
 		return
 	}
-
-	// 标记为未使用
 	instance.InUse = false
 }
 
-// 创建新的浏览器实例
 func (p *BrowserPool) createInstance() (*BrowserInstance, error) {
 	l := launcher.New().
 		Set("no-sandbox", "").
@@ -102,7 +89,6 @@ func (p *BrowserPool) createInstance() (*BrowserInstance, error) {
 		Set("disable-web-security", "").
 		Set("disable-features", "VizDisplayCompositor").
 		Headless(true)
-
 	u, err := l.Launch()
 	if err != nil {
 		return nil, fmt.Errorf("启动浏览器失败: %v", err)
@@ -121,11 +107,9 @@ func (p *BrowserPool) createInstance() (*BrowserInstance, error) {
 	}, nil
 }
 
-// 清理过期实例（需要在锁内调用）
 func (p *BrowserPool) cleanupExpired() {
 	var validInstances []*BrowserInstance
 	var expiredInstances []*BrowserInstance
-
 	for _, instance := range p.instances {
 		if time.Since(instance.Created) >= p.maxAge || instance.Browser == nil {
 			expiredInstances = append(expiredInstances, instance)
@@ -133,16 +117,12 @@ func (p *BrowserPool) cleanupExpired() {
 			validInstances = append(validInstances, instance)
 		}
 	}
-
 	p.instances = validInstances
-
-	// 异步清理过期实例
 	for _, instance := range expiredInstances {
 		go p.cleanupInstance(instance)
 	}
 }
 
-// 从池中移除实例（需要在锁内调用）
 func (p *BrowserPool) removeInstance(target *BrowserInstance) {
 	for i, instance := range p.instances {
 		if instance == target {
@@ -152,14 +132,12 @@ func (p *BrowserPool) removeInstance(target *BrowserInstance) {
 	}
 }
 
-// 异步清理单个实例
 func (p *BrowserPool) cleanupInstance(instance *BrowserInstance) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("清理浏览器实例时发生panic: %v", r)
 		}
 	}()
-
 	if instance.Browser != nil {
 		err := instance.Browser.Close()
 		if err != nil {

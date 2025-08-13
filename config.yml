@@ -1,23 +1,28 @@
 plugins:
-  - name: "cron"
-    type: "scheduler"
+  - name: "Cron"
+    type: "Discovery"
     enabled: true
     settings: |
       {
         "test": "测试11111111"
       }
 
-  - name: "website"
-    type: "output"
+  - name: "Website"
+    type: "Compliance"
     enabled: true
     settings: '{}'
 
-  - name: "result"
-    type: "output"
+  - name: "Database"
+    type: "Handle"
+    enabled: true
+    settings: '{}'
+
+  - name: "Lark"
+    type: "Handle"
     enabled: true
     settings: '{}'
 
 logging:
   level: "info"
 
-kubeconfig: "kubeconfig.yml"
+kubeconfig: "io.yml"

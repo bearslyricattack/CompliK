@@ -3,8 +3,9 @@ package main
 import (
 	"flag"
 	"github.com/bearslyricattack/CompliK/internal/app"
-	_ "github.com/bearslyricattack/CompliK/plugins/collector/cron"
 	_ "github.com/bearslyricattack/CompliK/plugins/compliance/website"
+	_ "github.com/bearslyricattack/CompliK/plugins/discovery/cron"
+	_ "github.com/bearslyricattack/CompliK/plugins/handle/database"
 	_ "github.com/bearslyricattack/CompliK/plugins/handle/lark"
 	"log"
 )
