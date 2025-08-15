@@ -6,7 +6,8 @@ const (
 )
 
 const (
-	ComplianceWebsiteTopic = "compliance.website"
+	ComplianceWebsiteTopic   = "compliance.website"
+	ComplianceCollectorTopic = "compliance.collector"
 )
 
 const (

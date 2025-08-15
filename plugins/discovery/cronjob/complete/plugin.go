@@ -1,4 +1,4 @@
-package cron
+package complete
 
 import (
 	"context"
@@ -25,7 +25,7 @@ const (
 )
 
 const (
-	IntervalHours = 10000 * time.Minute
+	IntervalHours = 60 * 10 * time.Minute
 )
 
 func init() {
@@ -49,15 +49,14 @@ func (p *CronPlugin) Type() string {
 }
 
 func (p *CronPlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
-	time.Sleep(20 * time.Second)
-	p.executeTask(eventBus)
 	go func() {
 		ticker := time.NewTicker(IntervalHours)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
-				p.executeTask(eventBus)
+				fmt.Println("启动")
+				p.executeTask(ctx, eventBus)
 			case <-ctx.Done():
 				return
 			}
@@ -66,15 +65,12 @@ func (p *CronPlugin) Start(ctx context.Context, config config.PluginConfig, even
 	return nil
 }
 
-func (p *CronPlugin) executeTask(eventBus *eventbus.EventBus) {
+func (p *CronPlugin) executeTask(ctx context.Context, eventBus *eventbus.EventBus) {
 	ingressList, err := p.GetIngressList()
 	if err != nil {
 		log.Printf("Failed to get ingress list: %v", err)
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
-
 	for i, ingress := range ingressList {
 		select {
 		case <-ctx.Done():

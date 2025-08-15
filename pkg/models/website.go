@@ -36,3 +36,11 @@ func (ar *IngressAnalysisResult) SaveToFile(dirPath string) error {
 	}
 	return nil
 }
+
+type CollectorResult struct {
+	URL        string `json:"url"`
+	HTML       string `json:"html"`
+	IsEmpty    bool   `json:"is_empty"`
+	Screenshot []byte `json:"screenshot"`
+	Namespace  string `json:"namespace"`
+}

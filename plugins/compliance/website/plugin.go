@@ -3,7 +3,6 @@ package website
 import (
 	"context"
 	"log"
-	"strings"
 	"time"
 
 	"github.com/bearslyricattack/CompliK/pkg/constants"
@@ -12,7 +11,6 @@ import (
 	"github.com/bearslyricattack/CompliK/pkg/plugin"
 	"github.com/bearslyricattack/CompliK/pkg/utils/config"
 	"github.com/bearslyricattack/CompliK/pkg/utils/logger"
-	"github.com/bearslyricattack/CompliK/plugins/compliance/website/utils"
 )
 
 const (
@@ -24,19 +22,15 @@ const (
 func init() {
 	plugin.PluginFactories[pluginName] = func() plugin.Plugin {
 		return &WebsitePlugin{
-			logger:      logger.NewLogger(),
-			browserPool: utils.NewBrowserPool(20, 100*time.Minute),
-			scraper:     NewScraper(logger.NewLogger()),
-			reviewer:    NewContentReviewer(logger.NewLogger()),
+			logger:   logger.NewLogger(),
+			reviewer: NewContentReviewer(logger.NewLogger()),
 		}
 	}
 }
 
 type WebsitePlugin struct {
-	logger      *logger.Logger
-	browserPool *utils.BrowserPool
-	scraper     *Scraper
-	reviewer    *ContentReviewer
+	logger   *logger.Logger
+	reviewer *ContentReviewer
 }
 
 func (p *WebsitePlugin) Name() string {
@@ -48,7 +42,7 @@ func (p *WebsitePlugin) Type() string {
 }
 
 func (p *WebsitePlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
-	subscribe := eventBus.Subscribe(constants.DiscoveryCronTopic)
+	subscribe := eventBus.Subscribe(constants.ComplianceCollectorTopic)
 	semaphore := make(chan struct{}, maxWorkers)
 	for {
 		select {
@@ -65,14 +59,14 @@ func (p *WebsitePlugin) Start(ctx context.Context, config config.PluginConfig, e
 						log.Printf("goroutine panic: %v", r)
 					}
 				}()
-				ingress, ok := e.Payload.(models.IngressInfo)
+				res, ok := e.Payload.(*models.CollectorResult)
 				if !ok {
-					log.Printf("事件负载类型错误，期望models.IngressInfo，实际: %T", e.Payload)
+					log.Printf("事件负载类型错误，期望models.CollectorResult，实际: %T", e.Payload)
 					return
 				}
-				res := p.processIngress(ctx, ingress)
+				result := p.processCollector(ctx, res)
 				eventBus.Publish(constants.ComplianceWebsiteTopic, eventbus.Event{
-					Payload: res,
+					Payload: result,
 				})
 			}(event)
 		case <-ctx.Done():
@@ -88,54 +82,39 @@ func (p *WebsitePlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (p *WebsitePlugin) processIngress(ctx context.Context, ing models.IngressInfo) (resultChan *models.IngressAnalysisResult) {
+func (p *WebsitePlugin) processCollector(ctx context.Context, collector *models.CollectorResult) (res *models.IngressAnalysisResult) {
 	taskCtx, cancel := context.WithTimeout(ctx, 80*time.Second)
 	defer cancel()
-
-	scrapeResult, err := p.scraper.ScrapeAndScreenshot(taskCtx, ing, p.browserPool)
-	if err != nil {
-		if p.shouldSkipError(err) {
-			return nil
+	if collector.IsEmpty == true {
+		return &models.IngressAnalysisResult{
+			URL:         collector.URL,
+			IsIllegal:   false,
+			Description: "空",
+			Keywords:    []string{},
+			Namespace:   collector.Namespace,
+			Html:        collector.HTML,
 		}
-		log.Printf("本次读取错误：ingress：%s，%v\n", ing.Host, err)
-		return nil
 	}
-
-	result, err := p.reviewer.ReviewSiteContent(scrapeResult)
+	result, err := p.reviewer.ReviewSiteContent(taskCtx, collector)
 	if err != nil {
-		log.Printf("本次判断错误：ingress：%s，%v\n\n", ing.Host, err)
-		return nil
-	}
-	if scrapeResult.HTML != "" && result != nil {
-		result.Html = scrapeResult.HTML
+		log.Printf("模型判断错误: %s", collector.URL)
+		return &models.IngressAnalysisResult{
+			URL:         collector.URL,
+			IsIllegal:   false,
+			Description: err.Error(),
+			Keywords:    []string{},
+			Namespace:   collector.Namespace,
+			Html:        collector.HTML,
+		}
 	}
 	if result != nil {
 		if result.IsIllegal {
 			err := result.SaveToFile("./analysis_results")
 			if err != nil {
-				log.Printf("保存结果失败: %s", ing.Host)
+				log.Printf("保存结果失败: %s", collector.URL)
 			}
 		}
 		return result
 	}
 	return nil
-}
-
-func (p *WebsitePlugin) shouldSkipError(err error) bool {
-	if err == nil {
-		return false
-	}
-	skipPatterns := []string{
-		"ERR_HTTP_RESPONSE_CODE_FAILURE",
-		"ERR_INVALID_AUTH_CREDENTIALS",
-		"skip judge",
-	}
-
-	errStr := err.Error()
-	for _, pattern := range skipPatterns {
-		if strings.Contains(errStr, pattern) {
-			return true
-		}
-	}
-	return false
 }

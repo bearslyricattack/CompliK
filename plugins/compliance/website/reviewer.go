@@ -3,8 +3,9 @@ package website
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
-	"github.com/bytedance/sonic"
+	"github.com/bearslyricattack/CompliK/pkg/utils/logger"
 	"io"
 	"net/http"
 	"regexp"
@@ -12,7 +13,6 @@ import (
 	"time"
 
 	"github.com/bearslyricattack/CompliK/pkg/models"
-	"github.com/bearslyricattack/CompliK/pkg/utils/logger"
 )
 
 type ContentReviewer struct {
@@ -32,17 +32,15 @@ func NewContentReviewer(logger *logger.Logger) *ContentReviewer {
 	}
 }
 
-func (r *ContentReviewer) ReviewSiteContent(scrape *ScrapeResult) (*models.IngressAnalysisResult, error) {
+func (r *ContentReviewer) ReviewSiteContent(ctx context.Context, scrape *models.CollectorResult) (*models.IngressAnalysisResult, error) {
 	if scrape == nil {
 		return nil, fmt.Errorf("ScrapeResult 参数为空")
 	}
-
 	requestData, err := r.prepareRequestData(scrape)
 	if err != nil {
 		return nil, fmt.Errorf("准备请求数据失败: %v", err)
 	}
-
-	response, err := r.callAPI(requestData)
+	response, err := r.callAPI(ctx, requestData)
 	if err != nil {
 		return nil, fmt.Errorf("调用API失败: %v", err)
 	}
@@ -50,11 +48,10 @@ func (r *ContentReviewer) ReviewSiteContent(scrape *ScrapeResult) (*models.Ingre
 	if err != nil {
 		return nil, fmt.Errorf("解析响应失败: %v", err)
 	}
-
 	return result, nil
 }
 
-func (r *ContentReviewer) prepareRequestData(scrape *ScrapeResult) (map[string]interface{}, error) {
+func (r *ContentReviewer) prepareRequestData(scrape *models.CollectorResult) (map[string]interface{}, error) {
 	base64Image := base64.StdEncoding.EncodeToString(scrape.Screenshot)
 	htmlContent := scrape.HTML
 	if len(htmlContent) > 10000 {
@@ -85,7 +82,6 @@ func (r *ContentReviewer) prepareRequestData(scrape *ScrapeResult) (map[string]i
 	return requestData, nil
 }
 
-// buildPrompt 构建分析提示词
 func (r *ContentReviewer) buildPrompt(htmlContent string) string {
 	return fmt.Sprintf(`
 # Role: Content Analysis and Compliance Checker
@@ -113,7 +109,7 @@ func (r *ContentReviewer) buildPrompt(htmlContent string) string {
 
 # 重要说明：
 我正在同时提供给你网页截图和HTML代码，请综合分析这两种信息。某些内容可能在截图中更明显，而其他内容可能需要从HTML代码中分析。请保持警惕，即使表面看起来正常的网站，也可能在代码中隐藏违规内容。
-页面和源码中特别注意 微博 微信 抖音 快手 小红书 等社交平台，以及其他知名平台，防止诈骗内容，同时也要特别注意 赌博 色情 涉政 暴恐 邪教 等违法违规内容关键字，只要有风险就报告
+页面和源码中特别注意 微博 微信 抖音 快手 小红书 等社交平台，以及其他知名平台，防止诈骗内容，同时也要特别注意 赌博 色情 涉政 暴恐 邪教 等违法违规内容关键字，只要有风险就报告，要注意，一定要根据指定的格式进行结构化的输出，不要输出非结构化的数据。
 
 # HTML代码节选:
 ` + "```html\n" + htmlContent + "\n```" + `
@@ -129,15 +125,12 @@ func (r *ContentReviewer) buildPrompt(htmlContent string) string {
 }`)
 }
 
-// callAPI 调用OpenAI API
-func (r *ContentReviewer) callAPI(requestData map[string]interface{}) (*APIResponse, error) {
-	requestBody, err := sonic.Marshal(requestData)
+func (r *ContentReviewer) callAPI(ctx context.Context, requestData map[string]interface{}) (*APIResponse, error) {
+	requestBody, err := json.Marshal(requestData)
 	if err != nil {
 		r.logger.Error(fmt.Sprintf("序列化请求数据失败: %v", err))
 		return nil, err
 	}
-
-	ctx := context.Background()
 	req, err := http.NewRequestWithContext(ctx, "POST", r.apiURL, strings.NewReader(string(requestBody)))
 	if err != nil {
 		r.logger.Error(fmt.Sprintf("创建HTTP请求失败: %v", err))
@@ -171,7 +164,7 @@ func (r *ContentReviewer) callAPI(requestData map[string]interface{}) (*APIRespo
 		return nil, fmt.Errorf("API调用失败: 状态码 %d", resp.StatusCode)
 	}
 	var responseData APIResponse
-	if err := sonic.Unmarshal(body, &responseData); err != nil {
+	if err := json.Unmarshal(body, &responseData); err != nil {
 		return nil, fmt.Errorf("解码API响应失败: %v", err)
 	}
 	if len(responseData.Choices) == 0 {
@@ -181,17 +174,18 @@ func (r *ContentReviewer) callAPI(requestData map[string]interface{}) (*APIRespo
 	return &responseData, nil
 }
 
-func (r *ContentReviewer) parseResponse(response *APIResponse, scrape *ScrapeResult) (*models.IngressAnalysisResult, error) {
+func (r *ContentReviewer) parseResponse(response *APIResponse, scrape *models.CollectorResult) (*models.IngressAnalysisResult, error) {
 	reviewResult := response.Choices[0].Message.Content
 	cleanData := r.cleanResponseData(reviewResult)
 	var resultDict ResultDict
-	if err := sonic.Unmarshal([]byte(cleanData), &resultDict); err != nil {
+	if err := json.Unmarshal([]byte(cleanData), &resultDict); err != nil {
 		r.logger.Error(fmt.Sprintf("解析API返回的JSON时出错: %v", err))
+		fmt.Println(cleanData)
 		fixedJSON := r.extractJSON(reviewResult)
 		if fixedJSON == "" {
 			return nil, fmt.Errorf("无法提取有效的JSON数据")
 		}
-		if err := sonic.Unmarshal([]byte(fixedJSON), &resultDict); err != nil {
+		if err := json.Unmarshal([]byte(fixedJSON), &resultDict); err != nil {
 			r.logger.Error(fmt.Sprintf("尝试修复JSON格式失败: %v", err))
 			return nil, err
 		}

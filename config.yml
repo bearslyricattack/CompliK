@@ -1,11 +1,26 @@
 plugins:
   - name: "Cron"
     type: "Discovery"
-    enabled: true
+    enabled: false
     settings: |
       {
         "test": "测试11111111"
       }
+
+  - name: "EndPointInformer"
+    type: "Discovery"
+    enabled: false
+    settings: '{}'
+
+  - name: "DeploymentInformer"
+    type: "Discovery"
+    enabled: true
+    settings: '{}'
+
+  - name: "Collector"
+    type: "Compliance"
+    enabled: true
+    settings: '{}'
 
   - name: "Website"
     type: "Compliance"
@@ -25,4 +40,4 @@ plugins:
 logging:
   level: "info"
 
-kubeconfig: "io.yml"
+kubeconfig: "gzg.yml"

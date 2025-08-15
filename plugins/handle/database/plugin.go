@@ -2,8 +2,9 @@ package database
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"github.com/bytedance/sonic"
+	"github.com/bearslyricattack/CompliK/pkg/constants"
 	"log"
 	"time"
 
@@ -55,7 +56,7 @@ func (p *DatabasePlugin) Start(ctx context.Context, config config.PluginConfig, 
 	if err := p.db.AutoMigrate(&IngressAnalysisRecord{}); err != nil {
 		return err
 	}
-	subscribe := eventBus.Subscribe("result")
+	subscribe := eventBus.Subscribe(constants.ComplianceWebsiteTopic)
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -69,15 +70,13 @@ func (p *DatabasePlugin) Start(ctx context.Context, config config.PluginConfig, 
 					log.Println("数据库插件事件通道已关闭")
 					return
 				}
-				results, ok := event.Payload.([]models.IngressAnalysisResult)
+				result, ok := event.Payload.(*models.IngressAnalysisResult)
 				if !ok {
 					log.Printf("事件类型错误: %T", event.Payload)
 					continue
 				}
-				if err := p.saveResults(results); err != nil {
+				if err := p.saveResults(result); err != nil {
 					log.Printf("保存数据失败: %v", err)
-				} else {
-					log.Printf("成功保存 %d 条记录", len(results))
 				}
 			case <-ctx.Done():
 				log.Println("DatabasePlugin 停止")
@@ -123,24 +122,31 @@ func (p *DatabasePlugin) initDB() error {
 	return nil
 }
 
-func (p *DatabasePlugin) saveResults(results []models.IngressAnalysisResult) error {
-	var records []IngressAnalysisRecord
-
-	for _, result := range results {
-		keywordsJSON := ""
-		if len(result.Keywords) > 0 {
-			if data, err := sonic.Marshal(result.Keywords); err == nil {
+func (p *DatabasePlugin) saveResults(result *models.IngressAnalysisResult) error {
+	if p == nil {
+		return fmt.Errorf("DatabasePlugin 实例为空")
+	}
+	if p.db == nil {
+		return fmt.Errorf("数据库连接未初始化")
+	}
+	if result == nil {
+		return fmt.Errorf("分析结果为空")
+	}
+	var record IngressAnalysisRecord
+	keywordsJSON := ""
+	if result.Keywords != nil && len(result.Keywords) > 0 {
+		if data, err := json.Marshal(&result.Keywords); err == nil {
+			if data != nil {
 				keywordsJSON = string(data)
 			}
 		}
-		records = append(records, IngressAnalysisRecord{
-			URL:         result.URL,
-			IsIllegal:   result.IsIllegal,
-			Description: result.Description,
-			Keywords:    keywordsJSON,
-			Namespace:   result.Namespace,
-			Html:        result.Html,
-		})
 	}
-	return p.db.Create(&records).Error
+	record.URL = result.URL
+	record.IsIllegal = result.IsIllegal
+	record.Description = result.Description
+	record.Keywords = keywordsJSON
+	record.Namespace = result.Namespace
+	record.Html = result.Html
+
+	return p.db.Create(&record).Error
 }

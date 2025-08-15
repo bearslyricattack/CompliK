@@ -1,15 +1,15 @@
-package website
+package collector
 
 import (
-	"context"
 	"errors"
 	"fmt"
+	"github.com/bearslyricattack/CompliK/plugins/compliance/collector/utils"
+	"golang.org/x/net/context"
 	"strings"
 	"time"
 
 	"github.com/bearslyricattack/CompliK/pkg/models"
 	"github.com/bearslyricattack/CompliK/pkg/utils/logger"
-	"github.com/bearslyricattack/CompliK/plugins/compliance/website/utils"
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
 )
@@ -17,13 +17,6 @@ import (
 const (
 	skipJudgeError = "skip judge"
 )
-
-type ScrapeResult struct {
-	URL        string `json:"url"`
-	HTML       string `json:"html"`
-	Screenshot []byte `json:"screenshot"`
-	Namespace  string `json:"namespace"`
-}
 
 type Scraper struct {
 	logger *logger.Logger
@@ -35,25 +28,22 @@ func NewScraper(logger *logger.Logger) *Scraper {
 	}
 }
 
-func (s *Scraper) ScrapeAndScreenshot(ctx context.Context, ingress models.IngressInfo, browserPool *utils.BrowserPool) (*ScrapeResult, error) {
-	taskCtx, cancel := context.WithTimeout(ctx, 40*time.Second)
+func (s *Scraper) CollectorAndScreenshot(ctx context.Context, ingress models.IngressInfo, browserPool *utils.BrowserPool) (*models.CollectorResult, error) {
+	taskCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
-
 	if ingress.PodCount == 0 {
+		fmt.Println("没有pod")
 		return nil, errors.New(skipJudgeError)
 	}
-
 	instance, err := browserPool.Get()
 	if err != nil {
 		return nil, fmt.Errorf("获取浏览器实例失败: %v", err)
 	}
 	defer browserPool.Put(instance)
-
 	page, err := s.setupPage(taskCtx, instance)
 	if err != nil {
 		return nil, err
 	}
-
 	url := s.formatUrl(ingress)
 	wait := page.EachEvent(func(e *proto.NetworkResponseReceived) {
 		if e.Type == proto.NetworkResourceTypeDocument && (e.Response.URL == url) {
@@ -64,12 +54,10 @@ func (s *Scraper) ScrapeAndScreenshot(ctx context.Context, ingress models.Ingres
 		}
 	})
 	defer wait()
-
 	err = page.Navigate(url)
 	if err != nil {
 		return nil, fmt.Errorf("页面导航失败: %w", err)
 	}
-
 	if err := taskCtx.Err(); err != nil {
 		if errors.Is(err, context.Canceled) {
 			return nil, nil
@@ -94,11 +82,12 @@ func (s *Scraper) ScrapeAndScreenshot(ctx context.Context, ingress models.Ingres
 		return nil, err
 	}
 	s.logger.Info(fmt.Sprintf("抓取完成: URL=%s HTML长度=%d 截图大小=%d bytes", url, len(content), len(screenshot)))
-	return &ScrapeResult{
+	return &models.CollectorResult{
 		URL:        url,
 		HTML:       content,
 		Screenshot: screenshot,
 		Namespace:  ingress.Namespace,
+		IsEmpty:    false,
 	}, nil
 }
 
