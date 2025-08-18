@@ -67,7 +67,6 @@ func (p *CollectorPlugin) Start(ctx context.Context, config config.PluginConfig,
 					log.Printf("事件负载类型错误，期望models.IngressInfo，实际: %T", e.Payload)
 					return
 				}
-
 				var result *models.CollectorResult
 				taskCtx, cancel := context.WithTimeout(ctx, 80*time.Second)
 				defer cancel()

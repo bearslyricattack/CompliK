@@ -1,4 +1,4 @@
-package website
+package utils
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/bearslyricattack/CompliK/pkg/utils/logger"
+	"github.com/bearslyricattack/CompliK/plugins/compliance/verify/website"
 	"io"
 	"net/http"
 	"regexp"
@@ -125,7 +126,7 @@ func (r *ContentReviewer) buildPrompt(htmlContent string) string {
 }`)
 }
 
-func (r *ContentReviewer) callAPI(ctx context.Context, requestData map[string]interface{}) (*APIResponse, error) {
+func (r *ContentReviewer) callAPI(ctx context.Context, requestData map[string]interface{}) (*website.APIResponse, error) {
 	requestBody, err := json.Marshal(requestData)
 	if err != nil {
 		r.logger.Error(fmt.Sprintf("序列化请求数据失败: %v", err))
@@ -163,7 +164,7 @@ func (r *ContentReviewer) callAPI(ctx context.Context, requestData map[string]in
 		r.logger.Error(fmt.Sprintf("API调用失败: 状态码 %d, 错误: %s", resp.StatusCode, errorText))
 		return nil, fmt.Errorf("API调用失败: 状态码 %d", resp.StatusCode)
 	}
-	var responseData APIResponse
+	var responseData website.APIResponse
 	if err := json.Unmarshal(body, &responseData); err != nil {
 		return nil, fmt.Errorf("解码API响应失败: %v", err)
 	}
@@ -174,10 +175,10 @@ func (r *ContentReviewer) callAPI(ctx context.Context, requestData map[string]in
 	return &responseData, nil
 }
 
-func (r *ContentReviewer) parseResponse(response *APIResponse, scrape *models.CollectorResult) (*models.IngressAnalysisResult, error) {
+func (r *ContentReviewer) parseResponse(response *website.APIResponse, scrape *models.CollectorResult) (*models.IngressAnalysisResult, error) {
 	reviewResult := response.Choices[0].Message.Content
 	cleanData := r.cleanResponseData(reviewResult)
-	var resultDict ResultDict
+	var resultDict website.ResultDict
 	if err := json.Unmarshal([]byte(cleanData), &resultDict); err != nil {
 		r.logger.Error(fmt.Sprintf("解析API返回的JSON时出错: %v", err))
 		fmt.Println(cleanData)

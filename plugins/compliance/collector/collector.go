@@ -32,7 +32,6 @@ func (s *Scraper) CollectorAndScreenshot(ctx context.Context, ingress models.Ing
 	taskCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 	if ingress.PodCount == 0 {
-		fmt.Println("没有pod")
 		return nil, errors.New(skipJudgeError)
 	}
 	instance, err := browserPool.Get()

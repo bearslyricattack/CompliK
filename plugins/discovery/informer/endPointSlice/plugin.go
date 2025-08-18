@@ -38,7 +38,6 @@ type EndPointInformerPlugin struct {
 	eventBus *eventbus.EventBus
 }
 
-// EndpointSliceInfo 封装 EndpointSlice 的状态信息
 type EndpointSliceInfo struct {
 	Namespace         string
 	ServiceName       string

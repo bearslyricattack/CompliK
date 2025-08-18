@@ -1,7 +1,7 @@
 plugins:
   - name: "Cron"
     type: "Discovery"
-    enabled: false
+    enabled: true
     settings: |
       {
         "test": "测试11111111"
@@ -14,7 +14,7 @@ plugins:
 
   - name: "DeploymentInformer"
     type: "Discovery"
-    enabled: true
+    enabled: false
     settings: '{}'
 
   - name: "Collector"

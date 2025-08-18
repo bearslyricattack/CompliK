@@ -49,6 +49,8 @@ func (p *CronPlugin) Type() string {
 }
 
 func (p *CronPlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
+	time.Sleep(20 * time.Second)
+	p.executeTask(ctx, eventBus)
 	go func() {
 		ticker := time.NewTicker(IntervalHours)
 		defer ticker.Stop()

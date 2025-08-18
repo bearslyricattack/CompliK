@@ -1,47 +1,44 @@
-package website
+package custom
 
 import (
 	"context"
-	"log"
-	"time"
-
 	"github.com/bearslyricattack/CompliK/pkg/constants"
 	"github.com/bearslyricattack/CompliK/pkg/eventbus"
 	"github.com/bearslyricattack/CompliK/pkg/models"
 	"github.com/bearslyricattack/CompliK/pkg/plugin"
 	"github.com/bearslyricattack/CompliK/pkg/utils/config"
 	"github.com/bearslyricattack/CompliK/pkg/utils/logger"
+	"log"
+	"time"
 )
 
 const (
-	pluginName = "Website"
+	pluginName = "Custom"
 	pluginType = "Compliance"
 	maxWorkers = 20
 )
 
 func init() {
 	plugin.PluginFactories[pluginName] = func() plugin.Plugin {
-		return &WebsitePlugin{
-			logger:   logger.NewLogger(),
-			reviewer: NewContentReviewer(logger.NewLogger()),
+		return &CustomPlugin{
+			logger: logger.NewLogger(),
 		}
 	}
 }
 
-type WebsitePlugin struct {
-	logger   *logger.Logger
-	reviewer *ContentReviewer
+type CustomPlugin struct {
+	logger *logger.Logger
 }
 
-func (p *WebsitePlugin) Name() string {
+func (p *CustomPlugin) Name() string {
 	return pluginName
 }
 
-func (p *WebsitePlugin) Type() string {
+func (p *CustomPlugin) Type() string {
 	return pluginType
 }
 
-func (p *WebsitePlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
+func (p *CustomPlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
 	subscribe := eventBus.Subscribe(constants.ComplianceCollectorTopic)
 	semaphore := make(chan struct{}, maxWorkers)
 	for {
@@ -78,11 +75,11 @@ func (p *WebsitePlugin) Start(ctx context.Context, config config.PluginConfig, e
 	}
 }
 
-func (p *WebsitePlugin) Stop(ctx context.Context) error {
+func (p *CustomPlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (p *WebsitePlugin) processCollector(ctx context.Context, collector *models.CollectorResult) (res *models.IngressAnalysisResult) {
+func (p *CustomPlugin) processCollector(ctx context.Context, collector *models.CollectorResult) (res *models.IngressAnalysisResult) {
 	taskCtx, cancel := context.WithTimeout(ctx, 80*time.Second)
 	defer cancel()
 	if collector.IsEmpty == true {

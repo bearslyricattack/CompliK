@@ -183,7 +183,6 @@ func (p *DeploymentInformerPlugin) hasDeploymentChanged(oldDeployment, newDeploy
 	if oldInfo == nil {
 		return nil, false, nil
 	}
-	// 在主逻辑中使用
 	hasChanged := false
 	if !compareStringSlices(oldInfo.Images, newInfo.Images) {
 		hasChanged = true
@@ -192,22 +191,18 @@ func (p *DeploymentInformerPlugin) hasDeploymentChanged(oldDeployment, newDeploy
 	return newInfo, hasChanged, nil
 }
 
-// 替换 reflect.DeepEqual，使用自定义比较
 func compareStringSlices(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
 	}
-
 	for i, v := range a {
 		if v != b[i] {
 			return false
 		}
 	}
-
 	return true
 }
 
-// 解决方案：去重后再比较
 func deduplicateAndSort(images []string) []string {
 	imageSet := make(map[string]bool)
 	var result []string
@@ -255,7 +250,6 @@ func (p *DeploymentInformerPlugin) checkIngressByAppName(namespace, appName stri
 	}
 	var matchedIngresses []IngressInfo
 	for _, ingress := range ingressItems.Items {
-		// 检查Ingress是否有相同的app-deploy-manager标签
 		if ingressAppName, exists := ingress.Labels["cloud.sealos.io/app-deploy-manager"]; exists && ingressAppName == appName {
 			for _, rule := range ingress.Spec.Rules {
 				if rule.HTTP == nil {
