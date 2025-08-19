@@ -1,9 +1,9 @@
-package collector
+package browser
 
 import (
 	"errors"
 	"fmt"
-	"github.com/bearslyricattack/CompliK/plugins/compliance/collector/utils"
+	"github.com/bearslyricattack/CompliK/plugins/compliance/collector/browser/utils"
 	"golang.org/x/net/context"
 	"strings"
 	"time"
@@ -14,25 +14,51 @@ import (
 	"github.com/go-rod/rod/lib/proto"
 )
 
-const (
-	skipJudgeError = "skip judge"
-)
+type CollectorInfo struct {
+	DiscoveryName string `json:"discovery_name"`
+	CollectorName string `json:"collector_name"`
 
-type Scraper struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+
+	Host string   `json:"host"`
+	Path []string `json:"path"`
+	URL  string   `json:"url"`
+
+	HTML       string `json:"html"`
+	IsEmpty    bool   `json:"is_empty"`
+	Screenshot []byte `json:"screenshot"`
+}
+
+type Collector struct {
 	logger *logger.Logger
 }
 
-func NewScraper(logger *logger.Logger) *Scraper {
-	return &Scraper{
+func NewCollector(logger *logger.Logger) *Collector {
+	return &Collector{
 		logger: logger,
 	}
 }
 
-func (s *Scraper) CollectorAndScreenshot(ctx context.Context, ingress models.IngressInfo, browserPool *utils.BrowserPool) (*models.CollectorResult, error) {
+func (s *Collector) CollectorAndScreenshot(ctx context.Context, discovery models.DiscoveryInfo, browserPool *utils.BrowserPool, name string) (*models.CollectorInfo, error) {
 	taskCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
-	if ingress.PodCount == 0 {
-		return nil, errors.New(skipJudgeError)
+	if discovery.PodCount == 0 {
+		return &models.CollectorInfo{
+			DiscoveryName: discovery.DiscoveryName,
+			CollectorName: name,
+
+			Name:      discovery.Name,
+			Namespace: discovery.Namespace,
+
+			Host: discovery.Host,
+			Path: discovery.Path,
+
+			URL:        "",
+			HTML:       "",
+			Screenshot: nil,
+			IsEmpty:    true,
+		}, nil
 	}
 	instance, err := browserPool.Get()
 	if err != nil {
@@ -43,7 +69,7 @@ func (s *Scraper) CollectorAndScreenshot(ctx context.Context, ingress models.Ing
 	if err != nil {
 		return nil, err
 	}
-	url := s.formatUrl(ingress)
+	url := s.formatUrl(discovery)
 	wait := page.EachEvent(func(e *proto.NetworkResponseReceived) {
 		if e.Type == proto.NetworkResourceTypeDocument && (e.Response.URL == url) {
 			if e.Response.Status == 502 || e.Response.Status == 503 || e.Response.Status == 504 || e.Response.Status == 404 {
@@ -59,14 +85,29 @@ func (s *Scraper) CollectorAndScreenshot(ctx context.Context, ingress models.Ing
 	}
 	if err := taskCtx.Err(); err != nil {
 		if errors.Is(err, context.Canceled) {
-			return nil, nil
+			if discovery.PodCount == 0 {
+				return &models.CollectorInfo{
+					DiscoveryName: discovery.DiscoveryName,
+					CollectorName: name,
+
+					Name:      discovery.Name,
+					Namespace: discovery.Namespace,
+
+					Host: discovery.Host,
+					Path: discovery.Path,
+
+					URL:        "",
+					HTML:       "",
+					Screenshot: nil,
+					IsEmpty:    true,
+				}, nil
+			}
 		}
 		return nil, err
 	}
 	if err := s.waitForPageLoad(taskCtx, page); err != nil {
 		return nil, err
 	}
-	time.Sleep(1 * time.Second)
 	content, err := page.HTML()
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("获取页面内容失败: %v", err))
@@ -74,23 +115,45 @@ func (s *Scraper) CollectorAndScreenshot(ctx context.Context, ingress models.Ing
 	}
 	if s.isErrorPage(content) {
 		cancel()
-		return nil, errors.New(skipJudgeError)
+		return &models.CollectorInfo{
+			DiscoveryName: discovery.DiscoveryName,
+			CollectorName: name,
+
+			Name:      discovery.Name,
+			Namespace: discovery.Namespace,
+
+			Host: discovery.Host,
+			Path: discovery.Path,
+
+			URL:        "",
+			HTML:       "",
+			Screenshot: nil,
+			IsEmpty:    true,
+		}, nil
 	}
 	screenshot, err := s.takeScreenshot(taskCtx, page)
 	if err != nil {
 		return nil, err
 	}
 	s.logger.Info(fmt.Sprintf("抓取完成: URL=%s HTML长度=%d 截图大小=%d bytes", url, len(content), len(screenshot)))
-	return &models.CollectorResult{
+	return &models.CollectorInfo{
+		DiscoveryName: discovery.DiscoveryName,
+		CollectorName: name,
+
+		Name:      discovery.Name,
+		Namespace: discovery.Namespace,
+
+		Host: discovery.Host,
+		Path: discovery.Path,
+
 		URL:        url,
 		HTML:       content,
 		Screenshot: screenshot,
-		Namespace:  ingress.Namespace,
 		IsEmpty:    false,
 	}, nil
 }
 
-func (s *Scraper) formatUrl(ingress models.IngressInfo) string {
+func (s *Collector) formatUrl(ingress models.DiscoveryInfo) string {
 	host := ingress.Host
 	if host == "" {
 		return ""
@@ -101,7 +164,7 @@ func (s *Scraper) formatUrl(ingress models.IngressInfo) string {
 	return "http://" + host
 }
 
-func (s *Scraper) setupPage(ctx context.Context, instance *utils.BrowserInstance) (*rod.Page, error) {
+func (s *Collector) setupPage(ctx context.Context, instance *utils.BrowserInstance) (*rod.Page, error) {
 	var page *rod.Page
 	err := rod.Try(func() {
 		page = instance.Browser.MustPage().Context(ctx)
@@ -129,7 +192,7 @@ func (s *Scraper) setupPage(ctx context.Context, instance *utils.BrowserInstance
 	return page, nil
 }
 
-func (s *Scraper) isErrorStatusCode(statusCode int64) bool {
+func (s *Collector) isErrorStatusCode(statusCode int64) bool {
 	errorCodes := []int64{502, 503, 504, 404}
 	for _, code := range errorCodes {
 		if statusCode == code {
@@ -139,7 +202,7 @@ func (s *Scraper) isErrorStatusCode(statusCode int64) bool {
 	return false
 }
 
-func (s *Scraper) waitForPageLoad(ctx context.Context, page *rod.Page) error {
+func (s *Collector) waitForPageLoad(ctx context.Context, page *rod.Page) error {
 	waitDone := make(chan error, 1)
 	go func() {
 		waitDone <- page.WaitLoad()
@@ -152,7 +215,7 @@ func (s *Scraper) waitForPageLoad(ctx context.Context, page *rod.Page) error {
 	}
 }
 
-func (s *Scraper) isErrorPage(content string) bool {
+func (s *Collector) isErrorPage(content string) bool {
 	if len(content) >= 400 {
 		return false
 	}
@@ -175,7 +238,7 @@ func (s *Scraper) isErrorPage(content string) bool {
 	return false
 }
 
-func (s *Scraper) takeScreenshot(ctx context.Context, page *rod.Page) ([]byte, error) {
+func (s *Collector) takeScreenshot(ctx context.Context, page *rod.Page) ([]byte, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()

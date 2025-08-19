@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 	"github.com/bearslyricattack/CompliK/pkg/constants"
+	"github.com/bearslyricattack/CompliK/pkg/models"
+	"github.com/bearslyricattack/CompliK/plugins/discovery/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sort"
 	"strings"
 	"time"
 
@@ -21,8 +22,12 @@ import (
 )
 
 const (
-	deploymentPluginName = "DeploymentInformer"
-	deploymentPluginType = "Discovery"
+	deploymentPluginName = constants.DiscoveryInformerDeploymentName
+	deploymentPluginType = constants.DiscoveryInformerPluginType
+)
+
+const (
+	AppDeployManagerLabel = "cloud.sealos.io/app-deploy-manager"
 )
 
 func init() {
@@ -45,10 +50,15 @@ type DeploymentInfo struct {
 	Namespace        string
 	Name             string
 	Images           []string
-	MatchedIngresses []IngressInfo
+	MatchedIngresses []models.DiscoveryInfo
 }
 
-var deploymentChangeCounter int64
+type IngressInfo struct {
+	Name      string
+	Namespace string
+	Host      string
+	Path      string
+}
 
 func (p *DeploymentInformerPlugin) Name() string {
 	return deploymentPluginName
@@ -79,45 +89,26 @@ func (p *DeploymentInformerPlugin) startDeploymentInformerWatch(ctx context.Cont
 				return
 			}
 			if p.shouldProcessDeployment(deployment) {
-				info, err := p.extractDeploymentInfo(deployment)
+				res, err := p.getDeploymentRelatedIngresses(deployment)
 				if err != nil {
-					p.logger.Error(fmt.Sprintf("提取Deployment信息失败: %v", err))
 					return
 				}
-				if info == nil {
-					return
-				}
-				deploymentChangeCounter++
 				p.logger.Info(fmt.Sprintf("新创建deployment，name：%s,namespace：%s", deployment.Name, deployment.Namespace))
-				p.handleDeploymentEvent(info)
+				p.handleDeploymentEvent(res)
 			}
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldDeployment := oldObj.(*appsv1.Deployment)
 			newDeployment := newObj.(*appsv1.Deployment)
 			if p.shouldProcessDeployment(newDeployment) {
-				info, hasChanged, err := p.hasDeploymentChanged(oldDeployment, newDeployment)
-				if err != nil {
-					p.logger.Error(fmt.Sprintf("对比Deployment信息失败: %v", err))
-					return
+				hasChanged := p.hasDeploymentChanged(oldDeployment, newDeployment)
+				if hasChanged {
+					res, err := p.getDeploymentRelatedIngresses(newDeployment)
+					if err != nil {
+						return
+					}
+					p.handleDeploymentEvent(res)
 				}
-				if !hasChanged || info == nil {
-					return
-				}
-				deploymentChangeCounter++
-				p.handleDeploymentEvent(info)
-			}
-		},
-		DeleteFunc: func(obj interface{}) {
-			deployment := obj.(*appsv1.Deployment)
-			if p.shouldProcessDeployment(deployment) {
-				info, err := p.extractDeploymentInfo(deployment)
-				if err != nil {
-					p.logger.Error(fmt.Sprintf("提取Deployment信息失败: %v", err))
-					return
-				}
-				deploymentChangeCounter++
-				p.handleDeploymentEvent(info)
 			}
 		},
 	})
@@ -143,145 +134,70 @@ func (p *DeploymentInformerPlugin) Stop(ctx context.Context) error {
 }
 
 func (p *DeploymentInformerPlugin) shouldProcessDeployment(deployment *appsv1.Deployment) bool {
-	return strings.HasPrefix(deployment.Namespace, "ns-s2m8j3yf")
+	return strings.HasPrefix(deployment.Namespace, "ns-")
 }
 
-func (p *DeploymentInformerPlugin) extractDeploymentInfo(deployment *appsv1.Deployment) (*DeploymentInfo, error) {
+func (p *DeploymentInformerPlugin) hasDeploymentChanged(oldDeployment, newDeployment *appsv1.Deployment) bool {
+	oldImages := extractImagesFromDeployment(oldDeployment)
+	newImages := extractImagesFromDeployment(newDeployment)
+	hasChanged := !compareStringSlices(oldImages, newImages)
+	if hasChanged {
+		p.logger.Info(fmt.Sprintf("检测到Deployment %s/%s 镜像变化，老镜像:%v，新镜像:%v", newDeployment.Namespace, newDeployment.Name, oldImages, newImages))
+	}
+	return hasChanged
+}
+
+func extractImagesFromDeployment(deployment *appsv1.Deployment) []string {
 	var images []string
 	for _, container := range deployment.Spec.Template.Spec.Containers {
 		images = append(images, container.Image)
 	}
-	matchedIngresses, err := p.getDeploymentRelatedIngresses(deployment)
-	if err != nil {
-		p.logger.Error(fmt.Sprintf("获取Deployment关联Ingress信息失败: %s/%s, 错误=%v", deployment.Namespace, deployment.Name, err))
-	}
-
-	if len(matchedIngresses) == 0 {
-		return nil, nil
-	}
-	info := &DeploymentInfo{
-		Namespace:        deployment.Namespace,
-		Name:             deployment.Name,
-		Images:           images,
-		MatchedIngresses: matchedIngresses,
-	}
-	return info, nil
+	return images
 }
 
-func (p *DeploymentInformerPlugin) hasDeploymentChanged(oldDeployment, newDeployment *appsv1.Deployment) (*DeploymentInfo, bool, error) {
-	newInfo, err := p.extractDeploymentInfo(newDeployment)
-	if err != nil {
-		return nil, false, fmt.Errorf("提取新Deployment信息失败: %v", err)
-	}
-	if newInfo == nil {
-		return nil, false, nil
-	}
-	oldInfo, err := p.extractDeploymentInfo(oldDeployment)
-	if err != nil {
-		return nil, false, fmt.Errorf("提取旧Deployment信息失败: %v", err)
-	}
-	if oldInfo == nil {
-		return nil, false, nil
-	}
-	hasChanged := false
-	if !compareStringSlices(oldInfo.Images, newInfo.Images) {
-		hasChanged = true
-		p.logger.Info(fmt.Sprintf("检测到镜像变化，老镜像:%s,新镜像:%s", oldInfo.Images, newInfo.Images))
-	}
-	return newInfo, hasChanged, nil
-}
-
-func compareStringSlices(a, b []string) bool {
-	if len(a) != len(b) {
+func compareStringSlices(slice1, slice2 []string) bool {
+	if len(slice1) != len(slice2) {
 		return false
 	}
-	for i, v := range a {
-		if v != b[i] {
+	count1 := make(map[string]int)
+	count2 := make(map[string]int)
+	for _, item := range slice1 {
+		count1[item]++
+	}
+	for _, item := range slice2 {
+		count2[item]++
+	}
+	for key, val := range count1 {
+		if count2[key] != val {
 			return false
 		}
 	}
 	return true
 }
 
-func deduplicateAndSort(images []string) []string {
-	imageSet := make(map[string]bool)
-	var result []string
-
-	for _, img := range images {
-		if !imageSet[img] {
-			imageSet[img] = true
-			result = append(result, img)
-		}
+func (p *DeploymentInformerPlugin) handleDeploymentEvent(discoveryInfo []models.DiscoveryInfo) {
+	for _, info := range discoveryInfo {
+		p.eventBus.Publish(constants.DiscoveryTopic, eventbus.Event{
+			Payload: info,
+		})
 	}
-
-	sort.Strings(result)
-	return result
 }
 
-func (p *DeploymentInformerPlugin) handleDeploymentEvent(deploymentInfo *DeploymentInfo) {
-	p.eventBus.Publish(constants.DiscoveryInformerTopic, eventbus.Event{
-		Payload: deploymentInfo,
-	})
-}
-
-type IngressInfo struct {
-	Name      string
-	Namespace string
-	Host      string
-	Path      string
-}
-
-func (p *DeploymentInformerPlugin) getDeploymentRelatedIngresses(deployment *appsv1.Deployment) ([]IngressInfo, error) {
-	appName, exists := deployment.Labels["cloud.sealos.io/app-deploy-manager"]
+func (p *DeploymentInformerPlugin) getDeploymentRelatedIngresses(deployment *appsv1.Deployment) ([]models.DiscoveryInfo, error) {
+	appName, exists := deployment.Labels[AppDeployManagerLabel]
 	if !exists {
-		return []IngressInfo{}, nil
+		return []models.DiscoveryInfo{}, nil
 	}
-	matchedIngresses, err := p.checkIngressByAppName(deployment.Namespace, appName)
+	ingressItems, err := k8s.ClientSet.NetworkingV1().Ingresses(deployment.Namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("检查应用 %s 的Ingress失败: %v", appName, err)
+		return nil, fmt.Errorf("获取命名空间 %s 中的Ingress列表失败: %v", deployment.Namespace, err)
 	}
-	return matchedIngresses, nil
-}
-
-func (p *DeploymentInformerPlugin) checkIngressByAppName(namespace, appName string) ([]IngressInfo, error) {
-	ingressItems, err := k8s.ClientSet.NetworkingV1().Ingresses(namespace).List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list ingresses in namespace %s: %v", namespace, err)
-	}
-	var matchedIngresses []IngressInfo
+	var ingresses []models.DiscoveryInfo
 	for _, ingress := range ingressItems.Items {
-		if ingressAppName, exists := ingress.Labels["cloud.sealos.io/app-deploy-manager"]; exists && ingressAppName == appName {
-			for _, rule := range ingress.Spec.Rules {
-				if rule.HTTP == nil {
-					ingressInfo := IngressInfo{
-						Name:      ingress.Name,
-						Namespace: ingress.Namespace,
-						Host:      rule.Host,
-						Path:      "/",
-					}
-					if ingressInfo.Host == "" {
-						ingressInfo.Host = "*"
-					}
-					matchedIngresses = append(matchedIngresses, ingressInfo)
-					continue
-				}
-				for _, path := range rule.HTTP.Paths {
-					ingressInfo := IngressInfo{
-						Name:      ingress.Name,
-						Namespace: ingress.Namespace,
-						Host:      rule.Host,
-						Path:      path.Path,
-					}
-					if ingressInfo.Path == "" {
-						ingressInfo.Path = "/"
-					}
-					if ingressInfo.Host == "" {
-						ingressInfo.Host = "*"
-					}
-					matchedIngresses = append(matchedIngresses, ingressInfo)
-				}
-			}
+		if ingressAppName, exists := ingress.Labels[AppDeployManagerLabel]; exists && ingressAppName == appName {
+			res := utils.GenerateDiscoveryInfo(ingress, true, 1, p.Name())
+			ingresses = append(ingresses, res...)
 		}
 	}
-	return matchedIngresses, nil
+	return ingresses, nil
 }

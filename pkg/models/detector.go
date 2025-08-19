@@ -8,17 +8,25 @@ import (
 	"time"
 )
 
-type IngressAnalysisResult struct {
-	URL         string   `json:"url"`
+type DetectorInfo struct {
+	DiscoveryName string `json:"discovery_name"`
+	CollectorName string `json:"collector_name"`
+	DetectorName  string `json:"detector_name"`
+
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+
+	Host string   `json:"host"`
+	Path []string `json:"path"`
+	URL  string   `json:"url"`
+
 	IsIllegal   bool     `json:"is_illegal"`
 	Description string   `json:"description,omitempty"`
 	Keywords    []string `json:"keywords,omitempty"`
-	Namespace   string   `json:"namespace,omitempty"`
-	Html        string   `json:"html,omitempty"`
 }
 
-func (ar *IngressAnalysisResult) SaveToFile(dirPath string) error {
-	if ar == nil {
+func (d *DetectorInfo) SaveToFile(dirPath string) error {
+	if d == nil {
 		return fmt.Errorf("models.IngressAnalysisResult 为空")
 	}
 	if err := os.MkdirAll(dirPath, 0755); err != nil {
@@ -27,7 +35,7 @@ func (ar *IngressAnalysisResult) SaveToFile(dirPath string) error {
 	timestamp := time.Now().Format("20060102_150405")
 	filename := fmt.Sprintf("analysis_%s.json", timestamp)
 	filePath := filepath.Join(dirPath, filename)
-	data, err := json.MarshalIndent(ar, "", "  ")
+	data, err := json.MarshalIndent(d, "", "  ")
 	if err != nil {
 		return fmt.Errorf("JSON序列化失败: %v", err)
 	}
@@ -35,12 +43,4 @@ func (ar *IngressAnalysisResult) SaveToFile(dirPath string) error {
 		return fmt.Errorf("写入文件失败: %v", err)
 	}
 	return nil
-}
-
-type CollectorResult struct {
-	URL        string `json:"url"`
-	HTML       string `json:"html"`
-	IsEmpty    bool   `json:"is_empty"`
-	Screenshot []byte `json:"screenshot"`
-	Namespace  string `json:"namespace"`
 }

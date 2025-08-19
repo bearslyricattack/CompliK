@@ -20,8 +20,8 @@ import (
 )
 
 const (
-	pluginName = "EndPointInformer"
-	pluginType = "Discovery"
+	pluginName = constants.DiscoveryInformerEndPointSliceName
+	pluginType = constants.DiscoveryInformerPluginType
 )
 
 func init() {
@@ -97,7 +97,6 @@ func (p *EndPointInformerPlugin) startInformerWatch(ctx context.Context) {
 			}
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			fmt.Println("有变更")
 			oldEndpointSlice := oldObj.(*discoveryv1.EndpointSlice)
 			newEndpointSlice := newObj.(*discoveryv1.EndpointSlice)
 			if p.shouldProcessEndpointSlice(newEndpointSlice) {
@@ -112,21 +111,7 @@ func (p *EndPointInformerPlugin) startInformerWatch(ctx context.Context) {
 				p.handleEndpointSliceEvent(info)
 			}
 		},
-		DeleteFunc: func(obj interface{}) {
-			endpointSlice := obj.(*discoveryv1.EndpointSlice)
-			info, err := p.extractEndpointSliceInfo(endpointSlice)
-			if err != nil {
-				p.logger.Error(fmt.Sprintf("提取EndpointSlice信息失败: %v", err))
-				return
-			}
-			if len(info.MatchedIngresses) > 0 {
-				changeCounter++
-				p.logEndpointSliceEvent("删除", changeCounter, info)
-				p.handleEndpointSliceEvent(info)
-			}
-		},
 	})
-
 	factory.Start(p.stopChan)
 	if !cache.WaitForCacheSync(p.stopChan, endpointSliceInformer.HasSynced) {
 		p.logger.Error("Failed to wait for caches to sync")
@@ -253,7 +238,7 @@ func (p *EndPointInformerPlugin) setDifference(set1, set2 map[string]bool) []str
 }
 
 func (p *EndPointInformerPlugin) handleEndpointSliceEvent(endpointInfo *EndpointSliceInfo) {
-	p.eventBus.Publish(constants.DiscoveryInformerTopic, eventbus.Event{
+	p.eventBus.Publish(constants.DiscoveryTopic, eventbus.Event{
 		Payload: endpointInfo,
 	})
 }

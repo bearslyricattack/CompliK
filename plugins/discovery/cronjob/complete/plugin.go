@@ -10,7 +10,8 @@ import (
 	"github.com/bearslyricattack/CompliK/pkg/plugin"
 	"github.com/bearslyricattack/CompliK/pkg/utils/config"
 	"github.com/bearslyricattack/CompliK/pkg/utils/logger"
-	corev1 "k8s.io/api/core/v1"
+	"github.com/bearslyricattack/CompliK/plugins/discovery/utils"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"log"
@@ -20,8 +21,8 @@ import (
 )
 
 const (
-	pluginName = "Cron"
-	pluginType = "Discovery"
+	pluginName = constants.DiscoveryCronJobCompleteName
+	pluginType = constants.DiscoveryCronJobPluginType
 )
 
 const (
@@ -57,7 +58,6 @@ func (p *CronPlugin) Start(ctx context.Context, config config.PluginConfig, even
 		for {
 			select {
 			case <-ticker.C:
-				fmt.Println("启动")
 				p.executeTask(ctx, eventBus)
 			case <-ctx.Done():
 				return
@@ -79,23 +79,23 @@ func (p *CronPlugin) executeTask(ctx context.Context, eventBus *eventbus.EventBu
 			log.Printf("Task timeout: only processed %d/%d ingress", i, len(ingressList))
 			return
 		default:
-			eventBus.Publish(constants.DiscoveryCronTopic, eventbus.Event{
+			eventBus.Publish(constants.DiscoveryTopic, eventbus.Event{
 				Payload: ingress,
 			})
 		}
 	}
-	log.Printf("Successfully processed all %d ingress", len(ingressList))
 }
 
 func (p *CronPlugin) Stop(ctx context.Context) error {
 	return nil
 }
-func (p *CronPlugin) GetIngressList() ([]models.IngressInfo, error) {
+
+func (p *CronPlugin) GetIngressList() ([]models.DiscoveryInfo, error) {
 	var (
-		ingressItems             *networkingv1.IngressList
-		endpointsList            *corev1.EndpointsList
-		ingressErr, endpointsErr error
-		wg                       sync.WaitGroup
+		ingressItems                  *networkingv1.IngressList
+		endpointSlicesList            *discoveryv1.EndpointSliceList
+		ingressErr, endpointSlicesErr error
+		wg                            sync.WaitGroup
 	)
 	wg.Add(2)
 	go func() {
@@ -104,29 +104,32 @@ func (p *CronPlugin) GetIngressList() ([]models.IngressInfo, error) {
 	}()
 	go func() {
 		defer wg.Done()
-		endpointsList, endpointsErr = k8s.ClientSet.CoreV1().Endpoints("").List(context.TODO(), metav1.ListOptions{})
+		endpointSlicesList, endpointSlicesErr = k8s.ClientSet.DiscoveryV1().EndpointSlices("").List(context.TODO(), metav1.ListOptions{})
 	}()
 	wg.Wait()
 	if ingressErr != nil {
 		return nil, fmt.Errorf("获取Ingress列表失败: %v", ingressErr)
 	}
-	if endpointsErr != nil {
-		return nil, fmt.Errorf("获取Endpoints列表失败: %v", endpointsErr)
+	if endpointSlicesErr != nil {
+		return nil, fmt.Errorf("获取EndpointSlices列表失败: %v", endpointSlicesErr)
 	}
-	return p.processIngressAndEndpoints(ingressItems.Items, endpointsList.Items)
+	return p.processIngressAndEndpointSlices(ingressItems.Items, endpointSlicesList.Items)
 }
 
-// 高效处理 Ingress 和 Endpoints 数据
-func (p *CronPlugin) processIngressAndEndpoints(ingressItems []networkingv1.Ingress, endpointsItems []corev1.Endpoints) ([]models.IngressInfo, error) {
-	endpointsMap := make(map[string]map[string]*corev1.Endpoints)
-	for i := range endpointsItems {
-		endpoint := &endpointsItems[i]
-		namespace := endpoint.Namespace
-
-		if endpointsMap[namespace] == nil {
-			endpointsMap[namespace] = make(map[string]*corev1.Endpoints)
+func (p *CronPlugin) processIngressAndEndpointSlices(ingressItems []networkingv1.Ingress, endpointSlicesItems []discoveryv1.EndpointSlice) ([]models.DiscoveryInfo, error) {
+	// 构建 EndpointSlice 映射：namespace -> serviceName -> []EndpointSlice
+	endpointSlicesMap := make(map[string]map[string][]*discoveryv1.EndpointSlice)
+	for i := range endpointSlicesItems {
+		endpointSlice := &endpointSlicesItems[i]
+		namespace := endpointSlice.Namespace
+		serviceName, exists := endpointSlice.Labels["kubernetes.io/service-name"]
+		if !exists {
+			continue
 		}
-		endpointsMap[namespace][endpoint.Name] = endpoint
+		if endpointSlicesMap[namespace] == nil {
+			endpointSlicesMap[namespace] = make(map[string][]*discoveryv1.EndpointSlice)
+		}
+		endpointSlicesMap[namespace][serviceName] = append(endpointSlicesMap[namespace][serviceName], endpointSlice)
 	}
 	estimatedSize := 0
 	for _, ingress := range ingressItems {
@@ -139,64 +142,11 @@ func (p *CronPlugin) processIngressAndEndpoints(ingressItems []networkingv1.Ingr
 			}
 		}
 	}
-	ingressList := make([]models.IngressInfo, 0, estimatedSize)
-	for _, ingress := range ingressItems {
-		namespace := ingress.Namespace
-		ingressName := ingress.Name
-		if !strings.HasPrefix(namespace, "ns-") {
-			continue
-		}
-		for _, rule := range ingress.Spec.Rules {
-			host := "*"
-			if rule.Host != "" {
-				host = rule.Host
-			}
-			if rule.HTTP != nil {
-				for _, path := range rule.HTTP.Paths {
-					serviceName := "未指定"
-					if path.Backend.Service != nil {
-						serviceName = path.Backend.Service.Name
-					}
-
-					pathPattern := "/"
-					if path.Path != "" {
-						pathPattern = path.Path
-					}
-					hasActivePods, podCount := p.getServicePodInfo(endpointsMap, namespace, serviceName)
-					ingressInfo := models.IngressInfo{
-						Host:          host,
-						Namespace:     namespace,
-						IngressName:   ingressName,
-						ServiceName:   serviceName,
-						Path:          pathPattern,
-						HasActivePods: hasActivePods,
-						PodCount:      podCount,
-					}
-
-					ingressList = append(ingressList, ingressInfo)
-				}
-			}
-		}
+	ingressList := make([]models.DiscoveryInfo, 0, estimatedSize)
+	for _, ing := range ingressItems {
+		res := utils.GenerateIngressAndPodInfo(ing, endpointSlicesMap, p.Name())
+		ingressList = append(ingressList, res...)
 	}
 	p.logger.Info(fmt.Sprintf("成功获取集群的 %d 条 Ingress 规则", len(ingressList)))
 	return ingressList, nil
-}
-
-func (p *CronPlugin) getServicePodInfo(endpointsMap map[string]map[string]*corev1.Endpoints, namespace, serviceName string) (bool, int) {
-	if serviceName == "未指定" {
-		return false, 0
-	}
-	namespaceEndpoints, exists := endpointsMap[namespace]
-	if !exists {
-		return false, 0
-	}
-	endpoints, exists := namespaceEndpoints[serviceName]
-	if !exists {
-		return false, 0
-	}
-	readyPodCount := 0
-	for _, subset := range endpoints.Subsets {
-		readyPodCount += len(subset.Addresses)
-	}
-	return readyPodCount > 0, readyPodCount
 }

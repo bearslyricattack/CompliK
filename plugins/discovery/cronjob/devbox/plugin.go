@@ -10,7 +10,7 @@ import (
 	"github.com/bearslyricattack/CompliK/pkg/plugin"
 	"github.com/bearslyricattack/CompliK/pkg/utils/config"
 	"github.com/bearslyricattack/CompliK/pkg/utils/logger"
-	networkingv1 "k8s.io/api/networking/v1"
+	"github.com/bearslyricattack/CompliK/plugins/discovery/utils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -18,8 +18,15 @@ import (
 )
 
 const (
-	pluginName = "Devbox"
-	pluginType = "Discovery"
+	pluginName = constants.DiscoveryCronJobDevboxName
+	pluginType = constants.DiscoveryCronJobPluginType
+)
+
+const (
+	DevboxGroup        = "devbox.sealos.io"
+	DevboxVersion      = "v1alpha1"
+	DevboxResource     = "devboxes"
+	DevboxManagerLabel = "cloud.sealos.io/devbox-manager"
 )
 
 const (
@@ -74,7 +81,7 @@ func (p *DevboxPlugin) executeTask(ctx context.Context, eventBus *eventbus.Event
 		case <-ctx.Done():
 			return
 		default:
-			eventBus.Publish(constants.DiscoveryCronTopic, eventbus.Event{
+			eventBus.Publish(constants.DiscoveryTopic, eventbus.Event{
 				Payload: ingress,
 			})
 		}
@@ -85,18 +92,19 @@ func (p *DevboxPlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (p *DevboxPlugin) GetIngressList() ([]models.IngressInfo, error) {
-	var ingressList []models.IngressInfo
+func (p *DevboxPlugin) GetIngressList() ([]models.DiscoveryInfo, error) {
+	var ingressList []models.DiscoveryInfo
 	ingresses, err := k8s.ClientSet.NetworkingV1().Ingresses("").List(context.TODO(), metav1.ListOptions{
-		LabelSelector: "cloud.sealos.io/devbox-manager",
+		LabelSelector: DevboxManagerLabel,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list ingresses: %w", err)
 	}
+
 	devboxGVR := schema.GroupVersionResource{
-		Group:    "devbox.sealos.io",
-		Version:  "v1alpha1",
-		Resource: "devboxes",
+		Group:    DevboxGroup,
+		Version:  DevboxVersion,
+		Resource: DevboxResource,
 	}
 	devboxes, err := k8s.DynamicClient.Resource(devboxGVR).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
@@ -109,23 +117,23 @@ func (p *DevboxPlugin) GetIngressList() ([]models.IngressInfo, error) {
 			statusMap[key] = phase
 		}
 	}
-
 	for _, ingress := range ingresses.Items {
-		devboxName, ok := ingress.Labels["cloud.sealos.io/devbox-manager"]
+		devboxName, ok := ingress.Labels[DevboxManagerLabel]
 		if !ok {
 			continue
 		}
 		key := fmt.Sprintf("%s/%s", ingress.Namespace, devboxName)
 		phase, exists := statusMap[key]
 		if exists && phase == "Running" {
-			ingressList = append(ingressList, p.processRunningIngress(ingress)...)
+			ingressList = append(ingressList, utils.GenerateDiscoveryInfo(ingress, true, 1, p.Name())...)
 		} else {
-			ingressInfo := models.IngressInfo{
-				Host:          "",
+			ingressInfo := models.DiscoveryInfo{
+				DiscoveryName: p.Name(),
+				Name:          ingress.Name,
 				Namespace:     ingress.Namespace,
-				IngressName:   ingress.Name,
+				Host:          "",
+				Path:          []string{},
 				ServiceName:   "",
-				Path:          "",
 				HasActivePods: false,
 				PodCount:      0,
 			}
@@ -133,40 +141,4 @@ func (p *DevboxPlugin) GetIngressList() ([]models.IngressInfo, error) {
 		}
 	}
 	return ingressList, nil
-}
-
-func (p *DevboxPlugin) processRunningIngress(ingress networkingv1.Ingress) []models.IngressInfo {
-	var ingressList []models.IngressInfo
-	for _, rule := range ingress.Spec.Rules {
-		host := "*"
-		if rule.Host != "" {
-			host = rule.Host
-		}
-
-		if rule.HTTP != nil {
-			for _, path := range rule.HTTP.Paths {
-				serviceName := "未指定"
-				if path.Backend.Service != nil {
-					serviceName = path.Backend.Service.Name
-				}
-
-				pathPattern := "/"
-				if path.Path != "" {
-					pathPattern = path.Path
-				}
-
-				ingressInfo := models.IngressInfo{
-					Host:          host,
-					Namespace:     ingress.Namespace,
-					IngressName:   ingress.Name,
-					ServiceName:   serviceName,
-					Path:          pathPattern,
-					HasActivePods: true,
-					PodCount:      1,
-				}
-				ingressList = append(ingressList, ingressInfo)
-			}
-		}
-	}
-	return ingressList
 }

@@ -1,22 +1,26 @@
-package collector
+package browser
 
 import (
 	"context"
+	"fmt"
 	"github.com/bearslyricattack/CompliK/pkg/constants"
 	"github.com/bearslyricattack/CompliK/pkg/eventbus"
 	"github.com/bearslyricattack/CompliK/pkg/models"
 	"github.com/bearslyricattack/CompliK/pkg/plugin"
 	"github.com/bearslyricattack/CompliK/pkg/utils/config"
 	"github.com/bearslyricattack/CompliK/pkg/utils/logger"
-	"github.com/bearslyricattack/CompliK/plugins/compliance/collector/utils"
+	"github.com/bearslyricattack/CompliK/plugins/compliance/collector/browser/utils"
 	"log"
 	"strings"
 	"time"
 )
 
 const (
-	pluginName = "Collector"
-	pluginType = "Compliance"
+	pluginName = constants.ComplianceCollectorBrowserName
+	pluginType = constants.ComplianceCollectorPluginType
+)
+
+const (
 	maxWorkers = 20
 )
 
@@ -24,8 +28,8 @@ func init() {
 	plugin.PluginFactories[pluginName] = func() plugin.Plugin {
 		return &CollectorPlugin{
 			logger:      logger.NewLogger(),
-			browserPool: utils.NewBrowserPool(20, 100*time.Minute),
-			scraper:     NewScraper(logger.NewLogger()),
+			browserPool: utils.NewBrowserPool(maxWorkers, 100*time.Minute),
+			collector:   NewCollector(logger.NewLogger()),
 		}
 	}
 }
@@ -33,7 +37,7 @@ func init() {
 type CollectorPlugin struct {
 	logger      *logger.Logger
 	browserPool *utils.BrowserPool
-	scraper     *Scraper
+	collector   *Collector
 }
 
 func (p *CollectorPlugin) Name() string {
@@ -45,7 +49,7 @@ func (p *CollectorPlugin) Type() string {
 }
 
 func (p *CollectorPlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
-	subscribe := eventBus.Subscribe(constants.DiscoveryCronTopic)
+	subscribe := eventBus.Subscribe(constants.DiscoveryTopic)
 	semaphore := make(chan struct{}, maxWorkers)
 	for {
 		select {
@@ -62,28 +66,22 @@ func (p *CollectorPlugin) Start(ctx context.Context, config config.PluginConfig,
 						log.Printf("goroutine panic: %v", r)
 					}
 				}()
-				ingress, ok := e.Payload.(models.IngressInfo)
+				ingress, ok := e.Payload.(models.DiscoveryInfo)
 				if !ok {
-					log.Printf("事件负载类型错误，期望models.IngressInfo，实际: %T", e.Payload)
+					p.logger.Error(fmt.Sprintf("事件负载类型错误，期望models.DiscoveryInfo，实际: %T", e.Payload))
 					return
 				}
-				var result *models.CollectorResult
+				var result *models.CollectorInfo
 				taskCtx, cancel := context.WithTimeout(ctx, 80*time.Second)
 				defer cancel()
-				result, err := p.scraper.CollectorAndScreenshot(taskCtx, ingress, p.browserPool)
+				result, err := p.collector.CollectorAndScreenshot(taskCtx, ingress, p.browserPool, p.Name())
 				if err != nil {
 					if p.shouldSkipError(err) {
-						result = &models.CollectorResult{
-							URL:       ingress.Host,
-							Namespace: ingress.Namespace,
-							IsEmpty:   true,
-						}
-					} else {
-						log.Printf("本次读取错误：ingress：%s，%v\n", ingress.Host, err)
-						result = &models.CollectorResult{}
+						result.IsEmpty = true
 					}
+					p.logger.Error(fmt.Sprintf("本次读取错误：ingress：%s，%v\n", ingress.Host, err))
 				}
-				eventBus.Publish(constants.ComplianceCollectorTopic, eventbus.Event{
+				eventBus.Publish(constants.CollectorTopic, eventbus.Event{
 					Payload: result,
 				})
 			}(event)
@@ -108,7 +106,6 @@ func (p *CollectorPlugin) shouldSkipError(err error) bool {
 		"ERR_HTTP_RESPONSE_CODE_FAILURE",
 		"ERR_INVALID_AUTH_CREDENTIALS",
 		":ERR_INVALID_RESPONSE",
-		"skip judge",
 	}
 	errStr := err.Error()
 	for _, pattern := range skipPatterns {

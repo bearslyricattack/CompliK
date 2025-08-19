@@ -1,13 +1,15 @@
 package constants
 
 const (
-	DiscoveryCronTopic     = "discovery.cron"
-	DiscoveryInformerTopic = "discovery.informer"
+	DiscoveryTopic = "discovery"
 )
 
 const (
-	ComplianceWebsiteTopic   = "compliance.website"
-	ComplianceCollectorTopic = "compliance.collector"
+	CollectorTopic = "collector"
+)
+
+const (
+	DetectorTopic = "detector"
 )
 
 const (

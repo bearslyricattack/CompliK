@@ -1,4 +1,4 @@
-package website
+package utils
 
 type APIResponse struct {
 	Choices []struct {
