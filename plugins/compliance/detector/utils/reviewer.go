@@ -111,12 +111,15 @@ func (r *ContentReviewer) buildPrompt(htmlContent string) string {
 - **诈骗内容**: 网络诈骗、虚假信息、欺诈行为
 - **侵权内容**: 版权侵犯、商标侵权等
 - **社交平台诈骗**: 冒充微博、微信、抖音、快手、小红书等平台的诈骗内容
+- **加密货币交易**： BTC,各种区块链和加密货币交易
 
 ## 特别注意:
 - 综合分析HTML代码和截图信息
 - 对聊天页面要特别警惕诈骗风险
 - 即使表面正常的网站也可能隐藏违规内容
 - 发现任何风险都要标记为不合规
+- 对已经显示被封禁的网站不需要标记为不合规
+- 只有出现明确的违规类型，或者你完全不确定才报告，不要随意标记为不合规
 - **必须严格按照指定的JSON格式输出，不得添加任何其他内容**
 
 # HTML代码:
@@ -250,6 +253,7 @@ func (r *ContentReviewer) parseResponse(response *APIResponse, content *models.C
 	var result ReviewResult
 	if err := json.Unmarshal([]byte(cleanData), &result); err != nil {
 		r.logger.Error(fmt.Sprintf("解析API返回的JSON时出错: %v", err))
+		return nil, err
 	}
 	keywords := r.parseKeywords(result.Keywords)
 	return &models.DetectorInfo{
@@ -261,7 +265,7 @@ func (r *ContentReviewer) parseResponse(response *APIResponse, content *models.C
 		Host:          content.Host,
 		Path:          content.Path,
 		URL:           content.URL,
-		IsIllegal:     result.IsCompliant,
+		IsIllegal:     !result.IsCompliant,
 		Description:   result.Description,
 		Keywords:      keywords,
 	}, nil
@@ -349,7 +353,7 @@ var ReviewResultSchema = map[string]interface{}{
 			},
 			"required": []string{
 				"is_compliant",
-				"keyword",
+				"keywords",
 				"description",
 			},
 			"additionalProperties": false,

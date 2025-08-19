@@ -1,33 +1,40 @@
 plugins:
-  - name: "Cron"
+  - name: "Complete"
     type: "Discovery"
     enabled: true
-    settings: |
-      {
-        "test": "测试11111111"
-      }
-
-  - name: "EndPointInformer"
-    type: "Discovery"
-    enabled: false
     settings: '{}'
 
-  - name: "DeploymentInformer"
+  - name: "Devbox"
+    type: "Discovery"
+    enabled: true
+    settings: '{}'
+
+  - name: "Endpointslice"
     type: "Discovery"
     enabled: false
     settings: '{}'
 
-  - name: "Collector"
+  - name: "Deployment"
+    type: "Discovery"
+    enabled: true
+    settings: '{}'
+
+  - name: "StatefulSet"
+    type: "Discovery"
+    enabled: false
+    settings: '{}'
+
+  - name: "Browser"
     type: "Compliance"
     enabled: true
     settings: '{}'
 
-  - name: "Website"
+  - name: "Safety"
     type: "Compliance"
     enabled: true
     settings: '{}'
 
-  - name: "Database"
+  - name: "Postgres"
     type: "Handle"
     enabled: true
     settings: '{}'

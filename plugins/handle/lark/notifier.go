@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 )
 
@@ -30,7 +29,7 @@ func NewNotifier(webhookURL string) *Notifier {
 	}
 }
 
-func (f *Notifier) SendAnalysisNotification(results *models.IngressAnalysisResult) error {
+func (f *Notifier) SendAnalysisNotification(results *models.DetectorInfo) error {
 	if f.WebhookURL == "" {
 		return fmt.Errorf("未设置webhook URL，跳过通知发送")
 	}
@@ -48,12 +47,12 @@ func (f *Notifier) SendAnalysisNotification(results *models.IngressAnalysisResul
 	return f.sendMessage(message)
 }
 
-func (f *Notifier) buildAlertMessage(results *models.IngressAnalysisResult) map[string]interface{} {
-	elements := []map[string]interface{}{
+func (f *Notifier) buildAlertMessage(results *models.DetectorInfo) map[string]interface{} {
+	basicInfoElements := []map[string]interface{}{
 		{
 			"tag": "div",
 			"text": map[string]interface{}{
-				"content": fmt.Sprintf("**🌐 URL:** %s", results.URL),
+				"content": fmt.Sprintf("**🏷️ 资源名称:** %s", results.Name),
 				"tag":     "lark_md",
 			},
 		},
@@ -64,32 +63,128 @@ func (f *Notifier) buildAlertMessage(results *models.IngressAnalysisResult) map[
 				"tag":     "lark_md",
 			},
 		},
-	}
-	if results.Description != "" {
-		elements = append(elements, map[string]interface{}{
+		{
 			"tag": "div",
 			"text": map[string]interface{}{
-				"content": fmt.Sprintf("**⚠️ 违规描述:** %s", results.Description),
+				"content": fmt.Sprintf("**🌐 主机地址:** %s", results.Host),
 				"tag":     "lark_md",
 			},
-		})
-	}
-	if len(results.Keywords) > 0 {
-		elements = append(elements, map[string]interface{}{
-			"tag": "div",
-			"text": map[string]interface{}{
-				"content": fmt.Sprintf("**🔍 关键词:** %s", strings.Join(results.Keywords, ", ")),
-				"tag":     "lark_md",
-			},
-		})
-	}
-	elements = append(elements, map[string]interface{}{
-		"tag": "div",
-		"text": map[string]interface{}{
-			"content": fmt.Sprintf("**⏰ 检测时间:** %s", time.Now().Format("2006-01-02 15:04:05")),
-			"tag":     "lark_md",
 		},
+		{
+			"tag": "div",
+			"text": map[string]interface{}{
+				"content": fmt.Sprintf("**🔗 完整URL:** %s", results.URL),
+				"tag":     "lark_md",
+			},
+		},
+	}
+
+	if len(results.Path) > 0 {
+		pathContent := "**📁 检测路径:**\n"
+		for i, path := range results.Path {
+			if i < 5 {
+				pathContent += fmt.Sprintf("  • %s\n", path)
+			} else if i == 5 {
+				pathContent += fmt.Sprintf("  • ... 还有 %d 个路径\n", len(results.Path)-5)
+				break
+			}
+		}
+		basicInfoElements = append(basicInfoElements, map[string]interface{}{
+			"tag": "div",
+			"text": map[string]interface{}{
+				"content": pathContent,
+				"tag":     "lark_md",
+			},
+		})
+	}
+
+	// 分割线
+	basicInfoElements = append(basicInfoElements, map[string]interface{}{
+		"tag": "hr",
 	})
+
+	// 检测组件信息
+	componentInfoElements := []map[string]interface{}{
+		{
+			"tag": "div",
+			"text": map[string]interface{}{
+				"content": "**🔍 检测组件信息**",
+				"tag":     "lark_md",
+			},
+		},
+		{
+			"tag": "div",
+			"text": map[string]interface{}{
+				"content": fmt.Sprintf("**发现器:** %s", results.DiscoveryName),
+				"tag":     "lark_md",
+			},
+		},
+		{
+			"tag": "div",
+			"text": map[string]interface{}{
+				"content": fmt.Sprintf("**收集器:** %s", results.CollectorName),
+				"tag":     "lark_md",
+			},
+		},
+		{
+			"tag": "div",
+			"text": map[string]interface{}{
+				"content": fmt.Sprintf("**检测器:** %s", results.DetectorName),
+				"tag":     "lark_md",
+			},
+		},
+	}
+
+	// 合并基础信息和组件信息
+	elements := append(basicInfoElements, componentInfoElements...)
+
+	// 违规信息（如果存在）
+	if results.IsIllegal {
+		elements = append(elements, map[string]interface{}{
+			"tag": "hr",
+		})
+
+		violationElements := []map[string]interface{}{
+			{
+				"tag": "div",
+				"text": map[string]interface{}{
+					"content": "**⚠️ 违规详情**",
+					"tag":     "lark_md",
+				},
+			},
+		}
+
+		if results.Description != "" {
+			violationElements = append(violationElements, map[string]interface{}{
+				"tag": "div",
+				"text": map[string]interface{}{
+					"content": fmt.Sprintf("**描述:** %s", results.Description),
+					"tag":     "lark_md",
+				},
+			})
+		}
+
+		if len(results.Keywords) > 0 {
+			keywordContent := "**🔍 命中关键词:** "
+			for i, keyword := range results.Keywords {
+				if i > 0 {
+					keywordContent += ", "
+				}
+				keywordContent += fmt.Sprintf("`%s`", keyword)
+			}
+			violationElements = append(violationElements, map[string]interface{}{
+				"tag": "div",
+				"text": map[string]interface{}{
+					"content": keywordContent,
+					"tag":     "lark_md",
+				},
+			})
+		}
+
+		elements = append(elements, violationElements...)
+	}
+
+	// 时间信息和操作提示
 	elements = append(elements,
 		map[string]interface{}{
 			"tag": "hr",
@@ -97,20 +192,47 @@ func (f *Notifier) buildAlertMessage(results *models.IngressAnalysisResult) map[
 		map[string]interface{}{
 			"tag": "div",
 			"text": map[string]interface{}{
-				"content": "**❗ 请及时处理违规内容！**",
+				"content": fmt.Sprintf("**⏰ 检测时间:** %s", time.Now().Format("2006-01-02 15:04:05")),
 				"tag":     "lark_md",
 			},
 		},
 	)
+
+	// 根据是否违规显示不同的提示信息
+	if results.IsIllegal {
+		elements = append(elements, map[string]interface{}{
+			"tag": "div",
+			"text": map[string]interface{}{
+				"content": "**❗ 请及时处理违规内容！**",
+				"tag":     "lark_md",
+			},
+		})
+	} else {
+		elements = append(elements, map[string]interface{}{
+			"tag": "div",
+			"text": map[string]interface{}{
+				"content": "**✅ 内容检测正常**",
+				"tag":     "lark_md",
+			},
+		})
+	}
+
+	// 根据违规状态选择不同的颜色主题
+	template := "green"
+	title := "✅ 网站内容检测通知"
+	if results.IsIllegal {
+		template = "red"
+		title = "🚨 网站内容违规告警"
+	}
 
 	return map[string]interface{}{
 		"config": map[string]interface{}{
 			"wide_screen_mode": true,
 		},
 		"header": map[string]interface{}{
-			"template": "red",
+			"template": template,
 			"title": map[string]interface{}{
-				"content": "🚨 网站内容违规告警",
+				"content": title,
 				"tag":     "plain_text",
 			},
 		},

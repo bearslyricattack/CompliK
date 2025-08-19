@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	pluginName = "Lark"
-	pluginType = "Handle"
+	pluginName = constants.HandleLark
+	pluginType = constants.HandleLarkPluginType
 )
 
 func init() {
@@ -39,7 +39,7 @@ func (p *LarkPlugin) Type() string {
 }
 
 func (p *LarkPlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
-	subscribe := eventBus.Subscribe(constants.ComplianceWebsiteTopic)
+	subscribe := eventBus.Subscribe(constants.DetectorTopic)
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -53,9 +53,9 @@ func (p *LarkPlugin) Start(ctx context.Context, config config.PluginConfig, even
 					log.Println("事件订阅通道已关闭")
 					return
 				}
-				result, ok := event.Payload.(*models.IngressAnalysisResult)
+				result, ok := event.Payload.(*models.DetectorInfo)
 				if !ok {
-					log.Printf("事件负载类型错误，期望*models.IngressAnalysisResult，实际: %T", event.Payload)
+					log.Printf("事件负载类型错误，期望*models.DetectorInfo，实际: %T", event.Payload)
 					continue
 				}
 				err := p.notifier.SendAnalysisNotification(result)

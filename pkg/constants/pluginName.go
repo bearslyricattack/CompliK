@@ -5,7 +5,7 @@ const (
 	DiscoveryCronJobDevboxName   = "Devbox"
 
 	DiscoveryInformerDeploymentName    = "Deployment"
-	DiscoveryInformerStatefulSetName   = "Statefulset"
+	DiscoveryInformerStatefulSetName   = "StatefulSet"
 	DiscoveryInformerEndPointSliceName = "Endpointslice"
 )
 
@@ -16,6 +16,6 @@ const (
 )
 
 const (
-	HandleDatabasePostages = "Postages"
-	HandleLark             = "handle.lark"
+	HandleDatabasePostgres = "Postgres"
+	HandleLark             = "Lark"
 )

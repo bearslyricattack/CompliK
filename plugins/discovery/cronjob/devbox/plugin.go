@@ -30,7 +30,7 @@ const (
 )
 
 const (
-	IntervalHours = 60 * 10 * time.Minute
+	IntervalHours = 12 * 60 * time.Minute
 )
 
 func init() {
@@ -54,8 +54,6 @@ func (p *DevboxPlugin) Type() string {
 }
 
 func (p *DevboxPlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
-	time.Sleep(20 * time.Second)
-	p.executeTask(ctx, eventBus)
 	go func() {
 		ticker := time.NewTicker(IntervalHours)
 		defer ticker.Stop()

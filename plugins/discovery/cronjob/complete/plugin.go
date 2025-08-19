@@ -26,7 +26,7 @@ const (
 )
 
 const (
-	IntervalHours = 60 * 10 * time.Minute
+	IntervalHours = 7 * 24 * 60 * time.Minute
 )
 
 func init() {

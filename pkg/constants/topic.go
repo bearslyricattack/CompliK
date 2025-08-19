@@ -11,7 +11,3 @@ const (
 const (
 	DetectorTopic = "detector"
 )
-
-const (
-	HandleDatabaseTopic = "handle.database"
-)
