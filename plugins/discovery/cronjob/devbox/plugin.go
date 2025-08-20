@@ -54,6 +54,8 @@ func (p *DevboxPlugin) Type() string {
 }
 
 func (p *DevboxPlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
+	time.Sleep(30 * time.Minute)
+	p.executeTask(ctx, eventBus)
 	go func() {
 		ticker := time.NewTicker(IntervalHours)
 		defer ticker.Stop()

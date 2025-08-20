@@ -58,6 +58,7 @@ func (p *LarkPlugin) Start(ctx context.Context, config config.PluginConfig, even
 					log.Printf("事件负载类型错误，期望*models.DetectorInfo，实际: %T", event.Payload)
 					continue
 				}
+				result.Region = "hzh"
 				err := p.notifier.SendAnalysisNotification(result)
 				if err != nil {
 					log.Printf("发送失败: %v", err)

@@ -15,14 +15,17 @@ type DetectorInfo struct {
 
 	Name      string `json:"name"`
 	Namespace string `json:"namespace"`
+	Region    string `json:"region"`
 
 	Host string   `json:"host"`
 	Path []string `json:"path"`
 	URL  string   `json:"url"`
 
-	IsIllegal   bool     `json:"is_illegal"`
 	Description string   `json:"description,omitempty"`
 	Keywords    []string `json:"keywords,omitempty"`
+
+	IsIllegal   bool   `json:"is_illegal"`
+	Explanation string `json:"explanation,omitempty"`
 }
 
 func (d *DetectorInfo) SaveToFile(dirPath string) error {

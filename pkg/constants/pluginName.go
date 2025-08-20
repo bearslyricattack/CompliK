@@ -10,6 +10,7 @@ const (
 )
 
 const (
+	ComplianceCollectorHigressName = "Higress"
 	ComplianceCollectorBrowserName = "Browser"
 	ComplianceDetectorCustom       = "Custom"
 	ComplianceDetectorSafety       = "Safety"

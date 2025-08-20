@@ -196,6 +196,7 @@ func (p *DeploymentInformerPlugin) getDeploymentRelatedIngresses(deployment *app
 	for _, ingress := range ingressItems.Items {
 		if ingressAppName, exists := ingress.Labels[AppDeployManagerLabel]; exists && ingressAppName == appName {
 			res := utils.GenerateDiscoveryInfo(ingress, true, 1, p.Name())
+			p.logger.Debug(fmt.Sprintf("找到deployment对应的ingress:%s/%s,发送%s", ingress.Namespace, ingress.Name, ingress.Spec.Rules[0].Host))
 			ingresses = append(ingresses, res...)
 		}
 	}

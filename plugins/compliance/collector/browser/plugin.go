@@ -2,6 +2,7 @@ package browser
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/bearslyricattack/CompliK/pkg/constants"
 	"github.com/bearslyricattack/CompliK/pkg/eventbus"
@@ -26,7 +27,7 @@ const (
 
 func init() {
 	plugin.PluginFactories[pluginName] = func() plugin.Plugin {
-		return &CollectorPlugin{
+		return &BrowserPlugin{
 			logger:      logger.NewLogger(),
 			browserPool: utils.NewBrowserPool(maxWorkers, 100*time.Minute),
 			collector:   NewCollector(logger.NewLogger()),
@@ -34,21 +35,33 @@ func init() {
 	}
 }
 
-type CollectorPlugin struct {
+type BrowserPlugin struct {
 	logger      *logger.Logger
+	config      BrowserConfig
 	browserPool *utils.BrowserPool
 	collector   *Collector
 }
 
-func (p *CollectorPlugin) Name() string {
+func (p *BrowserPlugin) Name() string {
 	return pluginName
 }
 
-func (p *CollectorPlugin) Type() string {
+func (p *BrowserPlugin) Type() string {
 	return pluginType
 }
 
-func (p *CollectorPlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
+type BrowserConfig struct {
+	TimeoutSecond int `yaml:"timeout"`
+}
+
+func (p *BrowserPlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
+	setting := config.Settings
+	var browser BrowserConfig
+	err := json.Unmarshal([]byte(setting), &browser)
+	if err != nil {
+		p.logger.Error(err.Error())
+		return err
+	}
 	subscribe := eventBus.Subscribe(constants.DiscoveryTopic)
 	semaphore := make(chan struct{}, maxWorkers)
 	for {
@@ -72,18 +85,37 @@ func (p *CollectorPlugin) Start(ctx context.Context, config config.PluginConfig,
 					return
 				}
 				var result *models.CollectorInfo
-				taskCtx, cancel := context.WithTimeout(ctx, 80*time.Second)
+				taskCtx, cancel := context.WithTimeout(ctx, 100*time.Second)
 				defer cancel()
 				result, err := p.collector.CollectorAndScreenshot(taskCtx, ingress, p.browserPool, p.Name())
 				if err != nil {
 					if p.shouldSkipError(err) {
 						result.IsEmpty = true
+						result = &models.CollectorInfo{
+							DiscoveryName: ingress.DiscoveryName,
+							CollectorName: p.Name(),
+
+							Name:      ingress.Name,
+							Namespace: ingress.Namespace,
+
+							Host: ingress.Host,
+							Path: ingress.Path,
+
+							URL:        "",
+							HTML:       "",
+							Screenshot: nil,
+							IsEmpty:    true,
+						}
+						eventBus.Publish(constants.CollectorTopic, eventbus.Event{
+							Payload: result,
+						})
 					}
 					p.logger.Error(fmt.Sprintf("本次读取错误：ingress：%s，%v\n", ingress.Host, err))
+				} else {
+					eventBus.Publish(constants.CollectorTopic, eventbus.Event{
+						Payload: result,
+					})
 				}
-				eventBus.Publish(constants.CollectorTopic, eventbus.Event{
-					Payload: result,
-				})
 			}(event)
 		case <-ctx.Done():
 			for i := 0; i < maxWorkers; i++ {
@@ -94,11 +126,11 @@ func (p *CollectorPlugin) Start(ctx context.Context, config config.PluginConfig,
 	}
 }
 
-func (p *CollectorPlugin) Stop(ctx context.Context) error {
+func (p *BrowserPlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (p *CollectorPlugin) shouldSkipError(err error) bool {
+func (p *BrowserPlugin) shouldSkipError(err error) bool {
 	if err == nil {
 		return false
 	}

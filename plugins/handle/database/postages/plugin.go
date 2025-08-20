@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
+	"os"
 	"time"
 
 	"github.com/bearslyricattack/CompliK/pkg/constants"
@@ -14,6 +16,7 @@ import (
 	"github.com/bearslyricattack/CompliK/pkg/utils/logger"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	gormLogger "gorm.io/gorm/logger"
 )
 
 const (
@@ -83,6 +86,7 @@ func (p *DatabasePlugin) Start(ctx context.Context, config config.PluginConfig, 
 					p.logger.Error(fmt.Sprintf("事件类型错误: %T", event.Payload))
 					continue
 				}
+				result.Region = "hzh"
 				if err := p.saveResults(result); err != nil {
 					p.logger.Error(fmt.Sprintf("保存数据失败: %v", err))
 				}
@@ -109,7 +113,19 @@ func (p *DatabasePlugin) Stop(ctx context.Context) error {
 
 func (p *DatabasePlugin) initDB() error {
 	dsn := "root:l6754g75@tcp(dbconn.sealoshzh.site:33144)/?charset=utf8mb4&parseTime=True&loc=Local"
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+
+	dbConfig := &gorm.Config{
+		Logger: gormLogger.New(
+			log.New(os.Stdout, "\r\n", log.LstdFlags),
+			gormLogger.Config{
+				SlowThreshold: 1 * time.Second,  // 慢查询阈值设为1秒
+				LogLevel:      gormLogger.Error, // 只显示错误日志
+				Colorful:      false,            // 关闭颜色输出
+			},
+		),
+	}
+
+	db, err := gorm.Open(mysql.Open(dsn), dbConfig)
 	if err != nil {
 		return fmt.Errorf("连接 MySQL 服务器失败: %v", err)
 	}
@@ -121,7 +137,7 @@ func (p *DatabasePlugin) initDB() error {
 	}
 
 	newDsn := fmt.Sprintf("root:l6754g75@tcp(dbconn.sealoshzh.site:33144)/%s?charset=utf8mb4&parseTime=True&loc=Local", databaseName)
-	db, err = gorm.Open(mysql.Open(newDsn), &gorm.Config{})
+	db, err = gorm.Open(mysql.Open(newDsn), dbConfig)
 	if err != nil {
 		return fmt.Errorf("连接到数据库失败: %v", err)
 	}
@@ -152,24 +168,17 @@ func (p *DatabasePlugin) saveResults(result *models.DetectorInfo) error {
 		IsIllegal:     result.IsIllegal,
 		Description:   result.Description,
 	}
-
-	// 处理 Path 字段 - 只有在有数据时才设置值
 	if result.Path != nil && len(result.Path) > 0 {
 		if pathJSON, err := json.Marshal(result.Path); err == nil {
 			pathStr := string(pathJSON)
 			record.Path = &pathStr
 		}
 	}
-	// 如果 Path 为空，record.Path 保持 nil，数据库中将存储 NULL
-
-	// 处理 Keywords 字段 - 只有在有数据时才设置值
 	if result.Keywords != nil && len(result.Keywords) > 0 {
 		if keywordsJSON, err := json.Marshal(result.Keywords); err == nil {
 			keywordsStr := string(keywordsJSON)
 			record.Keywords = &keywordsStr
 		}
 	}
-	// 如果 Keywords 为空，record.Keywords 保持 nil，数据库中将存储 NULL
-
 	return p.db.Create(&record).Error
 }

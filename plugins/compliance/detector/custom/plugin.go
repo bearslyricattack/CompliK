@@ -10,6 +10,8 @@ import (
 	"github.com/bearslyricattack/CompliK/pkg/utils/config"
 	"github.com/bearslyricattack/CompliK/pkg/utils/logger"
 	"github.com/bearslyricattack/CompliK/plugins/compliance/detector/utils"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
 	"log"
 	"time"
 )
@@ -35,6 +37,8 @@ func init() {
 type CustomPlugin struct {
 	logger   *logger.Logger
 	reviewer *utils.ContentReviewer
+	db       *gorm.DB
+	keywords []utils.CustomKeywordRule
 }
 
 func (p *CustomPlugin) Name() string {
@@ -45,7 +49,53 @@ func (p *CustomPlugin) Type() string {
 	return pluginType
 }
 
+func (p *CustomPlugin) initDB() error {
+	dsn := "root:l6754g75@tcp(dbconn.sealoshzh.site:33144)/?charset=utf8mb4&parseTime=True&loc=Local"
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	if err != nil {
+		return fmt.Errorf("连接 MySQL 服务器失败: %v", err)
+	}
+
+	databaseName := "custom"
+	err = db.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci", databaseName)).Error
+	if err != nil {
+		return fmt.Errorf("创建数据库失败: %v", err)
+	}
+
+	newDsn := fmt.Sprintf("root:l6754g75@tcp(dbconn.sealoshzh.site:33144)/%s?charset=utf8mb4&parseTime=True&loc=Local", databaseName)
+	db, err = gorm.Open(mysql.Open(newDsn), &gorm.Config{})
+	if err != nil {
+		return fmt.Errorf("连接到数据库失败: %v", err)
+	}
+
+	p.db = db
+
+	err = db.AutoMigrate(&utils.CustomKeywordRule{})
+	if err != nil {
+		return fmt.Errorf("创建表失败: %v", err)
+	}
+
+	var count int64
+	db.Model(&utils.CustomKeywordRule{}).Count(&count)
+	if count == 0 {
+		sampleRule := utils.CustomKeywordRule{
+			Type:        "malware",
+			Keywords:    []string{"virus", "trojan", "malware", "backdoor"},
+			Description: "恶意软件检测规则",
+		}
+		err = db.Create(&sampleRule).Error
+		if err != nil {
+			return fmt.Errorf("插入示例数据失败: %v", err)
+		}
+		log.Println("已插入示例数据")
+	}
+	return nil
+}
+
 func (p *CustomPlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
+	if err := p.initDB(); err != nil {
+		return fmt.Errorf("初始化数据库失败: %v", err)
+	}
 	subscribe := eventBus.Subscribe(constants.CollectorTopic)
 	semaphore := make(chan struct{}, maxWorkers)
 	ticker := time.NewTicker(5 * time.Minute)
@@ -78,12 +128,36 @@ func (p *CustomPlugin) Start(ctx context.Context, config config.PluginConfig, ev
 					Payload: result,
 				})
 			}(event)
+		case <-ticker.C:
+			go func() {
+				defer func() {
+					if r := recover(); r != nil {
+						log.Printf("定时任务 goroutine panic: %v", r)
+					}
+				}()
+				err := p.readFromDatabase(ctx)
+				if err != nil {
+					p.logger.Error(fmt.Sprintf("定时任务读取数据库失败: %v", err))
+					return
+				}
+			}()
 		case <-ctx.Done():
 			for i := 0; i < maxWorkers; i++ {
 				semaphore <- struct{}{}
 			}
 			return nil
 		}
+	}
+}
+
+func (p *CustomPlugin) readFromDatabase(ctx context.Context) error {
+	var models []utils.CustomKeywordRule
+	err := p.db.WithContext(ctx).Find(&models).Error
+	if err != nil {
+		return err
+	} else {
+		p.keywords = models
+		return nil
 	}
 }
 
@@ -109,7 +183,7 @@ func (p *CustomPlugin) customJudge(ctx context.Context, collector *models.Collec
 			Keywords:      []string{},
 		}, nil
 	}
-	result, err := p.reviewer.ReviewSiteContent(taskCtx, collector, p.Name())
+	result, err := p.reviewer.ReviewSiteContent(taskCtx, collector, p.Name(), p.keywords)
 	if err != nil {
 		return &models.DetectorInfo{
 			DiscoveryName: collector.DiscoveryName,

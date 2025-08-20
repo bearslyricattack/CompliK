@@ -21,7 +21,7 @@ plugins:
 
   - name: "StatefulSet"
     type: "Discovery"
-    enabled: false
+    enabled: true
     settings: '{}'
 
   - name: "Browser"
@@ -30,6 +30,11 @@ plugins:
     settings: '{}'
 
   - name: "Safety"
+    type: "Compliance"
+    enabled: true
+    settings: '{}'
+
+  - name: "Custom"
     type: "Compliance"
     enabled: true
     settings: '{}'
@@ -47,4 +52,4 @@ plugins:
 logging:
   level: "info"
 
-kubeconfig: "gzg.yml"
+kubeconfig: "hzh.yml"

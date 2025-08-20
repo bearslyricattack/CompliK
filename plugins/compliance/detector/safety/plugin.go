@@ -108,7 +108,7 @@ func (p *SafetyPlugin) safetyJudge(ctx context.Context, collector *models.Collec
 			Keywords:      []string{},
 		}, nil
 	}
-	result, err := p.reviewer.ReviewSiteContent(taskCtx, collector, p.Name())
+	result, err := p.reviewer.ReviewSiteContent(taskCtx, collector, p.Name(), nil)
 	if err != nil {
 		return &models.DetectorInfo{
 			DiscoveryName: collector.DiscoveryName,

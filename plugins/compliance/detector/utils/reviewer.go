@@ -32,11 +32,11 @@ func NewContentReviewer(logger *logger.Logger) *ContentReviewer {
 	}
 }
 
-func (r *ContentReviewer) ReviewSiteContent(ctx context.Context, content *models.CollectorInfo, name string) (*models.DetectorInfo, error) {
+func (r *ContentReviewer) ReviewSiteContent(ctx context.Context, content *models.CollectorInfo, name string, customRules []CustomKeywordRule) (*models.DetectorInfo, error) {
 	if content == nil {
 		return nil, fmt.Errorf("ScrapeResult 参数为空")
 	}
-	requestData, err := r.prepareRequestData(content)
+	requestData, err := r.prepareRequestData(content, customRules)
 	if err != nil {
 		return nil, fmt.Errorf("准备请求数据失败: %v", err)
 	}
@@ -51,13 +51,18 @@ func (r *ContentReviewer) ReviewSiteContent(ctx context.Context, content *models
 	return result, nil
 }
 
-func (r *ContentReviewer) prepareRequestData(content *models.CollectorInfo) (map[string]interface{}, error) {
+func (r *ContentReviewer) prepareRequestData(content *models.CollectorInfo, customRules []CustomKeywordRule) (map[string]interface{}, error) {
 	base64Image := base64.StdEncoding.EncodeToString(content.Screenshot)
 	htmlContent := content.HTML
 	if len(htmlContent) > 10000 {
 		htmlContent = htmlContent[:10000] + "..."
 	}
-	prompt := r.buildPrompt(htmlContent)
+	var prompt string
+	if customRules == nil || len(customRules) == 0 {
+		prompt = r.buildCustomPrompt(htmlContent, customRules)
+	} else {
+		prompt = r.buildPrompt(htmlContent)
+	}
 	requestData := map[string]interface{}{
 		"model": "gpt-4o-mini",
 		"messages": []map[string]interface{}{
@@ -84,60 +89,47 @@ func (r *ContentReviewer) prepareRequestData(content *models.CollectorInfo) (map
 }
 
 func (r *ContentReviewer) buildPrompt(htmlContent string) string {
-	return fmt.Sprintf(`# Role: 网页内容分析与合规检查专家
+	return fmt.Sprintf(`# Role: Content Analysis and Compliance Checker
 
-# 任务目标:
-请对提供的网页内容进行分析，并严格按照JSON格式输出结果。
+# Goal:
+1. 对给定的网页内容或用途进行一句话的简明描述。
+2. 提供若干与网页相关的关键词。
+3. 判断网页是否包含违反中国法律法规的内容，特别是涉及以下类别：色情、涉政、违禁、赌博、邪教、暴恐等。
 
-# 分析要求:
+# Instructions:
+1. **内容描述**: 根据HTML文件和网页截图，生成一句话描述，概括网页的主要内容或用途。
 
-## 1. 内容描述
-- 根据HTML代码和网页截图，用一句话简明概括网页的主要内容或用途
-- 描述要准确、客观，不超过50字
+2. **关键词总结**: 提取与网页内容最相关的关键词，最多5个关键词。
 
-## 2. 关键词提取
-- 提取最能代表网页内容的关键词
-- 多个关键词用逗号分隔，最多5个
-- 关键词要准确反映网页的核心内容
+3. **合规性判断**: 分析网页内容，判断是否包含以下违法违规内容，并提供简短说明。
+   - **色情内容**: 是否存在与性相关的露骨图片、文字或视频？
+   - **涉政内容**: 是否存在政治敏感信息，或批评中国政府的言论？
+   - **违禁内容**: 是否存在任何中国法律禁止的物品、行为或服务？
+   - **赌博内容**: 是否涉及赌博行为或广告？
+   - **邪教内容**: 是否宣扬邪教或极端宗教思想？
+   - **暴恐内容**: 是否包含暴力或恐怖主义内容？
+   - **欺诈内容**: 是否包含网络诈骗内容？
+   - **侵权内容**: 是否包含侵权内容？
+   - **欺诈内容**: 特别注意是不是聊天页面，如果是聊天页面，请判断是否涉嫌诈骗
 
-## 3. 合规性判断
-请重点检查以下违法违规内容类型：
-- **色情内容**: 露骨图片、文字、视频等性相关内容
-- **涉政内容**: 政治敏感信息、批评政府言论
-- **赌博内容**: 赌博行为、赌博广告、博彩推广
-- **违禁品**: 法律禁止的物品、服务、行为
-- **邪教内容**: 邪教宣传、极端宗教思想
-- **暴恐内容**: 暴力、恐怖主义相关内容
-- **诈骗内容**: 网络诈骗、虚假信息、欺诈行为
-- **侵权内容**: 版权侵犯、商标侵权等
-- **社交平台诈骗**: 冒充微博、微信、抖音、快手、小红书等平台的诈骗内容
-- **加密货币交易**： BTC,各种区块链和加密货币交易
+# 重要说明：
+我正在同时提供给你网页截图和HTML代码，请综合分析这两种信息。某些内容可能在截图中更明显，而其他内容可能需要从HTML代码中分析。请保持警惕，即使表面看起来正常的网站，也可能在代码中隐藏违规内容。
+页面和源码中特别注意 微博 微信 抖音 快手 小红书 等社交平台，以及其他知名平台，防止诈骗内容，同时也要特别注意 赌博 色情 涉政 暴恐 邪教 等违法违规内容关键字，只要有风险就报告
 
-## 特别注意:
-- 综合分析HTML代码和截图信息
-- 对聊天页面要特别警惕诈骗风险
-- 即使表面正常的网站也可能隐藏违规内容
-- 发现任何风险都要标记为不合规
-- 对已经显示被封禁的网站不需要标记为不合规
-- 只有出现明确的违规类型，或者你完全不确定才报告，不要随意标记为不合规
-- **必须严格按照指定的JSON格式输出，不得添加任何其他内容**
-
-# HTML代码:
+# HTML代码节选:
 ` + "```html\n" + htmlContent + "\n```" + `
 
-# 输出要求:
+# Output:
 请严格按照以下JSON格式输出，不要添加任何解释或其他文字：
 
 {
-  "is_compliant": true/false,
-  "keywords": "关键词1,关键词2,关键词3",
-  "description": "网页内容的一句话描述"
-}
-
-注意：
-- is_compliant: true表示内容合规，false表示发现违规内容
-- keyword: 多个关键词用逗号分隔
-- description: 简洁明了的一句话描述`)
+  "description": "<生成的网页描述>",
+  "keywords": ["<关键词1>", "<关键词2>", "<关键词3>", "<关键词4>", "<关键词5>"],
+  "compliance": {
+    "is_illegal": "<Yes/No>",
+    "explanation": "<简短的说明，列出具体违反的类别及证据>"
+  }
+}`)
 }
 
 func (r *ContentReviewer) buildRulesDescription(rules []CustomKeywordRule) string {
@@ -250,12 +242,24 @@ func (r *ContentReviewer) callAPI(ctx context.Context, requestData map[string]in
 func (r *ContentReviewer) parseResponse(response *APIResponse, content *models.CollectorInfo, name string) (*models.DetectorInfo, error) {
 	reviewResult := response.Choices[0].Message.Content
 	cleanData := r.cleanResponseData(reviewResult)
+
 	var result ReviewResult
 	if err := json.Unmarshal([]byte(cleanData), &result); err != nil {
 		r.logger.Error(fmt.Sprintf("解析API返回的JSON时出错: %v", err))
-		return nil, err
+		return nil, fmt.Errorf("解析API响应失败: %w", err)
 	}
-	keywords := r.parseKeywords(result.Keywords)
+
+	keywords := result.Keywords
+	if keywords == nil {
+		keywords = []string{}
+	}
+
+	isIllegal := result.Compliance.IsIllegal == "Yes"
+	explanation := result.Compliance.Explanation
+	if explanation == "" {
+		explanation = "无具体说明"
+	}
+
 	return &models.DetectorInfo{
 		DiscoveryName: content.DiscoveryName,
 		CollectorName: content.CollectorName,
@@ -265,9 +269,10 @@ func (r *ContentReviewer) parseResponse(response *APIResponse, content *models.C
 		Host:          content.Host,
 		Path:          content.Path,
 		URL:           content.URL,
-		IsIllegal:     !result.IsCompliant,
+		IsIllegal:     isIllegal,
 		Description:   result.Description,
 		Keywords:      keywords,
+		Explanation:   explanation,
 	}, nil
 }
 
@@ -304,14 +309,12 @@ func (r *ContentReviewer) parseKeywords(keywords interface{}) []string {
 	return result
 }
 
-// 自定义关键词规则
 type CustomKeywordRule struct {
 	Type        string   `json:"type"`        // 规则类型名称
 	Keywords    []string `json:"keywords"`    // 关键词列表
 	Description string   `json:"description"` // 规则描述
 }
 
-// 检测结果
 type CustomComplianceResult struct {
 	IsCompliant   bool     `json:"is_compliant"`
 	Keywords      string   `json:"keywords"`
@@ -319,15 +322,18 @@ type CustomComplianceResult struct {
 	ViolatedTypes []string `json:"violated_types,omitempty"` // 违规类型列表
 }
 
-// 自定义合规检测器
 type CustomContentReviewer struct {
 	customRules []CustomKeywordRule
 }
-
 type ReviewResult struct {
-	IsCompliant bool   `json:"is_compliant"`
-	Keywords    string `json:"keywords"`
-	Description string `json:"description"`
+	Description string     `json:"description"`
+	Keywords    []string   `json:"keywords"`
+	Compliance  Compliance `json:"compliance"`
+}
+
+type Compliance struct {
+	IsIllegal   string `json:"is_illegal"`
+	Explanation string `json:"explanation"`
 }
 
 var ReviewResultSchema = map[string]interface{}{
@@ -338,23 +344,42 @@ var ReviewResultSchema = map[string]interface{}{
 		"schema": map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
-				"is_compliant": map[string]interface{}{
-					"type":        "boolean",
-					"description": "内容是否合规，true表示合规，false表示违规",
-				},
-				"keywords": map[string]interface{}{
-					"type":        "string",
-					"description": "网页内容的核心关键词，多个关键词用逗号分隔",
-				},
 				"description": map[string]interface{}{
 					"type":        "string",
-					"description": "网页内容的简明描述，一句话概括",
+					"description": "网页内容的简明描述，一句话概括网页的主要内容或用途",
+				},
+				"keywords": map[string]interface{}{
+					"type": "array",
+					"items": map[string]interface{}{
+						"type": "string",
+					},
+					"maxItems":    5,
+					"description": "与网页内容最相关的关键词，最多5个",
+				},
+				"compliance": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"is_illegal": map[string]interface{}{
+							"type":        "string",
+							"enum":        []string{"Yes", "No"},
+							"description": "是否包含违法违规内容，Yes表示违规，No表示合规",
+						},
+						"explanation": map[string]interface{}{
+							"type":        "string",
+							"description": "简短的说明，列出具体违反的类别及证据",
+						},
+					},
+					"required": []string{
+						"is_illegal",
+						"explanation",
+					},
+					"additionalProperties": false,
 				},
 			},
 			"required": []string{
-				"is_compliant",
-				"keywords",
 				"description",
+				"keywords",
+				"compliance",
 			},
 			"additionalProperties": false,
 		},

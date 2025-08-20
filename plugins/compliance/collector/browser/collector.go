@@ -69,6 +69,15 @@ func (s *Collector) CollectorAndScreenshot(ctx context.Context, discovery models
 	if err != nil {
 		return nil, err
 	}
+	if page == nil {
+		return nil, fmt.Errorf("页面对象为空")
+	}
+	// 添加 defer 确保页面被关闭
+	defer func() {
+		if page != nil {
+			_ = page.Close()
+		}
+	}()
 	url := s.formatUrl(discovery)
 	wait := page.EachEvent(func(e *proto.NetworkResponseReceived) {
 		if e.Type == proto.NetworkResourceTypeDocument && (e.Response.URL == url) {
@@ -166,6 +175,12 @@ func (s *Collector) formatUrl(ingress models.DiscoveryInfo) string {
 
 func (s *Collector) setupPage(ctx context.Context, instance *utils.BrowserInstance) (*rod.Page, error) {
 	var page *rod.Page
+	if instance == nil {
+		return nil, fmt.Errorf("浏览器实例为空")
+	}
+	if instance.Browser == nil {
+		return nil, fmt.Errorf("浏览器对象为空")
+	}
 	err := rod.Try(func() {
 		page = instance.Browser.MustPage().Context(ctx)
 	})
