@@ -12,6 +12,7 @@ import (
 	"github.com/bearslyricattack/CompliK/pkg/utils/logger"
 	"github.com/bearslyricattack/CompliK/plugins/compliance/collector/browser/utils"
 	"log"
+	"runtime/debug"
 	"strings"
 	"time"
 )
@@ -21,25 +22,20 @@ const (
 	pluginType = constants.ComplianceCollectorPluginType
 )
 
-const (
-	maxWorkers = 20
-)
-
 func init() {
 	plugin.PluginFactories[pluginName] = func() plugin.Plugin {
 		return &BrowserPlugin{
-			logger:      logger.NewLogger(),
-			browserPool: utils.NewBrowserPool(maxWorkers, 100*time.Minute),
-			collector:   NewCollector(logger.NewLogger()),
+			logger:    logger.NewLogger(),
+			collector: NewCollector(logger.NewLogger()),
 		}
 	}
 }
 
 type BrowserPlugin struct {
-	logger      *logger.Logger
-	config      BrowserConfig
-	browserPool *utils.BrowserPool
-	collector   *Collector
+	logger        *logger.Logger
+	browserConfig BrowserConfig
+	browserPool   *utils.BrowserPool
+	collector     *Collector
 }
 
 func (p *BrowserPlugin) Name() string {
@@ -51,19 +47,58 @@ func (p *BrowserPlugin) Type() string {
 }
 
 type BrowserConfig struct {
-	TimeoutSecond int `yaml:"timeout"`
+	CollectorTimeoutSecond int `json:"timeout"`
+	MaxWorkers             int `json:"maxWorkers"`
+	BrowserNumber          int `json:"browserNumber"`
+	BrowserTimeoutMinute   int `json:"browserTimeout"`
+}
+
+func getDefaultBrowserConfig() BrowserConfig {
+	return BrowserConfig{
+		CollectorTimeoutSecond: 100,
+		MaxWorkers:             20,
+		BrowserNumber:          20,
+		BrowserTimeoutMinute:   300,
+	}
+}
+
+func (p *BrowserPlugin) loadConfig(setting string) error {
+	p.browserConfig = getDefaultBrowserConfig()
+	if setting == "" {
+		p.logger.Info("使用默认浏览器配置")
+		return nil
+	}
+	var configFromJSON BrowserConfig
+	err := json.Unmarshal([]byte(setting), &configFromJSON)
+	if err != nil {
+		p.logger.Error("解析配置失败，使用默认配置: " + err.Error())
+		return err
+	}
+
+	if configFromJSON.CollectorTimeoutSecond > 0 {
+		p.browserConfig.CollectorTimeoutSecond = configFromJSON.CollectorTimeoutSecond
+	}
+	if configFromJSON.MaxWorkers > 0 {
+		p.browserConfig.MaxWorkers = configFromJSON.MaxWorkers
+	}
+	if configFromJSON.BrowserNumber > 0 {
+		p.browserConfig.BrowserNumber = configFromJSON.BrowserNumber
+	}
+	if configFromJSON.BrowserTimeoutMinute > 0 {
+		p.browserConfig.BrowserTimeoutMinute = configFromJSON.BrowserTimeoutMinute
+	}
+	p.logger.Info("配置加载完成")
+	return nil
 }
 
 func (p *BrowserPlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
-	setting := config.Settings
-	var browser BrowserConfig
-	err := json.Unmarshal([]byte(setting), &browser)
+	err := p.loadConfig(config.Settings)
 	if err != nil {
-		p.logger.Error(err.Error())
 		return err
 	}
+	p.browserPool = utils.NewBrowserPool(p.browserConfig.BrowserNumber, time.Duration(p.browserConfig.BrowserTimeoutMinute)*time.Minute)
 	subscribe := eventBus.Subscribe(constants.DiscoveryTopic)
-	semaphore := make(chan struct{}, maxWorkers)
+	semaphore := make(chan struct{}, p.browserConfig.MaxWorkers)
 	for {
 		select {
 		case event, ok := <-subscribe:
@@ -77,6 +112,7 @@ func (p *BrowserPlugin) Start(ctx context.Context, config config.PluginConfig, e
 				defer func() {
 					if r := recover(); r != nil {
 						log.Printf("goroutine panic: %v", r)
+						debug.PrintStack()
 					}
 				}()
 				ingress, ok := e.Payload.(models.DiscoveryInfo)
@@ -90,21 +126,17 @@ func (p *BrowserPlugin) Start(ctx context.Context, config config.PluginConfig, e
 				result, err := p.collector.CollectorAndScreenshot(taskCtx, ingress, p.browserPool, p.Name())
 				if err != nil {
 					if p.shouldSkipError(err) {
-						result.IsEmpty = true
 						result = &models.CollectorInfo{
 							DiscoveryName: ingress.DiscoveryName,
 							CollectorName: p.Name(),
-
-							Name:      ingress.Name,
-							Namespace: ingress.Namespace,
-
-							Host: ingress.Host,
-							Path: ingress.Path,
-
-							URL:        "",
-							HTML:       "",
-							Screenshot: nil,
-							IsEmpty:    true,
+							Name:          ingress.Name,
+							Namespace:     ingress.Namespace,
+							Host:          ingress.Host,
+							Path:          ingress.Path,
+							URL:           "",
+							HTML:          "",
+							Screenshot:    nil,
+							IsEmpty:       true,
 						}
 						eventBus.Publish(constants.CollectorTopic, eventbus.Event{
 							Payload: result,
@@ -118,7 +150,7 @@ func (p *BrowserPlugin) Start(ctx context.Context, config config.PluginConfig, e
 				}
 			}(event)
 		case <-ctx.Done():
-			for i := 0; i < maxWorkers; i++ {
+			for i := 0; i < p.browserConfig.MaxWorkers; i++ {
 				semaphore <- struct{}{}
 			}
 			return nil
@@ -134,11 +166,20 @@ func (p *BrowserPlugin) shouldSkipError(err error) bool {
 	if err == nil {
 		return false
 	}
+
 	skipPatterns := []string{
 		"ERR_HTTP_RESPONSE_CODE_FAILURE",
 		"ERR_INVALID_AUTH_CREDENTIALS",
-		":ERR_INVALID_RESPONSE",
+		"ERR_INVALID_RESPONSE",
+		"ERR_EMPTY_RESPONSE",
+		"navigation failed",
+		"net::ERR_EMPTY_RESPONSE",
+		"net::ERR_CONNECTION_RESET",
+		"net::ERR_EMPTY_RESPONSE",
+		"net::ERR_NAME_NOT_RESOLVED",
+		"net::ERR_HTTP_RESPONSE_CODE_FAILURE",
 	}
+
 	errStr := err.Error()
 	for _, pattern := range skipPatterns {
 		if strings.Contains(errStr, pattern) {

@@ -35,6 +35,7 @@ func init() {
 type DatabasePlugin struct {
 	logger *logger.Logger
 	db     *gorm.DB
+	config postagesConfig
 }
 
 type DetectorRecord struct {
@@ -57,11 +58,23 @@ type DetectorRecord struct {
 func (p *DatabasePlugin) Name() string { return pluginName }
 func (p *DatabasePlugin) Type() string { return pluginType }
 
+type postagesConfig struct {
+	region string `json:"region"`
+}
+
 func (p *DatabasePlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
+	setting := config.Settings
+	var postages postagesConfig
+	err := json.Unmarshal([]byte(setting), &postages)
+	if err != nil {
+		p.logger.Error(err.Error())
+		return err
+	} else {
+		p.config = postages
+	}
 	if err := p.initDB(); err != nil {
 		return fmt.Errorf("初始化数据库失败: %v", err)
 	}
-
 	if err := p.db.AutoMigrate(&DetectorRecord{}); err != nil {
 		return fmt.Errorf("数据库迁移失败: %v", err)
 	}
@@ -86,7 +99,7 @@ func (p *DatabasePlugin) Start(ctx context.Context, config config.PluginConfig, 
 					p.logger.Error(fmt.Sprintf("事件类型错误: %T", event.Payload))
 					continue
 				}
-				result.Region = "hzh"
+				result.Region = p.config.region
 				if err := p.saveResults(result); err != nil {
 					p.logger.Error(fmt.Sprintf("保存数据失败: %v", err))
 				}

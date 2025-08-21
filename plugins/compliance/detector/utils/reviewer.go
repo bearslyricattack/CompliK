@@ -19,18 +19,20 @@ type ContentReviewer struct {
 	logger *logger.Logger
 	apiKey string
 	apiURL string
+	model  string
 }
 
-func NewContentReviewer(logger *logger.Logger) *ContentReviewer {
-	apiKey := "sk-1sxAT9tTxxUCiBobRJSOaYC4BFPKLdyhypXg7o9eJsmaDFhU"
-	apiBase := "https://aiproxy.usw.sealos.io/v1"
-	apiURL := apiBase + "/chat/completions"
+func NewContentReviewer(logger *logger.Logger, apiKey string, apiBase string, apiPath string, model string) *ContentReviewer {
+	apiURL := apiBase + apiPath
 	return &ContentReviewer{
 		logger: logger,
 		apiKey: apiKey,
 		apiURL: apiURL,
+		model:  model,
 	}
 }
+
+var count = 0
 
 func (r *ContentReviewer) ReviewSiteContent(ctx context.Context, content *models.CollectorInfo, name string, customRules []CustomKeywordRule) (*models.DetectorInfo, error) {
 	if content == nil {
@@ -41,6 +43,8 @@ func (r *ContentReviewer) ReviewSiteContent(ctx context.Context, content *models
 		return nil, fmt.Errorf("准备请求数据失败: %v", err)
 	}
 	response, err := r.callAPI(ctx, requestData)
+	fmt.Println("当前请求次数 %d", count)
+	count++
 	if err != nil {
 		return nil, fmt.Errorf("调用API失败: %v", err)
 	}
@@ -59,12 +63,12 @@ func (r *ContentReviewer) prepareRequestData(content *models.CollectorInfo, cust
 	}
 	var prompt string
 	if customRules == nil || len(customRules) == 0 {
-		prompt = r.buildCustomPrompt(htmlContent, customRules)
-	} else {
 		prompt = r.buildPrompt(htmlContent)
+	} else {
+		prompt = r.buildCustomPrompt(htmlContent, customRules)
 	}
 	requestData := map[string]interface{}{
-		"model": "gpt-4o-mini",
+		"model": r.model,
 		"messages": []map[string]interface{}{
 			{
 				"role": "user",
@@ -82,8 +86,8 @@ func (r *ContentReviewer) prepareRequestData(content *models.CollectorInfo, cust
 				},
 			},
 		},
-		"max_tokens":      6000,
-		"response_format": ReviewResultSchema,
+		"max_completion_tokens": 6000,
+		"response_format":       ReviewResultSchema,
 	}
 	return requestData, nil
 }
@@ -114,7 +118,10 @@ func (r *ContentReviewer) buildPrompt(htmlContent string) string {
 
 # 重要说明：
 我正在同时提供给你网页截图和HTML代码，请综合分析这两种信息。某些内容可能在截图中更明显，而其他内容可能需要从HTML代码中分析。请保持警惕，即使表面看起来正常的网站，也可能在代码中隐藏违规内容。
-页面和源码中特别注意 微博 微信 抖音 快手 小红书 等社交平台，以及其他知名平台，防止诈骗内容，同时也要特别注意 赌博 色情 涉政 暴恐 邪教 等违法违规内容关键字，只要有风险就报告
+页面和源码中特别注意 微博 微信 抖音 快手 小红书 等社交平台，以及其他知名平台，防止诈骗内容，同时也要特别注意 赌博 色情 涉政 暴恐 邪教 等违法违规内容关键字。
+
+## 特别提醒
+如果页面提示访问404,各种错误，空白，资源不存在，则认定为合规。
 
 # HTML代码节选:
 ` + "```html\n" + htmlContent + "\n```" + `
@@ -134,16 +141,23 @@ func (r *ContentReviewer) buildPrompt(htmlContent string) string {
 
 func (r *ContentReviewer) buildRulesDescription(rules []CustomKeywordRule) string {
 	var builder strings.Builder
-
 	for _, rule := range rules {
-		builder.WriteString(fmt.Sprintf(`
+		keywords := strings.Split(rule.Keywords, ".")
+		for j, keyword := range keywords {
+			trimmed := strings.TrimSpace(keyword)
+			keywords[j] = trimmed
+		}
+
+		ruleText := fmt.Sprintf(`
 ### %s
 - 描述: %s  
 - 关键词: %s
-`, rule.Type, rule.Description, strings.Join(rule.Keywords, "、")))
-	}
+`, rule.Type, rule.Description, strings.Join(keywords, "、"))
 
-	return builder.String()
+		builder.WriteString(ruleText)
+	}
+	result := builder.String()
+	return result
 }
 
 func (r *ContentReviewer) buildCustomPrompt(htmlContent string, customRules []CustomKeywordRule) string {
@@ -176,6 +190,10 @@ func (r *ContentReviewer) buildCustomPrompt(htmlContent string, customRules []Cu
 
 # HTML代码:
 %s
+
+# 重要说明：
+我正在同时提供给你网页截图和HTML代码，请综合分析这两种信息。某些内容可能在截图中更明显，而其他内容可能需要从HTML代码中分析。请保持警惕，即使表面看起来正常的网站，也可能在代码中隐藏违规内容。
+如果页面提示访问错误，为空白，或者资源不存在，则认定为合规。
 
 # 输出要求:
 请严格按照以下JSON格式输出，不要添加任何解释或其他文字：
@@ -310,9 +328,9 @@ func (r *ContentReviewer) parseKeywords(keywords interface{}) []string {
 }
 
 type CustomKeywordRule struct {
-	Type        string   `json:"type"`        // 规则类型名称
-	Keywords    []string `json:"keywords"`    // 关键词列表
-	Description string   `json:"description"` // 规则描述
+	Type        string `json:"type"`
+	Keywords    string `json:"keywords"`
+	Description string `json:"description"`
 }
 
 type CustomComplianceResult struct {

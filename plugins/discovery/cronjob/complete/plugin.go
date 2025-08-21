@@ -2,6 +2,7 @@ package complete
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/bearslyricattack/CompliK/pkg/constants"
 	"github.com/bearslyricattack/CompliK/pkg/eventbus"
@@ -38,7 +39,8 @@ func init() {
 }
 
 type CronPlugin struct {
-	logger *logger.Logger
+	logger         *logger.Logger
+	CompleteConfig CompleteConfig
 }
 
 func (p *CronPlugin) Name() string {
@@ -49,9 +51,39 @@ func (p *CronPlugin) Type() string {
 	return pluginType
 }
 
+type CompleteConfig struct {
+	IntervalMinute int `config:"intervalMinute"`
+}
+
+func getDefaultCronPlugin() CompleteConfig {
+	return CompleteConfig{
+		IntervalMinute: 7 * 24 * 60,
+	}
+}
+
+func (p *CronPlugin) loadConfig(setting string) error {
+	p.CompleteConfig = getDefaultCronPlugin()
+	if setting == "" {
+		p.logger.Info("使用默认浏览器配置")
+		return nil
+	}
+	var configFromJSON CompleteConfig
+	err := json.Unmarshal([]byte(setting), &configFromJSON)
+	if err != nil {
+		p.logger.Error("解析配置失败，使用默认配置: " + err.Error())
+		return err
+	}
+	if configFromJSON.IntervalMinute > 0 {
+		p.CompleteConfig.IntervalMinute = configFromJSON.IntervalMinute
+	}
+	return nil
+}
+
 func (p *CronPlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
-	time.Sleep(20 * time.Second)
-	p.executeTask(ctx, eventBus)
+	err := p.loadConfig(config.Settings)
+	if err != nil {
+		return err
+	}
 	go func() {
 		ticker := time.NewTicker(IntervalHours)
 		defer ticker.Stop()
@@ -113,7 +145,38 @@ func (p *CronPlugin) GetIngressList() ([]models.DiscoveryInfo, error) {
 	if endpointSlicesErr != nil {
 		return nil, fmt.Errorf("获取EndpointSlices列表失败: %v", endpointSlicesErr)
 	}
-	return p.processIngressAndEndpointSlices(ingressItems.Items, endpointSlicesList.Items)
+	uniqueIngresses := p.deduplicateIngressesByPath(ingressItems.Items)
+	return p.processIngressAndEndpointSlices(uniqueIngresses, endpointSlicesList.Items)
+}
+
+func (p *CronPlugin) deduplicateIngressesByPath(ingresses []networkingv1.Ingress) []networkingv1.Ingress {
+	pathMap := make(map[string]networkingv1.Ingress)
+	for _, ingress := range ingresses {
+		for _, rule := range ingress.Spec.Rules {
+			if rule.HTTP != nil {
+				for _, path := range rule.HTTP.Paths {
+					pathKey := fmt.Sprintf("%s%s", rule.Host, path.Path)
+					if existingIngress, exists := pathMap[pathKey]; !exists {
+						pathMap[pathKey] = ingress
+					} else {
+						if ingress.CreationTimestamp.After(existingIngress.CreationTimestamp.Time) {
+							pathMap[pathKey] = ingress
+						}
+					}
+				}
+			}
+		}
+	}
+	uniqueIngressMap := make(map[string]networkingv1.Ingress)
+	for _, ingress := range pathMap {
+		key := fmt.Sprintf("%s/%s", ingress.Namespace, ingress.Name)
+		uniqueIngressMap[key] = ingress
+	}
+	var result []networkingv1.Ingress
+	for _, ingress := range uniqueIngressMap {
+		result = append(result, ingress)
+	}
+	return result
 }
 
 func (p *CronPlugin) processIngressAndEndpointSlices(ingressItems []networkingv1.Ingress, endpointSlicesItems []discoveryv1.EndpointSlice) ([]models.DiscoveryInfo, error) {

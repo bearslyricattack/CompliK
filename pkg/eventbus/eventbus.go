@@ -18,7 +18,7 @@ type EventBus struct {
 
 func NewEventBus(bufferSize int) *EventBus {
 	if bufferSize <= 0 {
-		bufferSize = 5000
+		bufferSize = 10000
 	}
 	return &EventBus{
 		subscribers: make(map[string][]EventChan),

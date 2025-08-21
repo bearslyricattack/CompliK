@@ -188,6 +188,16 @@ func (f *Notifier) buildAlertMessage(results *models.DetectorInfo) map[string]in
 			})
 		}
 
+		if results.Description != "" {
+			violationElements = append(violationElements, map[string]interface{}{
+				"tag": "div",
+				"text": map[string]interface{}{
+					"content": fmt.Sprintf("**违规证据:** %s", results.Explanation),
+					"tag":     "lark_md",
+				},
+			})
+		}
+
 		elements = append(elements, violationElements...)
 	}
 

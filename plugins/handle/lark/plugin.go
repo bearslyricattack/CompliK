@@ -2,6 +2,7 @@ package lark
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/bearslyricattack/CompliK/pkg/constants"
 	"github.com/bearslyricattack/CompliK/pkg/eventbus"
 	"github.com/bearslyricattack/CompliK/pkg/models"
@@ -26,8 +27,9 @@ func init() {
 }
 
 type LarkPlugin struct {
-	logger   *logger.Logger
-	notifier *Notifier
+	logger     *logger.Logger
+	notifier   *Notifier
+	larkConfig larkConfig
 }
 
 func (p *LarkPlugin) Name() string {
@@ -38,7 +40,20 @@ func (p *LarkPlugin) Type() string {
 	return pluginType
 }
 
+type larkConfig struct {
+	region string `json:"region"`
+}
+
 func (p *LarkPlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
+	setting := config.Settings
+	var larkCfg larkConfig
+	err := json.Unmarshal([]byte(setting), &larkCfg)
+	if err != nil {
+		p.logger.Error(err.Error())
+		return err
+	} else {
+		p.larkConfig = larkCfg
+	}
 	subscribe := eventBus.Subscribe(constants.DetectorTopic)
 	go func() {
 		defer func() {
@@ -58,7 +73,7 @@ func (p *LarkPlugin) Start(ctx context.Context, config config.PluginConfig, even
 					log.Printf("事件负载类型错误，期望*models.DetectorInfo，实际: %T", event.Payload)
 					continue
 				}
-				result.Region = "hzh"
+				result.Region = p.larkConfig.region
 				err := p.notifier.SendAnalysisNotification(result)
 				if err != nil {
 					log.Printf("发送失败: %v", err)

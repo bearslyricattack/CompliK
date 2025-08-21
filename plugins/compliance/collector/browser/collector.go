@@ -47,17 +47,14 @@ func (s *Collector) CollectorAndScreenshot(ctx context.Context, discovery models
 		return &models.CollectorInfo{
 			DiscoveryName: discovery.DiscoveryName,
 			CollectorName: name,
-
-			Name:      discovery.Name,
-			Namespace: discovery.Namespace,
-
-			Host: discovery.Host,
-			Path: discovery.Path,
-
-			URL:        "",
-			HTML:       "",
-			Screenshot: nil,
-			IsEmpty:    true,
+			Name:          discovery.Name,
+			Namespace:     discovery.Namespace,
+			Host:          discovery.Host,
+			Path:          discovery.Path,
+			URL:           "",
+			HTML:          "",
+			Screenshot:    nil,
+			IsEmpty:       true,
 		}, nil
 	}
 	instance, err := browserPool.Get()
@@ -72,7 +69,6 @@ func (s *Collector) CollectorAndScreenshot(ctx context.Context, discovery models
 	if page == nil {
 		return nil, fmt.Errorf("页面对象为空")
 	}
-	// 添加 defer 确保页面被关闭
 	defer func() {
 		if page != nil {
 			_ = page.Close()
@@ -98,17 +94,14 @@ func (s *Collector) CollectorAndScreenshot(ctx context.Context, discovery models
 				return &models.CollectorInfo{
 					DiscoveryName: discovery.DiscoveryName,
 					CollectorName: name,
-
-					Name:      discovery.Name,
-					Namespace: discovery.Namespace,
-
-					Host: discovery.Host,
-					Path: discovery.Path,
-
-					URL:        "",
-					HTML:       "",
-					Screenshot: nil,
-					IsEmpty:    true,
+					Name:          discovery.Name,
+					Namespace:     discovery.Namespace,
+					Host:          discovery.Host,
+					Path:          discovery.Path,
+					URL:           "",
+					HTML:          "",
+					Screenshot:    nil,
+					IsEmpty:       true,
 				}, nil
 			}
 		}
@@ -127,17 +120,14 @@ func (s *Collector) CollectorAndScreenshot(ctx context.Context, discovery models
 		return &models.CollectorInfo{
 			DiscoveryName: discovery.DiscoveryName,
 			CollectorName: name,
-
-			Name:      discovery.Name,
-			Namespace: discovery.Namespace,
-
-			Host: discovery.Host,
-			Path: discovery.Path,
-
-			URL:        "",
-			HTML:       "",
-			Screenshot: nil,
-			IsEmpty:    true,
+			Name:          discovery.Name,
+			Namespace:     discovery.Namespace,
+			Host:          discovery.Host,
+			Path:          discovery.Path,
+			URL:           "",
+			HTML:          "",
+			Screenshot:    nil,
+			IsEmpty:       true,
 		}, nil
 	}
 	screenshot, err := s.takeScreenshot(taskCtx, page)
@@ -148,17 +138,14 @@ func (s *Collector) CollectorAndScreenshot(ctx context.Context, discovery models
 	return &models.CollectorInfo{
 		DiscoveryName: discovery.DiscoveryName,
 		CollectorName: name,
-
-		Name:      discovery.Name,
-		Namespace: discovery.Namespace,
-
-		Host: discovery.Host,
-		Path: discovery.Path,
-
-		URL:        url,
-		HTML:       content,
-		Screenshot: screenshot,
-		IsEmpty:    false,
+		Name:          discovery.Name,
+		Namespace:     discovery.Namespace,
+		Host:          discovery.Host,
+		Path:          discovery.Path,
+		URL:           url,
+		HTML:          content,
+		Screenshot:    screenshot,
+		IsEmpty:       false,
 	}, nil
 }
 
