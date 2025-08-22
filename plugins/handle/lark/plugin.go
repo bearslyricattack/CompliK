@@ -3,6 +3,7 @@ package lark
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/bearslyricattack/CompliK/pkg/constants"
 	"github.com/bearslyricattack/CompliK/pkg/eventbus"
 	"github.com/bearslyricattack/CompliK/pkg/models"
@@ -20,8 +21,7 @@ const (
 func init() {
 	plugin.PluginFactories[pluginName] = func() plugin.Plugin {
 		return &LarkPlugin{
-			logger:   logger.NewLogger(),
-			notifier: NewNotifier("https://open.feishu.cn/open-apis/bot/v2/hook/57e00497-a1da-41cd-9342-2e645f95e6ec"),
+			logger: logger.NewLogger(),
 		}
 	}
 }
@@ -29,7 +29,7 @@ func init() {
 type LarkPlugin struct {
 	logger     *logger.Logger
 	notifier   *Notifier
-	larkConfig larkConfig
+	larkConfig LarkConfig
 }
 
 func (p *LarkPlugin) Name() string {
@@ -40,20 +40,44 @@ func (p *LarkPlugin) Type() string {
 	return pluginType
 }
 
-type larkConfig struct {
-	region string `json:"region"`
+type LarkConfig struct {
+	Region  string `json:"region"`
+	Webhook string `json:"webhook"`
+}
+
+func (p *LarkPlugin) getDefaultConfig() LarkConfig {
+	return LarkConfig{
+		Region: "UNKNOWN",
+	}
+}
+
+func (p *LarkPlugin) loadConfig(setting string) error {
+	p.larkConfig = p.getDefaultConfig()
+	if setting == "" {
+		return errors.New("配置不能为空")
+	}
+	var configFromJSON LarkConfig
+	err := json.Unmarshal([]byte(setting), &configFromJSON)
+	if err != nil {
+		p.logger.Error("解析配置失败: " + err.Error())
+		return err
+	}
+	if configFromJSON.Webhook == "" {
+		return errors.New("webhook 配置不能为空")
+	}
+	p.larkConfig.Webhook = configFromJSON.Webhook
+	if configFromJSON.Region != "" {
+		p.larkConfig.Region = configFromJSON.Region
+	}
+	return nil
 }
 
 func (p *LarkPlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
-	setting := config.Settings
-	var larkCfg larkConfig
-	err := json.Unmarshal([]byte(setting), &larkCfg)
+	err := p.loadConfig(config.Settings)
 	if err != nil {
-		p.logger.Error(err.Error())
 		return err
-	} else {
-		p.larkConfig = larkCfg
 	}
+	p.notifier = NewNotifier(p.larkConfig.Webhook)
 	subscribe := eventBus.Subscribe(constants.DetectorTopic)
 	go func() {
 		defer func() {
@@ -73,7 +97,7 @@ func (p *LarkPlugin) Start(ctx context.Context, config config.PluginConfig, even
 					log.Printf("事件负载类型错误，期望*models.DetectorInfo，实际: %T", event.Payload)
 					continue
 				}
-				result.Region = p.larkConfig.region
+				result.Region = p.larkConfig.Region
 				err := p.notifier.SendAnalysisNotification(result)
 				if err != nil {
 					log.Printf("发送失败: %v", err)

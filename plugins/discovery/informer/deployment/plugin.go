@@ -2,6 +2,7 @@ package deployment
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/bearslyricattack/CompliK/pkg/constants"
 	"github.com/bearslyricattack/CompliK/pkg/models"
@@ -32,18 +33,52 @@ const (
 
 func init() {
 	plugin.PluginFactories[deploymentPluginName] = func() plugin.Plugin {
-		return &DeploymentInformerPlugin{
+		return &DeploymentPlugin{
 			logger: logger.NewLogger(),
 		}
 	}
 }
 
-type DeploymentInformerPlugin struct {
+type DeploymentPlugin struct {
 	logger             *logger.Logger
 	stopChan           chan struct{}
 	eventBus           *eventbus.EventBus
 	factory            informers.SharedInformerFactory
 	deploymentInformer cache.SharedIndexInformer
+	deploymentConfig   DeploymentConfig
+}
+
+type DeploymentConfig struct {
+	ResyncTimeSecond   int `json:"resyncTimeSecond"`
+	AgeThresholdSecond int `json:"ageThresholdSecond"`
+}
+
+func (p *DeploymentPlugin) getDefaultDeploymentConfig() DeploymentConfig {
+	return DeploymentConfig{
+		ResyncTimeSecond:   5,
+		AgeThresholdSecond: 180,
+	}
+}
+
+func (p *DeploymentPlugin) loadConfig(setting string) error {
+	p.deploymentConfig = p.getDefaultDeploymentConfig()
+	if setting == "" {
+		p.logger.Info("使用默认浏览器配置")
+		return nil
+	}
+	var configFromJSON DeploymentConfig
+	err := json.Unmarshal([]byte(setting), &configFromJSON)
+	if err != nil {
+		p.logger.Error("解析配置失败，使用默认配置: " + err.Error())
+		return err
+	}
+	if configFromJSON.ResyncTimeSecond > 0 {
+		p.deploymentConfig.ResyncTimeSecond = configFromJSON.ResyncTimeSecond
+	}
+	if configFromJSON.AgeThresholdSecond > 0 {
+		p.deploymentConfig.AgeThresholdSecond = configFromJSON.AgeThresholdSecond
+	}
+	return nil
 }
 
 type DeploymentInfo struct {
@@ -60,24 +95,28 @@ type IngressInfo struct {
 	Path      string
 }
 
-func (p *DeploymentInformerPlugin) Name() string {
+func (p *DeploymentPlugin) Name() string {
 	return deploymentPluginName
 }
 
-func (p *DeploymentInformerPlugin) Type() string {
+func (p *DeploymentPlugin) Type() string {
 	return deploymentPluginType
 }
 
-func (p *DeploymentInformerPlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
+func (p *DeploymentPlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
+	err := p.loadConfig(config.Settings)
+	if err != nil {
+		return err
+	}
 	p.stopChan = make(chan struct{})
 	p.eventBus = eventBus
 	go p.startDeploymentInformerWatch(ctx)
 	return nil
 }
 
-func (p *DeploymentInformerPlugin) startDeploymentInformerWatch(ctx context.Context) {
+func (p *DeploymentPlugin) startDeploymentInformerWatch(ctx context.Context) {
 	if p.factory == nil {
-		p.factory = informers.NewSharedInformerFactory(k8s.ClientSet, 5*time.Second)
+		p.factory = informers.NewSharedInformerFactory(k8s.ClientSet, time.Duration(p.deploymentConfig.ResyncTimeSecond)*time.Second)
 	}
 	if p.deploymentInformer == nil {
 		p.deploymentInformer = p.factory.Apps().V1().Deployments().Informer()
@@ -85,7 +124,7 @@ func (p *DeploymentInformerPlugin) startDeploymentInformerWatch(ctx context.Cont
 	p.deploymentInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			deployment := obj.(*appsv1.Deployment)
-			if time.Since(deployment.CreationTimestamp.Time) > 150*time.Second {
+			if time.Since(deployment.CreationTimestamp.Time) > time.Duration(p.deploymentConfig.AgeThresholdSecond)*time.Second {
 				return
 			}
 			if p.shouldProcessDeployment(deployment) {
@@ -93,7 +132,6 @@ func (p *DeploymentInformerPlugin) startDeploymentInformerWatch(ctx context.Cont
 				if err != nil {
 					return
 				}
-				p.logger.Info(fmt.Sprintf("新创建deployment，name：%s,namespace：%s", deployment.Name, deployment.Namespace))
 				p.handleDeploymentEvent(res)
 			}
 		},
@@ -126,18 +164,18 @@ func (p *DeploymentInformerPlugin) startDeploymentInformerWatch(ctx context.Cont
 	}
 }
 
-func (p *DeploymentInformerPlugin) Stop(ctx context.Context) error {
+func (p *DeploymentPlugin) Stop(ctx context.Context) error {
 	if p.stopChan != nil {
 		close(p.stopChan)
 	}
 	return nil
 }
 
-func (p *DeploymentInformerPlugin) shouldProcessDeployment(deployment *appsv1.Deployment) bool {
+func (p *DeploymentPlugin) shouldProcessDeployment(deployment *appsv1.Deployment) bool {
 	return strings.HasPrefix(deployment.Namespace, "ns-")
 }
 
-func (p *DeploymentInformerPlugin) hasDeploymentChanged(oldDeployment, newDeployment *appsv1.Deployment) bool {
+func (p *DeploymentPlugin) hasDeploymentChanged(oldDeployment, newDeployment *appsv1.Deployment) bool {
 	oldImages := extractImagesFromDeployment(oldDeployment)
 	newImages := extractImagesFromDeployment(newDeployment)
 	hasChanged := !compareStringSlices(oldImages, newImages)
@@ -175,7 +213,7 @@ func compareStringSlices(slice1, slice2 []string) bool {
 	return true
 }
 
-func (p *DeploymentInformerPlugin) handleDeploymentEvent(discoveryInfo []models.DiscoveryInfo) {
+func (p *DeploymentPlugin) handleDeploymentEvent(discoveryInfo []models.DiscoveryInfo) {
 	for _, info := range discoveryInfo {
 		p.eventBus.Publish(constants.DiscoveryTopic, eventbus.Event{
 			Payload: info,
@@ -183,7 +221,7 @@ func (p *DeploymentInformerPlugin) handleDeploymentEvent(discoveryInfo []models.
 	}
 }
 
-func (p *DeploymentInformerPlugin) getDeploymentRelatedIngresses(deployment *appsv1.Deployment) ([]models.DiscoveryInfo, error) {
+func (p *DeploymentPlugin) getDeploymentRelatedIngresses(deployment *appsv1.Deployment) ([]models.DiscoveryInfo, error) {
 	appName, exists := deployment.Labels[AppDeployManagerLabel]
 	if !exists {
 		return []models.DiscoveryInfo{}, nil

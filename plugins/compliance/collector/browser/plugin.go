@@ -53,7 +53,7 @@ type BrowserConfig struct {
 	BrowserTimeoutMinute   int `json:"browserTimeout"`
 }
 
-func getDefaultBrowserConfig() BrowserConfig {
+func (p *BrowserPlugin) getDefaultBrowserConfig() BrowserConfig {
 	return BrowserConfig{
 		CollectorTimeoutSecond: 100,
 		MaxWorkers:             20,
@@ -63,7 +63,7 @@ func getDefaultBrowserConfig() BrowserConfig {
 }
 
 func (p *BrowserPlugin) loadConfig(setting string) error {
-	p.browserConfig = getDefaultBrowserConfig()
+	p.browserConfig = p.getDefaultBrowserConfig()
 	if setting == "" {
 		p.logger.Info("使用默认浏览器配置")
 		return nil
@@ -87,7 +87,6 @@ func (p *BrowserPlugin) loadConfig(setting string) error {
 	if configFromJSON.BrowserTimeoutMinute > 0 {
 		p.browserConfig.BrowserTimeoutMinute = configFromJSON.BrowserTimeoutMinute
 	}
-	p.logger.Info("配置加载完成")
 	return nil
 }
 
@@ -178,6 +177,8 @@ func (p *BrowserPlugin) shouldSkipError(err error) bool {
 		"net::ERR_EMPTY_RESPONSE",
 		"net::ERR_NAME_NOT_RESOLVED",
 		"net::ERR_HTTP_RESPONSE_CODE_FAILURE",
+		"navigation failed: net::ERR_HTTP_RESPONSE_CODE_FAILURE",
+		"navigation failed: net::ERR_EMPTY_RESPONSE",
 	}
 
 	errStr := err.Error()

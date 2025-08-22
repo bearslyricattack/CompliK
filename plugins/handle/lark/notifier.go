@@ -8,7 +8,6 @@ import (
 	"github.com/bearslyricattack/CompliK/pkg/models"
 	"io"
 	"net/http"
-	"os"
 	"time"
 )
 
@@ -18,9 +17,6 @@ type Notifier struct {
 }
 
 func NewNotifier(webhookURL string) *Notifier {
-	if webhookURL == "" {
-		webhookURL = os.Getenv("WEBHOOK_URL")
-	}
 	return &Notifier{
 		WebhookURL: webhookURL,
 		HTTPClient: &http.Client{
@@ -234,62 +230,12 @@ func (f *Notifier) buildAlertMessage(results *models.DetectorInfo) map[string]in
 		})
 	}
 
-	// 根据违规状态选择不同的颜色主题
 	template := "green"
 	title := "✅ 网站内容检测通知"
 	if results.IsIllegal {
 		template = "red"
 		title = "🚨 网站内容违规告警"
 	}
-
-	// if results.IsIllegal {
-	// 	// 构建处理按钮的参数
-	// 	handleParams := url.Values{}
-	// 	handleParams.Set("url", results.URL)
-	// 	handleParams.Set("host", results.Host)
-	// 	handleParams.Set("name", results.Name)
-	// 	handleParams.Set("region", results.Region)
-	// 	handleParams.Set("namespace", results.Namespace)
-	// 	handleParams.Set("detector", results.DetectorName)
-	// 	handleParams.Set("action", "handle")
-	//
-	// 	// 构建详情按钮的参数
-	// 	detailParams := url.Values{}
-	// 	detailParams.Set("url", results.URL)
-	// 	detailParams.Set("host", results.Host)
-	// 	detailParams.Set("name", results.Name)
-	// 	detailParams.Set("detector", results.DetectorName)
-	// 	detailParams.Set("action", "detail")
-	//
-	// 	elements = append(elements,
-	// 		map[string]interface{}{
-	// 			"tag": "hr",
-	// 		},
-	// 		map[string]interface{}{
-	// 			"tag": "action",
-	// 			"actions": []map[string]interface{}{
-	// 				{
-	// 					"tag": "button",
-	// 					"text": map[string]interface{}{
-	// 						"content": "立即处理",
-	// 						"tag":     "plain_text",
-	// 					},
-	// 					"type": "primary",
-	// 					"url":  fmt.Sprintf("http://your-admin-panel.com/handle?%s", handleParams.Encode()),
-	// 				},
-	// 				{
-	// 					"tag": "button",
-	// 					"text": map[string]interface{}{
-	// 						"content": "查看详情",
-	// 						"tag":     "plain_text",
-	// 					},
-	// 					"type": "default",
-	// 					"url":  fmt.Sprintf("http://your-admin-panel.com/details?%s", detailParams.Encode()),
-	// 				},
-	// 			},
-	// 		},
-	// 	)
-	// }
 
 	return map[string]interface{}{
 		"config": map[string]interface{}{

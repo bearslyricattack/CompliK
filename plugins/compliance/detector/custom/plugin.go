@@ -14,7 +14,9 @@ import (
 	"github.com/bearslyricattack/CompliK/plugins/compliance/detector/utils"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	gormLogger "gorm.io/gorm/logger"
 	"log"
+	"os"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -217,7 +219,17 @@ func (p *CustomPlugin) Stop(ctx context.Context) error {
 
 func (p *CustomPlugin) initDB() error {
 	serverDSN := p.buildDSN(false)
-	db, err := gorm.Open(mysql.Open(serverDSN), &gorm.Config{})
+	dbConfig := &gorm.Config{
+		Logger: gormLogger.New(
+			log.New(os.Stdout, "\r\n", log.LstdFlags),
+			gormLogger.Config{
+				SlowThreshold: 3 * time.Second,  // 慢查询阈值设为1秒
+				LogLevel:      gormLogger.Error, // 只显示错误日志
+				Colorful:      false,            // 关闭颜色输出
+			},
+		),
+	}
+	db, err := gorm.Open(mysql.Open(serverDSN), dbConfig)
 	if err != nil {
 		return fmt.Errorf("连接 MySQL 服务器失败: %v", err)
 	}
@@ -229,7 +241,7 @@ func (p *CustomPlugin) initDB() error {
 		return fmt.Errorf("创建数据库失败: %v", err)
 	}
 	dbDSN := p.buildDSN(true)
-	db, err = gorm.Open(mysql.Open(dbDSN), &gorm.Config{})
+	db, err = gorm.Open(mysql.Open(dbDSN), dbConfig)
 	if err != nil {
 		return fmt.Errorf("连接到数据库失败: %v", err)
 	}

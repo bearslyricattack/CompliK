@@ -2,6 +2,7 @@ package devbox
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/bearslyricattack/CompliK/pkg/constants"
 	"github.com/bearslyricattack/CompliK/pkg/eventbus"
@@ -42,7 +43,41 @@ func init() {
 }
 
 type DevboxPlugin struct {
-	logger *logger.Logger
+	logger       *logger.Logger
+	devboxConfig DevboxConfig
+}
+
+type DevboxConfig struct {
+	IntervalMinute  int   `config:"intervalMinute"`
+	AutoStart       *bool `json:"autoStart"`
+	StartTimeSecond int   `json:"startTimeSecond"`
+}
+
+func (p *DevboxPlugin) getDefaultDevboxConfig() DevboxConfig {
+	b := false
+	return DevboxConfig{
+		IntervalMinute:  7 * 24 * 60,
+		AutoStart:       &b,
+		StartTimeSecond: 60,
+	}
+}
+
+func (p *DevboxPlugin) loadConfig(setting string) error {
+	p.devboxConfig = p.getDefaultDevboxConfig()
+	if setting == "" {
+		p.logger.Info("使用默认浏览器配置")
+		return nil
+	}
+	var configFromJSON DevboxConfig
+	err := json.Unmarshal([]byte(setting), &configFromJSON)
+	if err != nil {
+		p.logger.Error("解析配置失败，使用默认配置: " + err.Error())
+		return err
+	}
+	if configFromJSON.IntervalMinute > 0 {
+		p.devboxConfig.IntervalMinute = configFromJSON.IntervalMinute
+	}
+	return nil
 }
 
 func (p *DevboxPlugin) Name() string {
@@ -54,11 +89,16 @@ func (p *DevboxPlugin) Type() string {
 }
 
 func (p *DevboxPlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
-	time.Sleep(30 * time.Second)
-	fmt.Println("start")
-	p.executeTask(ctx, eventBus)
+	err := p.loadConfig(config.Settings)
+	if err != nil {
+		return err
+	}
+	if p.devboxConfig.AutoStart != nil && *p.devboxConfig.AutoStart {
+		time.Sleep(time.Duration(p.devboxConfig.StartTimeSecond) * time.Second)
+		p.executeTask(ctx, eventBus)
+	}
 	go func() {
-		ticker := time.NewTicker(IntervalHours)
+		ticker := time.NewTicker(time.Duration(p.devboxConfig.IntervalMinute) * time.Minute)
 		defer ticker.Stop()
 		for {
 			select {
@@ -69,6 +109,10 @@ func (p *DevboxPlugin) Start(ctx context.Context, config config.PluginConfig, ev
 			}
 		}
 	}()
+	return nil
+}
+
+func (p *DevboxPlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
@@ -89,17 +133,8 @@ func (p *DevboxPlugin) executeTask(ctx context.Context, eventBus *eventbus.Event
 	}
 }
 
-func (p *DevboxPlugin) Stop(ctx context.Context) error {
-	return nil
-}
-
 func (p *DevboxPlugin) GetIngressList() ([]models.DiscoveryInfo, error) {
-	p.logger.Info("开始获取 Devbox Ingress 列表")
-
 	var ingressList []models.DiscoveryInfo
-
-	// 获取 Ingress 列表
-	p.logger.Info(fmt.Sprintf("开始查询带有标签 %s 的 Ingress 资源", DevboxManagerLabel))
 	ingresses, err := k8s.ClientSet.NetworkingV1().Ingresses("").List(context.TODO(), metav1.ListOptions{
 		LabelSelector: DevboxManagerLabel,
 	})
@@ -107,26 +142,16 @@ func (p *DevboxPlugin) GetIngressList() ([]models.DiscoveryInfo, error) {
 		p.logger.Error(fmt.Sprintf("获取 Ingress 列表失败: %v", err))
 		return nil, fmt.Errorf("failed to list ingresses: %w", err)
 	}
-	p.logger.Info(fmt.Sprintf("成功获取到 %d 个 Ingress 资源", len(ingresses.Items)))
-
-	// 构建 Devbox GVR
 	devboxGVR := schema.GroupVersionResource{
 		Group:    DevboxGroup,
 		Version:  DevboxVersion,
 		Resource: DevboxResource,
 	}
-	p.logger.Info(fmt.Sprintf("开始查询 Devbox 资源，GVR: %s/%s/%s", DevboxGroup, DevboxVersion, DevboxResource))
-
-	// 获取 Devbox 列表
 	devboxes, err := k8s.DynamicClient.Resource(devboxGVR).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("获取 Devbox 列表失败: %v", err))
 		return nil, fmt.Errorf("failed to list devboxes: %w", err)
 	}
-	p.logger.Info(fmt.Sprintf("成功获取到 %d 个 Devbox 资源", len(devboxes.Items)))
-
-	// 构建状态映射
-	p.logger.Info("开始构建 Devbox 状态映射")
 	statusMap := make(map[string]string, len(devboxes.Items))
 	runningCount := 0
 	for _, devbox := range devboxes.Items {
@@ -141,36 +166,22 @@ func (p *DevboxPlugin) GetIngressList() ([]models.DiscoveryInfo, error) {
 			p.logger.Warning(fmt.Sprintf("无法获取 Devbox %s 的状态信息", key))
 		}
 	}
-	p.logger.Info(fmt.Sprintf("状态映射构建完成，总计 %d 个 Devbox，其中 %d 个处于 Running 状态", len(statusMap), runningCount))
-
-	// 处理 Ingress 列表
-	p.logger.Info("开始处理 Ingress 列表并生成发现信息")
 	processedCount := 0
 	activeCount := 0
 	skippedCount := 0
-
 	for _, ingress := range ingresses.Items {
 		devboxName, ok := ingress.Labels[DevboxManagerLabel]
 		if !ok {
-			p.logger.Warning(fmt.Sprintf("Ingress %s/%s 缺少必要的标签 %s，跳过处理", ingress.Namespace, ingress.Name, DevboxManagerLabel))
 			skippedCount++
 			continue
 		}
-
 		key := fmt.Sprintf("%s/%s", ingress.Namespace, devboxName)
 		phase, exists := statusMap[key]
-
 		if exists && phase == "Running" {
-			p.logger.Info(fmt.Sprintf("处理活跃的 Ingress: %s/%s，对应的 Devbox: %s 状态为 Running",
-				ingress.Namespace, ingress.Name, key))
 			discoveryInfos := utils.GenerateDiscoveryInfo(ingress, true, 1, p.Name())
 			ingressList = append(ingressList, discoveryInfos...)
 			activeCount++
-			p.logger.Debug(fmt.Sprintf("为 Ingress %s/%s 生成了 %d 个发现信息",
-				ingress.Namespace, ingress.Name, len(discoveryInfos)))
 		} else {
-			p.logger.Info(fmt.Sprintf("处理非活跃的 Ingress: %s/%s，对应的 Devbox: %s 状态为 %s (exists: %t)",
-				ingress.Namespace, ingress.Name, key, phase, exists))
 			ingressInfo := models.DiscoveryInfo{
 				DiscoveryName: p.Name(),
 				Name:          ingress.Name,
@@ -185,12 +196,6 @@ func (p *DevboxPlugin) GetIngressList() ([]models.DiscoveryInfo, error) {
 		}
 		processedCount++
 	}
-
-	p.logger.Info(fmt.Sprintf("Ingress 处理完成 - 总计处理: %d 个，活跃: %d 个，跳过: %d 个",
-		processedCount, activeCount, skippedCount))
-
-	fmt.Printf("发送devbox ingress 数量 %d，\n", len(ingressList))
-	p.logger.Info(fmt.Sprintf("GetIngressList 执行完成，返回 %d 个发现信息", len(ingressList)))
-
+	p.logger.Info(fmt.Sprintf("Ingress 处理完成 - 总计处理: %d 个，活跃: %d 个，跳过: %d 个", processedCount, activeCount, skippedCount))
 	return ingressList, nil
 }

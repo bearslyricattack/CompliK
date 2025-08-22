@@ -3,6 +3,7 @@ package postages
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -33,9 +34,71 @@ func init() {
 }
 
 type DatabasePlugin struct {
-	logger *logger.Logger
-	db     *gorm.DB
-	config postagesConfig
+	logger         *logger.Logger
+	db             *gorm.DB
+	databaseConfig DatabaseConfig
+}
+type DatabaseConfig struct {
+	Region       string `json:"region"`
+	Host         string `json:"host"`
+	Port         string `json:"port"`
+	Username     string `json:"username"`
+	Password     string `json:"password"`
+	DatabaseName string `json:"databaseName"`
+	TableName    string `json:"tableName"`
+	Charset      string `json:"charset"`
+}
+
+func (p *DatabasePlugin) getDefaultConfig() DatabaseConfig {
+	return DatabaseConfig{
+		DatabaseName: "complik",
+		Charset:      "utf8mb4",
+		TableName:    "detectorRecord",
+		Region:       "UNKNOWN",
+	}
+}
+
+func (p *DatabasePlugin) loadConfig(setting string) error {
+	p.databaseConfig = p.getDefaultConfig()
+	if setting == "" {
+		return errors.New("配置不能为空")
+	}
+	var configFromJSON DatabaseConfig
+	err := json.Unmarshal([]byte(setting), &configFromJSON)
+	if err != nil {
+		p.logger.Error("解析配置失败: " + err.Error())
+		return err
+	}
+	if configFromJSON.Host == "" {
+		return errors.New("host 配置不能为空")
+	}
+	if configFromJSON.Port == "" {
+		return errors.New("port 配置不能为空")
+	}
+	if configFromJSON.Username == "" {
+		return errors.New("username 配置不能为空")
+	}
+	if configFromJSON.Password == "" {
+		return errors.New("password 配置不能为空")
+	}
+	p.databaseConfig.Host = configFromJSON.Host
+	p.databaseConfig.Port = configFromJSON.Port
+	p.databaseConfig.Username = configFromJSON.Username
+	p.databaseConfig.Password = configFromJSON.Password
+	p.databaseConfig.Region = configFromJSON.Region
+	if configFromJSON.Region == "" {
+		p.databaseConfig.Region = configFromJSON.Region
+	}
+	if configFromJSON.DatabaseName != "" {
+		p.databaseConfig.DatabaseName = configFromJSON.DatabaseName
+	}
+	if configFromJSON.Charset != "" {
+		p.databaseConfig.Charset = configFromJSON.Charset
+	}
+	if configFromJSON.TableName != "" {
+		p.databaseConfig.TableName = configFromJSON.TableName
+	}
+	return nil
 }
 
 type DetectorRecord struct {
@@ -58,19 +121,10 @@ type DetectorRecord struct {
 func (p *DatabasePlugin) Name() string { return pluginName }
 func (p *DatabasePlugin) Type() string { return pluginType }
 
-type postagesConfig struct {
-	region string `json:"region"`
-}
-
 func (p *DatabasePlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
-	setting := config.Settings
-	var postages postagesConfig
-	err := json.Unmarshal([]byte(setting), &postages)
+	err := p.loadConfig(config.Settings)
 	if err != nil {
-		p.logger.Error(err.Error())
 		return err
-	} else {
-		p.config = postages
 	}
 	if err := p.initDB(); err != nil {
 		return fmt.Errorf("初始化数据库失败: %v", err)
@@ -99,7 +153,7 @@ func (p *DatabasePlugin) Start(ctx context.Context, config config.PluginConfig, 
 					p.logger.Error(fmt.Sprintf("事件类型错误: %T", event.Payload))
 					continue
 				}
-				result.Region = p.config.region
+				result.Region = p.databaseConfig.Region
 				if err := p.saveResults(result); err != nil {
 					p.logger.Error(fmt.Sprintf("保存数据失败: %v", err))
 				}
@@ -125,38 +179,50 @@ func (p *DatabasePlugin) Stop(ctx context.Context) error {
 }
 
 func (p *DatabasePlugin) initDB() error {
-	dsn := "root:l6754g75@tcp(dbconn.sealoshzh.site:33144)/?charset=utf8mb4&parseTime=True&loc=Local"
-
+	serverDSN := p.buildDSN(false)
 	dbConfig := &gorm.Config{
 		Logger: gormLogger.New(
 			log.New(os.Stdout, "\r\n", log.LstdFlags),
 			gormLogger.Config{
-				SlowThreshold: 1 * time.Second,  // 慢查询阈值设为1秒
+				SlowThreshold: 3 * time.Second,  // 慢查询阈值设为1秒
 				LogLevel:      gormLogger.Error, // 只显示错误日志
 				Colorful:      false,            // 关闭颜色输出
 			},
 		),
 	}
-
-	db, err := gorm.Open(mysql.Open(dsn), dbConfig)
+	db, err := gorm.Open(mysql.Open(serverDSN), dbConfig)
 	if err != nil {
 		return fmt.Errorf("连接 MySQL 服务器失败: %v", err)
 	}
-
-	databaseName := "complik"
-	err = db.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci", databaseName)).Error
+	err = db.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s CHARACTER SET %s COLLATE %s_unicode_ci",
+		p.databaseConfig.DatabaseName,
+		p.databaseConfig.Charset,
+		p.databaseConfig.Charset)).Error
 	if err != nil {
 		return fmt.Errorf("创建数据库失败: %v", err)
 	}
-
-	newDsn := fmt.Sprintf("root:l6754g75@tcp(dbconn.sealoshzh.site:33144)/%s?charset=utf8mb4&parseTime=True&loc=Local", databaseName)
-	db, err = gorm.Open(mysql.Open(newDsn), dbConfig)
+	dbDSN := p.buildDSN(true)
+	db, err = gorm.Open(mysql.Open(dbDSN), dbConfig)
 	if err != nil {
 		return fmt.Errorf("连接到数据库失败: %v", err)
 	}
-
 	p.db = db
 	return nil
+}
+
+func (p *DatabasePlugin) buildDSN(includeDB bool) string {
+	dbPart := "/"
+	if includeDB {
+		dbPart = "/" + p.databaseConfig.DatabaseName
+	}
+	return fmt.Sprintf("%s:%s@tcp(%s:%s)%s?charset=%s&parseTime=True&loc=Local",
+		p.databaseConfig.Username,
+		p.databaseConfig.Password,
+		p.databaseConfig.Host,
+		p.databaseConfig.Port,
+		dbPart,
+		p.databaseConfig.Charset,
+	)
 }
 
 func (p *DatabasePlugin) saveResults(result *models.DetectorInfo) error {
@@ -169,7 +235,6 @@ func (p *DatabasePlugin) saveResults(result *models.DetectorInfo) error {
 	if result == nil {
 		return fmt.Errorf("分析结果为空")
 	}
-
 	record := DetectorRecord{
 		DiscoveryName: result.DiscoveryName,
 		CollectorName: result.CollectorName,

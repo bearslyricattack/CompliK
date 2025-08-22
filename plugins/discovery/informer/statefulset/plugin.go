@@ -2,6 +2,7 @@ package deployment
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/bearslyricattack/CompliK/pkg/constants"
 	"github.com/bearslyricattack/CompliK/pkg/models"
@@ -32,18 +33,51 @@ const (
 
 func init() {
 	plugin.PluginFactories[statefulsetPluginName] = func() plugin.Plugin {
-		return &StatefulSetInformerPlugin{
+		return &StatefulSetPlugin{
 			logger: logger.NewLogger(),
 		}
 	}
 }
 
-type StatefulSetInformerPlugin struct {
+type StatefulSetPlugin struct {
 	logger              *logger.Logger
 	stopChan            chan struct{}
 	eventBus            *eventbus.EventBus
 	factory             informers.SharedInformerFactory
 	statefulsetInformer cache.SharedIndexInformer
+	statefulSetConfig   StatefulSetConfig
+}
+type StatefulSetConfig struct {
+	ResyncTimeSecond   int `json:"resyncTimeSecond"`
+	AgeThresholdSecond int `json:"ageThresholdSecond"`
+}
+
+func (p *StatefulSetPlugin) getDefaultStatefulSetConfig() StatefulSetConfig {
+	return StatefulSetConfig{
+		ResyncTimeSecond:   5,
+		AgeThresholdSecond: 180,
+	}
+}
+
+func (p *StatefulSetPlugin) loadConfig(setting string) error {
+	p.statefulSetConfig = p.getDefaultStatefulSetConfig()
+	if setting == "" {
+		p.logger.Info("使用默认浏览器配置")
+		return nil
+	}
+	var configFromJSON StatefulSetConfig
+	err := json.Unmarshal([]byte(setting), &configFromJSON)
+	if err != nil {
+		p.logger.Error("解析配置失败，使用默认配置: " + err.Error())
+		return err
+	}
+	if configFromJSON.ResyncTimeSecond > 0 {
+		p.statefulSetConfig.ResyncTimeSecond = configFromJSON.ResyncTimeSecond
+	}
+	if configFromJSON.AgeThresholdSecond > 0 {
+		p.statefulSetConfig.AgeThresholdSecond = configFromJSON.AgeThresholdSecond
+	}
+	return nil
 }
 
 type StatefulSetInfo struct {
@@ -53,24 +87,24 @@ type StatefulSetInfo struct {
 	MatchedIngresses []models.DiscoveryInfo
 }
 
-func (p *StatefulSetInformerPlugin) Name() string {
+func (p *StatefulSetPlugin) Name() string {
 	return statefulsetPluginName
 }
 
-func (p *StatefulSetInformerPlugin) Type() string {
+func (p *StatefulSetPlugin) Type() string {
 	return statefulsetPluginType
 }
 
-func (p *StatefulSetInformerPlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
+func (p *StatefulSetPlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
 	p.stopChan = make(chan struct{})
 	p.eventBus = eventBus
 	go p.startStatefulSetInformerWatch(ctx)
 	return nil
 }
 
-func (p *StatefulSetInformerPlugin) startStatefulSetInformerWatch(ctx context.Context) {
+func (p *StatefulSetPlugin) startStatefulSetInformerWatch(ctx context.Context) {
 	if p.factory == nil {
-		p.factory = informers.NewSharedInformerFactory(k8s.ClientSet, 5*time.Second)
+		p.factory = informers.NewSharedInformerFactory(k8s.ClientSet, time.Duration(p.statefulSetConfig.ResyncTimeSecond)*time.Second)
 	}
 	if p.statefulsetInformer == nil {
 		p.statefulsetInformer = p.factory.Apps().V1().StatefulSets().Informer()
@@ -79,7 +113,7 @@ func (p *StatefulSetInformerPlugin) startStatefulSetInformerWatch(ctx context.Co
 	p.statefulsetInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			statefulset := obj.(*appsv1.StatefulSet)
-			if time.Since(statefulset.CreationTimestamp.Time) > 150*time.Second {
+			if time.Since(statefulset.CreationTimestamp.Time) > time.Duration(p.statefulSetConfig.AgeThresholdSecond)*time.Second {
 				return
 			}
 			if p.shouldProcessStatefulSet(statefulset) {
@@ -114,7 +148,6 @@ func (p *StatefulSetInformerPlugin) startStatefulSetInformerWatch(ctx context.Co
 		p.logger.Error("Failed to wait for StatefulSet caches to sync")
 		return
 	}
-
 	p.logger.Info("StatefulSet informer watcher started successfully")
 	select {
 	case <-ctx.Done():
@@ -124,18 +157,18 @@ func (p *StatefulSetInformerPlugin) startStatefulSetInformerWatch(ctx context.Co
 	}
 }
 
-func (p *StatefulSetInformerPlugin) Stop(ctx context.Context) error {
+func (p *StatefulSetPlugin) Stop(ctx context.Context) error {
 	if p.stopChan != nil {
 		close(p.stopChan)
 	}
 	return nil
 }
 
-func (p *StatefulSetInformerPlugin) shouldProcessStatefulSet(statefulset *appsv1.StatefulSet) bool {
+func (p *StatefulSetPlugin) shouldProcessStatefulSet(statefulset *appsv1.StatefulSet) bool {
 	return strings.HasPrefix(statefulset.Namespace, "ns-")
 }
 
-func (p *StatefulSetInformerPlugin) hasStatefulSetChanged(oldStatefulSet, newStatefulSet *appsv1.StatefulSet) bool {
+func (p *StatefulSetPlugin) hasStatefulSetChanged(oldStatefulSet, newStatefulSet *appsv1.StatefulSet) bool {
 	oldImages := extractImagesFromStatefulSet(oldStatefulSet)
 	newImages := extractImagesFromStatefulSet(newStatefulSet)
 	hasChanged := !compareStringSlices(oldImages, newImages)
@@ -174,7 +207,7 @@ func extractImagesFromStatefulSet(statefulset *appsv1.StatefulSet) []string {
 	return images
 }
 
-func (p *StatefulSetInformerPlugin) handleStatefulSetEvent(discoveryInfo []models.DiscoveryInfo) {
+func (p *StatefulSetPlugin) handleStatefulSetEvent(discoveryInfo []models.DiscoveryInfo) {
 	for _, info := range discoveryInfo {
 		p.eventBus.Publish(constants.DiscoveryTopic, eventbus.Event{
 			Payload: info,
@@ -182,17 +215,15 @@ func (p *StatefulSetInformerPlugin) handleStatefulSetEvent(discoveryInfo []model
 	}
 }
 
-func (p *StatefulSetInformerPlugin) getStatefulSetRelatedIngresses(statefulset *appsv1.StatefulSet) ([]models.DiscoveryInfo, error) {
+func (p *StatefulSetPlugin) getStatefulSetRelatedIngresses(statefulset *appsv1.StatefulSet) ([]models.DiscoveryInfo, error) {
 	appName, exists := statefulset.Labels[AppDeployManagerLabel]
 	if !exists {
 		return []models.DiscoveryInfo{}, nil
 	}
-
 	ingressItems, err := k8s.ClientSet.NetworkingV1().Ingresses(statefulset.Namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("获取命名空间 %s 中的Ingress列表失败: %v", statefulset.Namespace, err)
 	}
-
 	var ingresses []models.DiscoveryInfo
 	for _, ingress := range ingressItems.Items {
 		if ingressAppName, exists := ingress.Labels[AppDeployManagerLabel]; exists && ingressAppName == appName {
@@ -200,6 +231,5 @@ func (p *StatefulSetInformerPlugin) getStatefulSetRelatedIngresses(statefulset *
 			ingresses = append(ingresses, res...)
 		}
 	}
-
 	return ingresses, nil
 }

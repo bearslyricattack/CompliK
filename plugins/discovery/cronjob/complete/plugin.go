@@ -26,43 +26,44 @@ const (
 	pluginType = constants.DiscoveryCronJobPluginType
 )
 
-const (
-	IntervalHours = 7 * 24 * 60 * time.Minute
-)
-
 func init() {
 	plugin.PluginFactories[pluginName] = func() plugin.Plugin {
-		return &CronPlugin{
+		return &CompletePlugin{
 			logger: logger.NewLogger(),
 		}
 	}
 }
 
-type CronPlugin struct {
+type CompletePlugin struct {
 	logger         *logger.Logger
-	CompleteConfig CompleteConfig
+	completeConfig CompleteConfig
 }
 
-func (p *CronPlugin) Name() string {
+func (p *CompletePlugin) Name() string {
 	return pluginName
 }
 
-func (p *CronPlugin) Type() string {
+func (p *CompletePlugin) Type() string {
 	return pluginType
 }
 
 type CompleteConfig struct {
-	IntervalMinute int `config:"intervalMinute"`
+	IntervalMinute  int   `json:"intervalMinute"`
+	AutoStart       *bool `json:"autoStart"`
+	StartTimeSecond int   `json:"startTimeSecond"`
 }
 
-func getDefaultCronPlugin() CompleteConfig {
+func (p *CompletePlugin) getDefaultCompleteConfig() CompleteConfig {
+	b := false
 	return CompleteConfig{
-		IntervalMinute: 7 * 24 * 60,
+		IntervalMinute:  7 * 24 * 60,
+		AutoStart:       &b,
+		StartTimeSecond: 60,
 	}
 }
 
-func (p *CronPlugin) loadConfig(setting string) error {
-	p.CompleteConfig = getDefaultCronPlugin()
+func (p *CompletePlugin) loadConfig(setting string) error {
+	p.completeConfig = p.getDefaultCompleteConfig()
 	if setting == "" {
 		p.logger.Info("使用默认浏览器配置")
 		return nil
@@ -74,18 +75,28 @@ func (p *CronPlugin) loadConfig(setting string) error {
 		return err
 	}
 	if configFromJSON.IntervalMinute > 0 {
-		p.CompleteConfig.IntervalMinute = configFromJSON.IntervalMinute
+		p.completeConfig.IntervalMinute = configFromJSON.IntervalMinute
+	}
+	if configFromJSON.AutoStart != nil {
+		p.completeConfig.AutoStart = configFromJSON.AutoStart
+	}
+	if configFromJSON.StartTimeSecond > 0 {
+		p.completeConfig.StartTimeSecond = configFromJSON.StartTimeSecond
 	}
 	return nil
 }
 
-func (p *CronPlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
+func (p *CompletePlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
 	err := p.loadConfig(config.Settings)
 	if err != nil {
 		return err
 	}
+	if p.completeConfig.AutoStart != nil && *p.completeConfig.AutoStart {
+		time.Sleep(time.Duration(p.completeConfig.StartTimeSecond) * time.Second)
+		p.executeTask(ctx, eventBus)
+	}
 	go func() {
-		ticker := time.NewTicker(IntervalHours)
+		ticker := time.NewTicker(time.Duration(p.completeConfig.IntervalMinute) * time.Minute)
 		defer ticker.Stop()
 		for {
 			select {
@@ -99,7 +110,7 @@ func (p *CronPlugin) Start(ctx context.Context, config config.PluginConfig, even
 	return nil
 }
 
-func (p *CronPlugin) executeTask(ctx context.Context, eventBus *eventbus.EventBus) {
+func (p *CompletePlugin) executeTask(ctx context.Context, eventBus *eventbus.EventBus) {
 	ingressList, err := p.GetIngressList()
 	if err != nil {
 		log.Printf("Failed to get ingress list: %v", err)
@@ -118,11 +129,11 @@ func (p *CronPlugin) executeTask(ctx context.Context, eventBus *eventbus.EventBu
 	}
 }
 
-func (p *CronPlugin) Stop(ctx context.Context) error {
+func (p *CompletePlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (p *CronPlugin) GetIngressList() ([]models.DiscoveryInfo, error) {
+func (p *CompletePlugin) GetIngressList() ([]models.DiscoveryInfo, error) {
 	var (
 		ingressItems                  *networkingv1.IngressList
 		endpointSlicesList            *discoveryv1.EndpointSliceList
@@ -149,7 +160,7 @@ func (p *CronPlugin) GetIngressList() ([]models.DiscoveryInfo, error) {
 	return p.processIngressAndEndpointSlices(uniqueIngresses, endpointSlicesList.Items)
 }
 
-func (p *CronPlugin) deduplicateIngressesByPath(ingresses []networkingv1.Ingress) []networkingv1.Ingress {
+func (p *CompletePlugin) deduplicateIngressesByPath(ingresses []networkingv1.Ingress) []networkingv1.Ingress {
 	pathMap := make(map[string]networkingv1.Ingress)
 	for _, ingress := range ingresses {
 		for _, rule := range ingress.Spec.Rules {
@@ -179,7 +190,7 @@ func (p *CronPlugin) deduplicateIngressesByPath(ingresses []networkingv1.Ingress
 	return result
 }
 
-func (p *CronPlugin) processIngressAndEndpointSlices(ingressItems []networkingv1.Ingress, endpointSlicesItems []discoveryv1.EndpointSlice) ([]models.DiscoveryInfo, error) {
+func (p *CompletePlugin) processIngressAndEndpointSlices(ingressItems []networkingv1.Ingress, endpointSlicesItems []discoveryv1.EndpointSlice) ([]models.DiscoveryInfo, error) {
 	// 构建 EndpointSlice 映射：namespace -> serviceName -> []EndpointSlice
 	endpointSlicesMap := make(map[string]map[string][]*discoveryv1.EndpointSlice)
 	for i := range endpointSlicesItems {
