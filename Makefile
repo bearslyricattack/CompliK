@@ -43,11 +43,11 @@ clean:
 
 .PHONY: build
 build: clean ## Build service-hub binary.
-	CGO_ENABLED=$(CGO_ENABLED) GOOS=$(GOOS) go build $(GO_BUILD_FLAGS) -o bin/manager main.go
+	CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags "-s -w" -o bin/manager cmd/complik/main.go
 
 .PHONY: docker-build
 docker-build: build
-	mv bin/manager bin/service-vlogs-${TARGETARCH}
+	mv bin/manager bin/service-complik-${TARGETARCH}
 	docker build -t $(IMG) .
 
 .PHONY: docker-push
