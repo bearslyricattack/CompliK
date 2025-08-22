@@ -48,16 +48,15 @@ type DevboxPlugin struct {
 }
 
 type DevboxConfig struct {
-	IntervalMinute  int   `config:"intervalMinute"`
-	AutoStart       *bool `json:"autoStart"`
-	StartTimeSecond int   `json:"startTimeSecond"`
+	IntervalMinute  int  `config:"intervalMinute"`
+	AutoStart       bool `json:"autoStart"`
+	StartTimeSecond int  `json:"startTimeSecond"`
 }
 
 func (p *DevboxPlugin) getDefaultDevboxConfig() DevboxConfig {
-	b := false
 	return DevboxConfig{
 		IntervalMinute:  7 * 24 * 60,
-		AutoStart:       &b,
+		AutoStart:       false,
 		StartTimeSecond: 60,
 	}
 }
@@ -77,6 +76,12 @@ func (p *DevboxPlugin) loadConfig(setting string) error {
 	if configFromJSON.IntervalMinute > 0 {
 		p.devboxConfig.IntervalMinute = configFromJSON.IntervalMinute
 	}
+	if configFromJSON.AutoStart {
+		p.devboxConfig.AutoStart = configFromJSON.AutoStart
+	}
+	if configFromJSON.StartTimeSecond > 0 {
+		p.devboxConfig.StartTimeSecond = configFromJSON.StartTimeSecond
+	}
 	return nil
 }
 
@@ -93,7 +98,7 @@ func (p *DevboxPlugin) Start(ctx context.Context, config config.PluginConfig, ev
 	if err != nil {
 		return err
 	}
-	if p.devboxConfig.AutoStart != nil && *p.devboxConfig.AutoStart {
+	if p.devboxConfig.AutoStart {
 		time.Sleep(time.Duration(p.devboxConfig.StartTimeSecond) * time.Second)
 		p.executeTask(ctx, eventBus)
 	}

@@ -86,7 +86,7 @@ func (p *DatabasePlugin) loadConfig(setting string) error {
 	p.databaseConfig.Username = configFromJSON.Username
 	p.databaseConfig.Password = configFromJSON.Password
 	p.databaseConfig.Region = configFromJSON.Region
-	if configFromJSON.Region == "" {
+	if configFromJSON.Region != "" {
 		p.databaseConfig.Region = configFromJSON.Region
 	}
 	if configFromJSON.DatabaseName != "" {
