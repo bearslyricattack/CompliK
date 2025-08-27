@@ -32,8 +32,6 @@ func NewContentReviewer(logger *logger.Logger, apiKey string, apiBase string, ap
 	}
 }
 
-var count = 0
-
 func (r *ContentReviewer) ReviewSiteContent(ctx context.Context, content *models.CollectorInfo, name string, customRules []CustomKeywordRule) (*models.DetectorInfo, error) {
 	if content == nil {
 		return nil, fmt.Errorf("ScrapeResult 参数为空")
@@ -43,8 +41,6 @@ func (r *ContentReviewer) ReviewSiteContent(ctx context.Context, content *models
 		return nil, fmt.Errorf("准备请求数据失败: %v", err)
 	}
 	response, err := r.callAPI(ctx, requestData)
-	fmt.Println("当前请求次数 %d", count)
-	count++
 	if err != nil {
 		return nil, fmt.Errorf("调用API失败: %v", err)
 	}

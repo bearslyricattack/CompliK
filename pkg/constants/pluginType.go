@@ -8,6 +8,7 @@ const (
 const (
 	ComplianceCollectorPluginType = "Compliance.Collector"
 	ComplianceDetectorPluginType  = "Compliance.Detector"
+	ComplianceHigressPluginType   = "Higress"
 )
 
 const (

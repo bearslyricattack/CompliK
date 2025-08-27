@@ -4,9 +4,10 @@ const (
 	DiscoveryCronJobCompleteName = "Complete"
 	DiscoveryCronJobDevboxName   = "Devbox"
 
-	DiscoveryInformerDeploymentName    = "Deployment"
-	DiscoveryInformerStatefulSetName   = "StatefulSet"
-	DiscoveryInformerEndPointSliceName = "Endpointslice"
+	DiscoveryInformerDeploymentName      = "Deployment"
+	DiscoveryInformerStatefulSetName     = "StatefulSet"
+	DiscoveryInformerEndPointSliceName   = "Endpointslice"
+	DiscoveryInformerServiceNodePortName = "NodePort"
 )
 
 const (
