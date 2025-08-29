@@ -1,0 +1,31 @@
+# 禁用进程列表
+banned_processes:
+  - "nc"
+  - "netcat"
+  - "ncat"
+  - "socat"
+  - "telnet"
+  - "ssh"
+  - "scp"
+  - "rsync"
+  - "wget"
+  - "curl"
+  - "python"
+  - "perl"
+  - "ruby"
+  - "bash"
+  - "sh"
+  - "zsh"
+
+# 关键词列表
+keywords:
+  - "reverse_shell"
+  - "backdoor"
+  - "malware"
+  - "exploit"
+  - "payload"
+  - "/tmp/"
+  - "/dev/shm/"
+  - "base64"
+  - "encode"
+  - "decode"

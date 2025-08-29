@@ -13,9 +13,9 @@ import (
 
 	"github.com/bearslyricattack/CompliK/pkg/eventbus"
 	"github.com/bearslyricattack/CompliK/pkg/k8s"
+	"github.com/bearslyricattack/CompliK/pkg/logger"
 	"github.com/bearslyricattack/CompliK/pkg/plugin"
 	"github.com/bearslyricattack/CompliK/pkg/utils/config"
-	"github.com/bearslyricattack/CompliK/pkg/utils/logger"
 
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/client-go/informers"
@@ -34,13 +34,13 @@ const (
 func init() {
 	plugin.PluginFactories[deploymentPluginName] = func() plugin.Plugin {
 		return &DeploymentPlugin{
-			logger: logger.NewLogger(),
+			log: logger.GetLogger().WithField("plugin", deploymentPluginName),
 		}
 	}
 }
 
 type DeploymentPlugin struct {
-	logger             *logger.Logger
+	log                logger.Logger
 	stopChan           chan struct{}
 	eventBus           *eventbus.EventBus
 	factory            informers.SharedInformerFactory
@@ -63,13 +63,15 @@ func (p *DeploymentPlugin) getDefaultDeploymentConfig() DeploymentConfig {
 func (p *DeploymentPlugin) loadConfig(setting string) error {
 	p.deploymentConfig = p.getDefaultDeploymentConfig()
 	if setting == "" {
-		p.logger.Info("使用默认浏览器配置")
+		p.log.Info("Using default browser configuration")
 		return nil
 	}
 	var configFromJSON DeploymentConfig
 	err := json.Unmarshal([]byte(setting), &configFromJSON)
 	if err != nil {
-		p.logger.Error("解析配置失败，使用默认配置: " + err.Error())
+		p.log.Error("Failed to parse config, using defaults", logger.Fields{
+			"error": err.Error(),
+		})
 		return err
 	}
 	if configFromJSON.ResyncTimeSecond > 0 {
@@ -152,15 +154,15 @@ func (p *DeploymentPlugin) startDeploymentInformerWatch(ctx context.Context) {
 	})
 	p.factory.Start(p.stopChan)
 	if !cache.WaitForCacheSync(p.stopChan, p.deploymentInformer.HasSynced) {
-		p.logger.Error("Failed to wait for deployment caches to sync")
+		p.log.Error("Failed to wait for deployment caches to sync")
 		return
 	}
-	p.logger.Info("Deployment informer watcher started successfully")
+	p.log.Info("Deployment informer watcher started successfully")
 	select {
 	case <-ctx.Done():
-		p.logger.Info("Deployment watcher stopping due to context cancellation")
+		p.log.Info("Deployment watcher stopping due to context cancellation")
 	case <-p.stopChan:
-		p.logger.Info("Deployment watcher stopping due to stop signal")
+		p.log.Info("Deployment watcher stopping due to stop signal")
 	}
 }
 
@@ -180,7 +182,12 @@ func (p *DeploymentPlugin) hasDeploymentChanged(oldDeployment, newDeployment *ap
 	newImages := extractImagesFromDeployment(newDeployment)
 	hasChanged := !compareStringSlices(oldImages, newImages)
 	if hasChanged {
-		p.logger.Info(fmt.Sprintf("检测到Deployment %s/%s 镜像变化，老镜像:%v，新镜像:%v", newDeployment.Namespace, newDeployment.Name, oldImages, newImages))
+		p.log.Debug("Deployment image change detected", logger.Fields{
+			"namespace":  newDeployment.Namespace,
+			"name":       newDeployment.Name,
+			"old_images": oldImages,
+			"new_images": newImages,
+		})
 	}
 	return hasChanged
 }
@@ -234,7 +241,6 @@ func (p *DeploymentPlugin) getDeploymentRelatedIngresses(deployment *appsv1.Depl
 	for _, ingress := range ingressItems.Items {
 		if ingressAppName, exists := ingress.Labels[AppDeployManagerLabel]; exists && ingressAppName == appName {
 			res := utils.GenerateDiscoveryInfo(ingress, true, 1, p.Name())
-			p.logger.Debug(fmt.Sprintf("找到deployment对应的ingress:%s/%s,发送%s", ingress.Namespace, ingress.Name, ingress.Spec.Rules[0].Host))
 			ingresses = append(ingresses, res...)
 		}
 	}

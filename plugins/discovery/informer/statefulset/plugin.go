@@ -13,9 +13,9 @@ import (
 
 	"github.com/bearslyricattack/CompliK/pkg/eventbus"
 	"github.com/bearslyricattack/CompliK/pkg/k8s"
+	"github.com/bearslyricattack/CompliK/pkg/logger"
 	"github.com/bearslyricattack/CompliK/pkg/plugin"
 	"github.com/bearslyricattack/CompliK/pkg/utils/config"
-	"github.com/bearslyricattack/CompliK/pkg/utils/logger"
 
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/client-go/informers"
@@ -34,13 +34,13 @@ const (
 func init() {
 	plugin.PluginFactories[statefulsetPluginName] = func() plugin.Plugin {
 		return &StatefulSetPlugin{
-			logger: logger.NewLogger(),
+			log: logger.GetLogger().WithField("plugin", statefulsetPluginName),
 		}
 	}
 }
 
 type StatefulSetPlugin struct {
-	logger              *logger.Logger
+	log                 logger.Logger
 	stopChan            chan struct{}
 	eventBus            *eventbus.EventBus
 	factory             informers.SharedInformerFactory
@@ -62,13 +62,15 @@ func (p *StatefulSetPlugin) getDefaultStatefulSetConfig() StatefulSetConfig {
 func (p *StatefulSetPlugin) loadConfig(setting string) error {
 	p.statefulSetConfig = p.getDefaultStatefulSetConfig()
 	if setting == "" {
-		p.logger.Info("使用默认浏览器配置")
+		p.log.Info("Using default browser configuration")
 		return nil
 	}
 	var configFromJSON StatefulSetConfig
 	err := json.Unmarshal([]byte(setting), &configFromJSON)
 	if err != nil {
-		p.logger.Error("解析配置失败，使用默认配置: " + err.Error())
+		p.log.Error("Failed to parse config, using defaults", logger.Fields{
+			"error": err.Error(),
+		})
 		return err
 	}
 	if configFromJSON.ResyncTimeSecond > 0 {
@@ -119,10 +121,11 @@ func (p *StatefulSetPlugin) startStatefulSetInformerWatch(ctx context.Context) {
 			if p.shouldProcessStatefulSet(statefulset) {
 				res, err := p.getStatefulSetRelatedIngresses(statefulset)
 				if err != nil {
-					p.logger.Error(fmt.Sprintf("获取StatefulSet相关Ingress失败: %v", err))
+					p.log.Error("Failed to get StatefulSet related Ingresses", logger.Fields{
+						"error": err.Error(),
+					})
 					return
 				}
-				p.logger.Info(fmt.Sprintf("新创建StatefulSet，name：%s,namespace：%s", statefulset.Name, statefulset.Namespace))
 				p.handleStatefulSetEvent(res)
 			}
 		},
@@ -134,7 +137,9 @@ func (p *StatefulSetPlugin) startStatefulSetInformerWatch(ctx context.Context) {
 				if hasChanged {
 					res, err := p.getStatefulSetRelatedIngresses(newStatefulSet)
 					if err != nil {
-						p.logger.Error(fmt.Sprintf("获取StatefulSet相关Ingress失败: %v", err))
+						p.log.Error("Failed to get StatefulSet related Ingresses", logger.Fields{
+							"error": err.Error(),
+						})
 						return
 					}
 					p.handleStatefulSetEvent(res)
@@ -145,15 +150,15 @@ func (p *StatefulSetPlugin) startStatefulSetInformerWatch(ctx context.Context) {
 
 	p.factory.Start(p.stopChan)
 	if !cache.WaitForCacheSync(p.stopChan, p.statefulsetInformer.HasSynced) {
-		p.logger.Error("Failed to wait for StatefulSet caches to sync")
+		p.log.Error("Failed to wait for StatefulSet caches to sync")
 		return
 	}
-	p.logger.Info("StatefulSet informer watcher started successfully")
+	p.log.Info("StatefulSet informer watcher started successfully")
 	select {
 	case <-ctx.Done():
-		p.logger.Info("StatefulSet watcher stopping due to context cancellation")
+		p.log.Info("StatefulSet watcher stopping due to context cancellation")
 	case <-p.stopChan:
-		p.logger.Info("StatefulSet watcher stopping due to stop signal")
+		p.log.Info("StatefulSet watcher stopping due to stop signal")
 	}
 }
 
@@ -173,8 +178,12 @@ func (p *StatefulSetPlugin) hasStatefulSetChanged(oldStatefulSet, newStatefulSet
 	newImages := extractImagesFromStatefulSet(newStatefulSet)
 	hasChanged := !compareStringSlices(oldImages, newImages)
 	if hasChanged {
-		p.logger.Info(fmt.Sprintf("检测到StatefulSet %s/%s 镜像变化，老镜像:%v，新镜像:%v",
-			newStatefulSet.Namespace, newStatefulSet.Name, oldImages, newImages))
+		p.log.Debug("StatefulSet image change detected", logger.Fields{
+			"namespace":  newStatefulSet.Namespace,
+			"name":       newStatefulSet.Name,
+			"old_images": oldImages,
+			"new_images": newImages,
+		})
 	}
 	return hasChanged
 }

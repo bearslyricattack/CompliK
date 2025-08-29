@@ -13,9 +13,9 @@ import (
 
 	"github.com/bearslyricattack/CompliK/pkg/eventbus"
 	"github.com/bearslyricattack/CompliK/pkg/k8s"
+	"github.com/bearslyricattack/CompliK/pkg/logger"
 	"github.com/bearslyricattack/CompliK/pkg/plugin"
 	"github.com/bearslyricattack/CompliK/pkg/utils/config"
-	"github.com/bearslyricattack/CompliK/pkg/utils/logger"
 
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
@@ -33,13 +33,13 @@ const (
 func init() {
 	plugin.PluginFactories[servicePluginName] = func() plugin.Plugin {
 		return &ServicePlugin{
-			logger: logger.NewLogger(),
+			log: logger.GetLogger().WithField("plugin", servicePluginName),
 		}
 	}
 }
 
 type ServicePlugin struct {
-	logger          *logger.Logger
+	log             logger.Logger
 	stopChan        chan struct{}
 	eventBus        *eventbus.EventBus
 	factory         informers.SharedInformerFactory
@@ -61,14 +61,19 @@ func (p *ServicePlugin) getDefaultServiceConfig() ServiceConfig {
 
 func (p *ServicePlugin) loadConfig(setting string) error {
 	p.serviceConfig = p.getDefaultServiceConfig()
+	p.log.Debug("Loading nodeport service configuration")
+
 	if setting == "" {
-		p.logger.Info("使用默认Service配置")
+		p.log.Info("Using default service configuration")
 		return nil
 	}
+
 	var configFromJSON ServiceConfig
 	err := json.Unmarshal([]byte(setting), &configFromJSON)
 	if err != nil {
-		p.logger.Error("解析配置失败，使用默认配置: " + err.Error())
+		p.log.Error("Failed to parse configuration, using defaults", logger.Fields{
+			"error": err.Error(),
+		})
 		return err
 	}
 	if configFromJSON.ResyncTimeSecond > 0 {
@@ -77,6 +82,12 @@ func (p *ServicePlugin) loadConfig(setting string) error {
 	if configFromJSON.AgeThresholdSecond > 0 {
 		p.serviceConfig.AgeThresholdSecond = configFromJSON.AgeThresholdSecond
 	}
+
+	p.log.Info("Service configuration loaded", logger.Fields{
+		"resync_seconds":        p.serviceConfig.ResyncTimeSecond,
+		"age_threshold_seconds": p.serviceConfig.AgeThresholdSecond,
+	})
+
 	return nil
 }
 
@@ -89,13 +100,23 @@ func (p *ServicePlugin) Type() string {
 }
 
 func (p *ServicePlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
+	p.log.Info("Starting NodePort service informer plugin")
+
 	err := p.loadConfig(config.Settings)
 	if err != nil {
+		p.log.Error("Failed to load configuration", logger.Fields{
+			"error": err.Error(),
+		})
 		return err
 	}
+
 	p.stopChan = make(chan struct{})
 	p.eventBus = eventBus
+
+	p.log.Debug("Starting service informer watcher")
 	go p.startServiceInformerWatch(ctx)
+
+	p.log.Info("NodePort service informer started successfully")
 	return nil
 }
 
@@ -115,9 +136,19 @@ func (p *ServicePlugin) startServiceInformerWatch(ctx context.Context) {
 			if p.shouldProcessService(service) {
 				res, err := p.getServiceDiscoveryInfo(service)
 				if err != nil {
-					p.logger.Error(fmt.Sprintf("获取Service %s/%s 发现信息失败: %v", service.Namespace, service.Name, err))
+					p.log.Error("Failed to get service discovery info", logger.Fields{
+						"namespace": service.Namespace,
+						"name":      service.Name,
+						"error":     err.Error(),
+					})
 					return
 				}
+
+				p.log.Debug("Service added", logger.Fields{
+					"namespace":  service.Namespace,
+					"name":       service.Name,
+					"info_count": len(res),
+				})
 				p.handleServiceEvent(res)
 			}
 		},
@@ -129,9 +160,19 @@ func (p *ServicePlugin) startServiceInformerWatch(ctx context.Context) {
 				if hasChanged {
 					res, err := p.getServiceDiscoveryInfo(newService)
 					if err != nil {
-						p.logger.Error(fmt.Sprintf("获取Service %s/%s 发现信息失败: %v", newService.Namespace, newService.Name, err))
+						p.log.Error("Failed to get service discovery info", logger.Fields{
+							"namespace": newService.Namespace,
+							"name":      newService.Name,
+							"error":     err.Error(),
+						})
 						return
 					}
+
+					p.log.Debug("Service updated", logger.Fields{
+						"namespace":  newService.Namespace,
+						"name":       newService.Name,
+						"info_count": len(res),
+					})
 					p.handleServiceEvent(res)
 				}
 			}
@@ -139,22 +180,27 @@ func (p *ServicePlugin) startServiceInformerWatch(ctx context.Context) {
 	})
 	p.factory.Start(p.stopChan)
 	if !cache.WaitForCacheSync(p.stopChan, p.serviceInformer.HasSynced) {
-		p.logger.Error("Failed to wait for service caches to sync")
+		p.log.Error("Failed to wait for service caches to sync")
 		return
 	}
-	p.logger.Info("Service informer watcher started successfully")
+
+	p.log.Info("Service informer watcher started successfully")
 	select {
 	case <-ctx.Done():
-		p.logger.Info("Service watcher stopping due to context cancellation")
+		p.log.Info("Service watcher stopping due to context cancellation")
 	case <-p.stopChan:
-		p.logger.Info("Service watcher stopping due to stop signal")
+		p.log.Info("Service watcher stopping due to stop signal")
 	}
 }
 
 func (p *ServicePlugin) Stop(ctx context.Context) error {
+	p.log.Info("Stopping NodePort service informer plugin")
+
 	if p.stopChan != nil {
 		close(p.stopChan)
+		p.log.Debug("Stop channel closed")
 	}
+
 	return nil
 }
 
@@ -170,8 +216,12 @@ func (p *ServicePlugin) hasServiceChanged(oldService, newService *corev1.Service
 	newPorts := extractPortsFromService(newService)
 	hasChanged := !compareServicePorts(oldPorts, newPorts)
 	if hasChanged {
-		p.logger.Info(fmt.Sprintf("检测到Service %s/%s NodePort变化，老端口:%v，新端口:%v",
-			newService.Namespace, newService.Name, oldPorts, newPorts))
+		p.log.Info("Service NodePort changed", logger.Fields{
+			"namespace": newService.Namespace,
+			"name":      newService.Name,
+			"old_ports": oldPorts,
+			"new_ports": newPorts,
+		})
 	}
 	return hasChanged
 }
@@ -207,6 +257,10 @@ func compareServicePorts(ports1, ports2 []int32) bool {
 }
 
 func (p *ServicePlugin) handleServiceEvent(discoveryInfo []models.DiscoveryInfo) {
+	p.log.Debug("Publishing service discovery events", logger.Fields{
+		"event_count": len(discoveryInfo),
+	})
+
 	for _, info := range discoveryInfo {
 		p.eventBus.Publish(constants.DiscoveryTopic, eventbus.Event{
 			Payload: info,
@@ -247,11 +301,20 @@ func (p *ServicePlugin) getServiceDiscoveryInfo(service *corev1.Service) ([]mode
 		}
 	}
 	if nodeIP == "" {
+		p.log.Error("Unable to get node IP address")
 		return nil, fmt.Errorf("无法获取节点IP地址")
 	}
+
+	p.log.Debug("Found node IP", logger.Fields{
+		"node_ip": nodeIP,
+	})
 	podCount, hasActivePods, err := p.getPodInfo(service)
 	if err != nil {
-		p.logger.Error(fmt.Sprintf("获取Service %s/%s 对应Pod信息失败: %v", service.Namespace, service.Name, err))
+		p.log.Warn("Failed to get pod info for service", logger.Fields{
+			"namespace": service.Namespace,
+			"name":      service.Name,
+			"error":     err.Error(),
+		})
 	}
 	var discoveryInfos []models.DiscoveryInfo
 	for _, port := range service.Spec.Ports {
@@ -268,8 +331,14 @@ func (p *ServicePlugin) getServiceDiscoveryInfo(service *corev1.Service) ([]mode
 				PodCount:      podCount,
 			}
 			discoveryInfos = append(discoveryInfos, discoveryInfo)
-			p.logger.Debug(fmt.Sprintf("找到NodePort Service:%s/%s,发送%s:%d",
-				service.Namespace, service.Name, nodeIP, port.NodePort))
+
+			p.log.Debug("Found NodePort service", logger.Fields{
+				"namespace":       service.Namespace,
+				"name":            service.Name,
+				"host":            fmt.Sprintf("%s:%d", nodeIP, port.NodePort),
+				"pod_count":       podCount,
+				"has_active_pods": hasActivePods,
+			})
 		}
 	}
 

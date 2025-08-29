@@ -11,6 +11,8 @@ type CollectorInfo struct {
 	Path []string `json:"path"`
 	URL  string   `json:"url"`
 
+	CollectorMessage string `json:"collector_message"`
+
 	HTML       string `json:"html"`
 	IsEmpty    bool   `json:"is_empty"`
 	Screenshot []byte `json:"screenshot"`

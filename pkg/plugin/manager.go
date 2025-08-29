@@ -2,8 +2,8 @@ package plugin
 
 import (
 	"context"
+	"github.com/bearslyricattack/CompliK/pkg/logger"
 	"github.com/bearslyricattack/CompliK/pkg/utils/config"
-	"log"
 	"sync"
 
 	"github.com/bearslyricattack/CompliK/pkg/eventbus"
@@ -36,10 +36,15 @@ func NewManager(eventBus *eventbus.EventBus) *Manager {
 }
 
 func (m *Manager) LoadPlugins(pluginConfigs []config.PluginConfig) error {
-	log.Printf("Loading %d plugins", len(pluginConfigs))
+	log := logger.GetLogger()
+	log.Info("Loading plugins", logger.Fields{"count": len(pluginConfigs)})
+
 	for _, pluginConfig := range pluginConfigs {
 		if err := m.LoadPlugin(pluginConfig); err != nil {
-			log.Printf("Failed to load plugin %s: %v", pluginConfig.Name, err)
+			log.Error("Failed to load plugin", logger.Fields{
+				"plugin": pluginConfig.Name,
+				"error":  err.Error(),
+			})
 			continue
 		}
 	}
@@ -50,23 +55,34 @@ func (m *Manager) LoadPlugin(pluginConfig config.PluginConfig) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	log := logger.GetLogger()
+
 	factory, exists := PluginFactories[pluginConfig.Name]
 	if !exists {
-		log.Printf("Plugin factory not found for: %s, available factories: %v",
-			pluginConfig.Name, getRegisteredFactoryNames())
+		log.Warn("Plugin factory not found", logger.Fields{
+			"plugin":    pluginConfig.Name,
+			"available": getRegisteredFactoryNames(),
+		})
 		return nil
 	}
+
 	if _, exists := m.pluginInstances[pluginConfig.Name]; exists {
-		log.Printf("Plugin %s already loaded, skipping", pluginConfig.Name)
+		log.Debug("Plugin already loaded", logger.Fields{"plugin": pluginConfig.Name})
 		return nil
 	}
+
 	plugin := factory()
 	instance := &PluginInstance{
 		Plugin: plugin,
 		Config: pluginConfig,
 	}
 	m.pluginInstances[pluginConfig.Name] = instance
-	log.Printf("Plugin loaded: %s (type: %s, enabled: %t)", pluginConfig.Name, pluginConfig.Type, pluginConfig.Enabled)
+
+	log.Info("Plugin loaded successfully", logger.Fields{
+		"plugin":  pluginConfig.Name,
+		"type":    pluginConfig.Type,
+		"enabled": pluginConfig.Enabled,
+	})
 	return nil
 }
 
@@ -81,15 +97,24 @@ func getRegisteredFactoryNames() []string {
 func (m *Manager) StartAll() error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+
+	log := logger.GetLogger()
+
 	for name, instance := range m.pluginInstances {
 		if !instance.Config.Enabled {
-			log.Printf("Plugin %s is disabled, skipping", name)
+			log.Debug("Plugin disabled, skipping", logger.Fields{"plugin": name})
 			continue
 		}
-		log.Printf("Starting plugin %s", name)
+
+		log.Info("Starting plugin", logger.Fields{"plugin": name})
+
 		go func(name string, instance *PluginInstance) {
+			pluginLog := log.WithField("plugin", name)
+
 			if err := instance.Plugin.Start(m.ctx, instance.Config, m.eventBus); err != nil {
-				log.Printf("Plugin %s failed: %v", name, err)
+				pluginLog.Error("Plugin failed", logger.Fields{"error": err.Error()})
+			} else {
+				pluginLog.Info("Plugin started successfully")
 			}
 		}(name, instance)
 	}
@@ -99,13 +124,24 @@ func (m *Manager) StartAll() error {
 func (m *Manager) StopAll() error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	log.Printf("Stopping all plugins")
+
+	log := logger.GetLogger()
+	log.Info("Stopping all plugins")
+
 	for name, instance := range m.pluginInstances {
-		log.Printf("Stopping plugin %s", name)
+		log.Info("Stopping plugin", logger.Fields{"plugin": name})
+
 		if err := instance.Plugin.Stop(m.ctx); err != nil {
-			log.Printf("Error stopping plugin %s: %v", name, err)
+			log.Error("Error stopping plugin", logger.Fields{
+				"plugin": name,
+				"error":  err.Error(),
+			})
+		} else {
+			log.Debug("Plugin stopped", logger.Fields{"plugin": name})
 		}
 	}
+
 	m.cancel()
+	log.Info("All plugins stopped")
 	return nil
 }

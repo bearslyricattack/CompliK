@@ -11,10 +11,10 @@ import (
 
 	"github.com/bearslyricattack/CompliK/pkg/constants"
 	"github.com/bearslyricattack/CompliK/pkg/eventbus"
+	"github.com/bearslyricattack/CompliK/pkg/logger"
 	"github.com/bearslyricattack/CompliK/pkg/models"
 	"github.com/bearslyricattack/CompliK/pkg/plugin"
 	"github.com/bearslyricattack/CompliK/pkg/utils/config"
-	"github.com/bearslyricattack/CompliK/pkg/utils/logger"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	gormLogger "gorm.io/gorm/logger"
@@ -28,13 +28,13 @@ const (
 func init() {
 	plugin.PluginFactories[pluginName] = func() plugin.Plugin {
 		return &DatabasePlugin{
-			logger: logger.NewLogger(),
+			log: logger.GetLogger().WithField("plugin", pluginName),
 		}
 	}
 }
 
 type DatabasePlugin struct {
-	logger         *logger.Logger
+	log            logger.Logger
 	db             *gorm.DB
 	databaseConfig DatabaseConfig
 }
@@ -60,13 +60,19 @@ func (p *DatabasePlugin) getDefaultConfig() DatabaseConfig {
 
 func (p *DatabasePlugin) loadConfig(setting string) error {
 	p.databaseConfig = p.getDefaultConfig()
+	p.log.Debug("Loading database plugin configuration")
+
 	if setting == "" {
+		p.log.Error("Configuration cannot be empty")
 		return errors.New("配置不能为空")
 	}
+
 	var configFromJSON DatabaseConfig
 	err := json.Unmarshal([]byte(setting), &configFromJSON)
 	if err != nil {
-		p.logger.Error("解析配置失败: " + err.Error())
+		p.log.Error("Failed to parse configuration", logger.Fields{
+			"error": err.Error(),
+		})
 		return err
 	}
 	if configFromJSON.Host == "" {
@@ -81,10 +87,20 @@ func (p *DatabasePlugin) loadConfig(setting string) error {
 	if configFromJSON.Password == "" {
 		return errors.New("password 配置不能为空")
 	}
+
 	p.databaseConfig.Host = configFromJSON.Host
 	p.databaseConfig.Port = configFromJSON.Port
 	p.databaseConfig.Username = configFromJSON.Username
-	p.databaseConfig.Password = configFromJSON.Password
+
+	// Support secure password from environment variable or encryption
+	if pwd, err := config.GetSecureValue(configFromJSON.Password); err == nil {
+		p.databaseConfig.Password = pwd
+		p.log.Debug("Using secure password from environment/encryption")
+	} else {
+		p.databaseConfig.Password = configFromJSON.Password
+		p.log.Warn("Using plain text password - consider using environment variables")
+	}
+
 	p.databaseConfig.Region = configFromJSON.Region
 	if configFromJSON.Region != "" {
 		p.databaseConfig.Region = configFromJSON.Region
@@ -98,6 +114,15 @@ func (p *DatabasePlugin) loadConfig(setting string) error {
 	if configFromJSON.TableName != "" {
 		p.databaseConfig.TableName = configFromJSON.TableName
 	}
+
+	p.log.Info("Database configuration loaded", logger.Fields{
+		"host":     p.databaseConfig.Host,
+		"port":     p.databaseConfig.Port,
+		"database": p.databaseConfig.DatabaseName,
+		"table":    p.databaseConfig.TableName,
+		"region":   p.databaseConfig.Region,
+	})
+
 	return nil
 }
 
@@ -122,22 +147,47 @@ func (p *DatabasePlugin) Name() string { return pluginName }
 func (p *DatabasePlugin) Type() string { return pluginType }
 
 func (p *DatabasePlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
+	p.log.Info("Starting database plugin")
+
 	err := p.loadConfig(config.Settings)
 	if err != nil {
+		p.log.Error("Failed to load configuration", logger.Fields{
+			"error": err.Error(),
+		})
 		return err
 	}
+
+	p.log.Debug("Initializing database connection")
 	if err := p.initDB(); err != nil {
+		p.log.Error("Failed to initialize database", logger.Fields{
+			"error": err.Error(),
+		})
 		return fmt.Errorf("初始化数据库失败: %v", err)
 	}
+
+	p.log.Debug("Running database migration")
 	if err := p.db.AutoMigrate(&DetectorRecord{}); err != nil {
+		p.log.Error("Database migration failed", logger.Fields{
+			"error": err.Error(),
+			"table": p.databaseConfig.TableName,
+		})
 		return fmt.Errorf("数据库迁移失败: %v", err)
 	}
 
+	p.log.Info("Database migration completed successfully")
 	subscribe := eventBus.Subscribe(constants.DetectorTopic)
+	p.log.Debug("Subscribed to detector topic", logger.Fields{
+		"topic": constants.DetectorTopic,
+	})
+
+	p.log.Info("Database plugin started successfully")
+
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				p.logger.Error(fmt.Sprintf("DatabasePlugin panic: %v", r))
+				p.log.Error("Database plugin panic", logger.Fields{
+					"panic": fmt.Sprintf("%v", r),
+				})
 			}
 		}()
 
@@ -145,20 +195,40 @@ func (p *DatabasePlugin) Start(ctx context.Context, config config.PluginConfig, 
 			select {
 			case event, ok := <-subscribe:
 				if !ok {
-					p.logger.Info("数据库插件事件通道已关闭")
+					p.log.Info("Event subscription channel closed")
 					return
 				}
+
 				result, ok := event.Payload.(*models.DetectorInfo)
 				if !ok {
-					p.logger.Error(fmt.Sprintf("事件类型错误: %T", event.Payload))
+					p.log.Error("Invalid event payload type", logger.Fields{
+						"expected": "*models.DetectorInfo",
+						"actual":   fmt.Sprintf("%T", event.Payload),
+					})
 					continue
 				}
+
 				result.Region = p.databaseConfig.Region
+
+				p.log.Debug("Saving detection result to database", logger.Fields{
+					"host":       result.Host,
+					"namespace":  result.Namespace,
+					"is_illegal": result.IsIllegal,
+				})
+
 				if err := p.saveResults(result); err != nil {
-					p.logger.Error(fmt.Sprintf("保存数据失败: %v", err))
+					p.log.Error("Failed to save result to database", logger.Fields{
+						"error":     err.Error(),
+						"host":      result.Host,
+						"namespace": result.Namespace,
+					})
+				} else {
+					p.log.Debug("Result saved successfully", logger.Fields{
+						"host": result.Host,
+					})
 				}
 			case <-ctx.Done():
-				p.logger.Info("DatabasePlugin 停止")
+				p.log.Info("Database plugin stopping")
 				return
 			}
 		}
@@ -168,25 +238,44 @@ func (p *DatabasePlugin) Start(ctx context.Context, config config.PluginConfig, 
 }
 
 func (p *DatabasePlugin) Stop(ctx context.Context) error {
+	p.log.Info("Stopping database plugin")
+
 	if p.db != nil {
 		sqlDB, err := p.db.DB()
 		if err != nil {
+			p.log.Error("Failed to get database connection", logger.Fields{
+				"error": err.Error(),
+			})
 			return fmt.Errorf("获取数据库连接失败: %v", err)
 		}
-		return sqlDB.Close()
+
+		if err := sqlDB.Close(); err != nil {
+			p.log.Error("Failed to close database connection", logger.Fields{
+				"error": err.Error(),
+			})
+			return err
+		}
+
+		p.log.Debug("Database connection closed")
 	}
+
 	return nil
 }
 
 func (p *DatabasePlugin) initDB() error {
+	p.log.Debug("Initializing database", logger.Fields{
+		"host":     p.databaseConfig.Host,
+		"port":     p.databaseConfig.Port,
+		"database": p.databaseConfig.DatabaseName,
+	})
 	serverDSN := p.buildDSN(false)
 	dbConfig := &gorm.Config{
 		Logger: gormLogger.New(
 			log.New(os.Stdout, "\r\n", log.LstdFlags),
 			gormLogger.Config{
-				SlowThreshold: 3 * time.Second,  // 慢查询阈值设为1秒
-				LogLevel:      gormLogger.Error, // 只显示错误日志
-				Colorful:      false,            // 关闭颜色输出
+				SlowThreshold: 3 * time.Second,
+				LogLevel:      gormLogger.Error,
+				Colorful:      false,
 			},
 		),
 	}
@@ -207,6 +296,11 @@ func (p *DatabasePlugin) initDB() error {
 		return fmt.Errorf("连接到数据库失败: %v", err)
 	}
 	p.db = db
+
+	p.log.Info("Database initialized successfully", logger.Fields{
+		"database": p.databaseConfig.DatabaseName,
+	})
+
 	return nil
 }
 
@@ -227,12 +321,15 @@ func (p *DatabasePlugin) buildDSN(includeDB bool) string {
 
 func (p *DatabasePlugin) saveResults(result *models.DetectorInfo) error {
 	if p == nil {
+		p.log.Error("DatabasePlugin instance is nil")
 		return fmt.Errorf("DatabasePlugin 实例为空")
 	}
 	if p.db == nil {
+		p.log.Error("Database connection not initialized")
 		return fmt.Errorf("数据库连接未初始化")
 	}
 	if result == nil {
+		p.log.Error("Detection result is nil")
 		return fmt.Errorf("分析结果为空")
 	}
 	record := DetectorRecord{
@@ -258,5 +355,20 @@ func (p *DatabasePlugin) saveResults(result *models.DetectorInfo) error {
 			record.Keywords = &keywordsStr
 		}
 	}
-	return p.db.Create(&record).Error
+	if err := p.db.Create(&record).Error; err != nil {
+		p.log.Error("Failed to insert record", logger.Fields{
+			"error":     err.Error(),
+			"host":      record.Host,
+			"namespace": record.Namespace,
+		})
+		return err
+	}
+
+	p.log.Debug("Record saved successfully", logger.Fields{
+		"host":       record.Host,
+		"namespace":  record.Namespace,
+		"is_illegal": record.IsIllegal,
+	})
+
+	return nil
 }

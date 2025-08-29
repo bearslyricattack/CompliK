@@ -1,7 +1,9 @@
 package whitelist
 
 import (
+	"errors"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 	"time"
 )
 
@@ -29,58 +31,74 @@ func (Whitelist) TableName() string {
 }
 
 type WhitelistService struct {
-	db *gorm.DB
+	db      *gorm.DB
+	timeout time.Duration
 }
 
-func NewWhitelistService(db *gorm.DB) *WhitelistService {
-	return &WhitelistService{db: db}
-}
-
-func (s *WhitelistService) IsNamespaceWhitelisted(namespace string) (bool, error) {
-	var count int64
-	err := s.db.Model(&Whitelist{}).
-		Where("namespace = ? AND type = ?", namespace, WhitelistTypeNamespace).
-		Count(&count)
-	if err != nil {
-		return false, err.Error
+func NewWhitelistService(db *gorm.DB, timeout time.Duration) *WhitelistService {
+	return &WhitelistService{
+		db:      db,
+		timeout: timeout,
 	}
-	return count > 0, nil
 }
 
-func (s *WhitelistService) IsHostWhitelisted(host string) (bool, error) {
-	var count int64
-	err := s.db.Model(&Whitelist{}).
-		Where("hostname = ? AND type = ?", host, WhitelistTypeHost).
-		Count(&count)
+func (s *WhitelistService) IsNamespaceWhitelisted(namespace, region string) (bool, *Whitelist, error) {
+	var whitelist Whitelist
+	err := s.db.Session(&gorm.Session{Logger: logger.Discard}).
+		Model(&Whitelist{}).
+		Where("namespace = ? AND type = ? AND region = ?", namespace, WhitelistTypeNamespace, region).
+		First(&whitelist).Error
 	if err != nil {
-		return false, err.Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil, nil
+		}
+		return false, nil, err
 	}
-	return count > 0, nil
+	return true, &whitelist, nil
 }
 
-// IsWhitelisted 综合检查是否在白名单中（命名空间或主机任一匹配即为白名单）
-func (s *WhitelistService) IsWhitelisted(namespace, host string) (bool, error) {
+func (s *WhitelistService) IsHostWhitelisted(host, region string) (bool, *Whitelist, error) {
+	var whitelist Whitelist
+	timeout := 7 * 24 * time.Hour
+	if s.timeout > 0 {
+		timeout = s.timeout
+	}
+	expireTime := time.Now().Add(-timeout)
+	err := s.db.Session(&gorm.Session{Logger: logger.Discard}).
+		Model(&Whitelist{}).
+		Where("hostname = ? AND type = ? AND region = ? AND created_at > ?", host, WhitelistTypeHost, region, expireTime).
+		First(&whitelist).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil, nil
+		}
+		return false, nil, err
+	}
+	return true, &whitelist, nil
+}
+
+func (s *WhitelistService) IsWhitelisted(namespace, host, region string) (bool, *Whitelist, error) {
 	if namespace != "" {
-		isNamespaceWhitelisted, err := s.IsNamespaceWhitelisted(namespace)
+		isNamespaceWhitelisted, whitelist, err := s.IsNamespaceWhitelisted(namespace, region)
 		if err != nil {
-			return false, err
+			return false, nil, err
 		}
 		if isNamespaceWhitelisted {
-			return true, nil
+			return true, whitelist, nil
 		}
 	}
 
 	if host != "" {
-		isHostWhitelisted, err := s.IsHostWhitelisted(host)
+		isHostWhitelisted, whitelist, err := s.IsHostWhitelisted(host, region)
 		if err != nil {
-			return false, err
+			return false, nil, err
 		}
 		if isHostWhitelisted {
-			return true, nil
+			return true, whitelist, nil
 		}
 	}
 
-	return false, nil
+	return false, nil, nil
 }
 
 func (s *WhitelistService) AddNamespaceWhitelist(name, namespace, remark string) error {

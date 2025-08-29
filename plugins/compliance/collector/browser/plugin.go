@@ -6,12 +6,11 @@ import (
 	"fmt"
 	"github.com/bearslyricattack/CompliK/pkg/constants"
 	"github.com/bearslyricattack/CompliK/pkg/eventbus"
+	"github.com/bearslyricattack/CompliK/pkg/logger"
 	"github.com/bearslyricattack/CompliK/pkg/models"
 	"github.com/bearslyricattack/CompliK/pkg/plugin"
 	"github.com/bearslyricattack/CompliK/pkg/utils/config"
-	"github.com/bearslyricattack/CompliK/pkg/utils/logger"
 	"github.com/bearslyricattack/CompliK/plugins/compliance/collector/browser/utils"
-	"log"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -25,14 +24,14 @@ const (
 func init() {
 	plugin.PluginFactories[pluginName] = func() plugin.Plugin {
 		return &BrowserPlugin{
-			logger:    logger.NewLogger(),
-			collector: NewCollector(logger.NewLogger()),
+			log:       logger.GetLogger().WithField("plugin", pluginName),
+			collector: NewCollector(),
 		}
 	}
 }
 
 type BrowserPlugin struct {
-	logger        *logger.Logger
+	log           logger.Logger
 	browserConfig BrowserConfig
 	browserPool   *utils.BrowserPool
 	collector     *Collector
@@ -65,13 +64,15 @@ func (p *BrowserPlugin) getDefaultBrowserConfig() BrowserConfig {
 func (p *BrowserPlugin) loadConfig(setting string) error {
 	p.browserConfig = p.getDefaultBrowserConfig()
 	if setting == "" {
-		p.logger.Info("使用默认浏览器配置")
+		p.log.Info("Using default browser configuration")
 		return nil
 	}
 	var configFromJSON BrowserConfig
 	err := json.Unmarshal([]byte(setting), &configFromJSON)
 	if err != nil {
-		p.logger.Error("解析配置失败，使用默认配置: " + err.Error())
+		p.log.Error("Failed to parse config, using defaults", logger.Fields{
+			"error": err.Error(),
+		})
 		return err
 	}
 
@@ -95,6 +96,13 @@ func (p *BrowserPlugin) Start(ctx context.Context, config config.PluginConfig, e
 	if err != nil {
 		return err
 	}
+
+	p.log.Info("Starting browser plugin", logger.Fields{
+		"timeout_seconds":   p.browserConfig.CollectorTimeoutSecond,
+		"max_workers":       p.browserConfig.MaxWorkers,
+		"browser_pool_size": p.browserConfig.BrowserNumber,
+	})
+
 	p.browserPool = utils.NewBrowserPool(p.browserConfig.BrowserNumber, time.Duration(p.browserConfig.BrowserTimeoutMinute)*time.Minute)
 	subscribe := eventBus.Subscribe(constants.DiscoveryTopic)
 	semaphore := make(chan struct{}, p.browserConfig.MaxWorkers)
@@ -102,7 +110,7 @@ func (p *BrowserPlugin) Start(ctx context.Context, config config.PluginConfig, e
 		select {
 		case event, ok := <-subscribe:
 			if !ok {
-				log.Println("事件订阅通道已关闭")
+				p.log.Info("Event subscription channel closed")
 				return nil
 			}
 			semaphore <- struct{}{}
@@ -110,43 +118,73 @@ func (p *BrowserPlugin) Start(ctx context.Context, config config.PluginConfig, e
 				defer func() { <-semaphore }()
 				defer func() {
 					if r := recover(); r != nil {
-						log.Printf("goroutine panic: %v", r)
-						debug.PrintStack()
+						p.log.Error("Goroutine panic recovered", logger.Fields{
+							"panic": r,
+							"stack": string(debug.Stack()),
+						})
 					}
 				}()
 				ingress, ok := e.Payload.(models.DiscoveryInfo)
 				if !ok {
-					p.logger.Error(fmt.Sprintf("事件负载类型错误，期望models.DiscoveryInfo，实际: %T", e.Payload))
+					p.log.Error("Invalid event payload type", logger.Fields{
+						"expected": "models.DiscoveryInfo",
+						"actual":   fmt.Sprintf("%T", e.Payload),
+					})
 					return
 				}
 				var result *models.CollectorInfo
-				taskCtx, cancel := context.WithTimeout(ctx, 100*time.Second)
+				taskCtx, cancel := context.WithTimeout(ctx, time.Duration(p.browserConfig.CollectorTimeoutSecond)*time.Second)
+				taskCtx = context.WithValue(taskCtx, "start_time", time.Now())
 				defer cancel()
+
+				p.log.Debug("Processing discovery", logger.Fields{
+					"namespace": ingress.Namespace,
+					"name":      ingress.Name,
+					"host":      ingress.Host,
+				})
+
 				result, err := p.collector.CollectorAndScreenshot(taskCtx, ingress, p.browserPool, p.Name())
 				if err != nil {
 					if p.shouldSkipError(err) {
 						result = &models.CollectorInfo{
-							DiscoveryName: ingress.DiscoveryName,
-							CollectorName: p.Name(),
-							Name:          ingress.Name,
-							Namespace:     ingress.Namespace,
-							Host:          ingress.Host,
-							Path:          ingress.Path,
-							URL:           "",
-							HTML:          "",
-							Screenshot:    nil,
-							IsEmpty:       true,
+							DiscoveryName:    ingress.DiscoveryName,
+							CollectorName:    p.Name(),
+							Name:             ingress.Name,
+							Namespace:        ingress.Namespace,
+							Host:             ingress.Host,
+							Path:             ingress.Path,
+							URL:              "",
+							HTML:             "",
+							Screenshot:       nil,
+							IsEmpty:          true,
+							CollectorMessage: err.Error(),
 						}
 						eventBus.Publish(constants.CollectorTopic, eventbus.Event{
 							Payload: result,
 						})
+						p.log.Debug("Skipped known error", logger.Fields{
+							"host":  ingress.Host,
+							"error": err.Error(),
+						})
+					} else {
+						p.log.Error("Collection failed", logger.Fields{
+							"host":      ingress.Host,
+							"namespace": ingress.Namespace,
+							"name":      ingress.Name,
+							"error":     err.Error(),
+						})
 					}
-					p.logger.Error(fmt.Sprintf("本次读取错误：ingress：%s，%v\n", ingress.Host, err))
 				} else {
 					eventBus.Publish(constants.CollectorTopic, eventbus.Event{
 						Payload: result,
 					})
+					p.log.Debug("Collection successful", logger.Fields{
+						"host":      ingress.Host,
+						"namespace": ingress.Namespace,
+						"name":      ingress.Name,
+					})
 				}
+
 			}(event)
 		case <-ctx.Done():
 			for i := 0; i < p.browserConfig.MaxWorkers; i++ {
@@ -158,6 +196,10 @@ func (p *BrowserPlugin) Start(ctx context.Context, config config.PluginConfig, e
 }
 
 func (p *BrowserPlugin) Stop(ctx context.Context) error {
+	p.log.Info("Stopping browser plugin")
+	if p.browserPool != nil {
+		p.browserPool.Close()
+	}
 	return nil
 }
 
@@ -165,7 +207,6 @@ func (p *BrowserPlugin) shouldSkipError(err error) bool {
 	if err == nil {
 		return false
 	}
-
 	skipPatterns := []string{
 		"ERR_HTTP_RESPONSE_CODE_FAILURE",
 		"ERR_INVALID_AUTH_CREDENTIALS",

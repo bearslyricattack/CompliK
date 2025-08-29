@@ -5,7 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/bearslyricattack/CompliK/pkg/utils/logger"
+	"github.com/bearslyricattack/CompliK/pkg/logger"
 	"io"
 	"net/http"
 	"regexp"
@@ -16,16 +16,16 @@ import (
 )
 
 type ContentReviewer struct {
-	logger *logger.Logger
+	log    logger.Logger
 	apiKey string
 	apiURL string
 	model  string
 }
 
-func NewContentReviewer(logger *logger.Logger, apiKey string, apiBase string, apiPath string, model string) *ContentReviewer {
+func NewContentReviewer(log logger.Logger, apiKey string, apiBase string, apiPath string, model string) *ContentReviewer {
 	apiURL := apiBase + apiPath
 	return &ContentReviewer{
-		logger: logger,
+		log:    log,
 		apiKey: apiKey,
 		apiURL: apiURL,
 		model:  model,
@@ -34,28 +34,67 @@ func NewContentReviewer(logger *logger.Logger, apiKey string, apiBase string, ap
 
 func (r *ContentReviewer) ReviewSiteContent(ctx context.Context, content *models.CollectorInfo, name string, customRules []CustomKeywordRule) (*models.DetectorInfo, error) {
 	if content == nil {
+		r.log.Error("Review called with nil content")
 		return nil, fmt.Errorf("ScrapeResult 参数为空")
 	}
+
+	r.log.Debug("Preparing review request", logger.Fields{
+		"host":             content.Host,
+		"has_custom_rules": customRules != nil && len(customRules) > 0,
+	})
+
 	requestData, err := r.prepareRequestData(content, customRules)
 	if err != nil {
+		r.log.Error("Failed to prepare request data", logger.Fields{
+			"error": err.Error(),
+			"host":  content.Host,
+		})
 		return nil, fmt.Errorf("准备请求数据失败: %v", err)
 	}
+
+	r.log.Debug("Calling review API", logger.Fields{
+		"api_url": r.apiURL,
+		"model":   r.model,
+	})
+
 	response, err := r.callAPI(ctx, requestData)
 	if err != nil {
+		r.log.Error("API call failed", logger.Fields{
+			"error": err.Error(),
+			"host":  content.Host,
+		})
 		return nil, fmt.Errorf("调用API失败: %v", err)
 	}
+
+	r.log.Debug("Parsing API response")
 	result, err := r.parseResponse(response, content, name)
 	if err != nil {
+		r.log.Error("Failed to parse response", logger.Fields{
+			"error": err.Error(),
+			"host":  content.Host,
+		})
 		return nil, fmt.Errorf("解析响应失败: %v", err)
 	}
+
+	r.log.Debug("Review completed", logger.Fields{
+		"host":           content.Host,
+		"is_illegal":     result.IsIllegal,
+		"keywords_count": len(result.Keywords),
+	})
+
 	return result, nil
 }
 
 func (r *ContentReviewer) prepareRequestData(content *models.CollectorInfo, customRules []CustomKeywordRule) (map[string]interface{}, error) {
 	base64Image := base64.StdEncoding.EncodeToString(content.Screenshot)
 	htmlContent := content.HTML
+	originalLength := len(htmlContent)
 	if len(htmlContent) > 10000 {
 		htmlContent = htmlContent[:10000] + "..."
+		r.log.Debug("HTML content truncated", logger.Fields{
+			"original_length": originalLength,
+			"truncated_to":    10000,
+		})
 	}
 	var prompt string
 	if customRules == nil || len(customRules) == 0 {
@@ -209,12 +248,17 @@ func (r *ContentReviewer) buildCustomPrompt(htmlContent string, customRules []Cu
 func (r *ContentReviewer) callAPI(ctx context.Context, requestData map[string]interface{}) (*APIResponse, error) {
 	requestBody, err := json.Marshal(requestData)
 	if err != nil {
-		r.logger.Error(fmt.Sprintf("序列化请求数据失败: %v", err))
+		r.log.Error("Failed to serialize request data", logger.Fields{
+			"error": err.Error(),
+		})
 		return nil, err
 	}
 	req, err := http.NewRequestWithContext(ctx, "POST", r.apiURL, strings.NewReader(string(requestBody)))
 	if err != nil {
-		r.logger.Error(fmt.Sprintf("创建HTTP请求失败: %v", err))
+		r.log.Error("Failed to create HTTP request", logger.Fields{
+			"error": err.Error(),
+			"url":   r.apiURL,
+		})
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -223,14 +267,24 @@ func (r *ContentReviewer) callAPI(ctx context.Context, requestData map[string]in
 		Timeout: 60 * time.Second,
 	}
 
+	r.log.Debug("Sending HTTP request", logger.Fields{
+		"url":             r.apiURL,
+		"timeout_seconds": 60,
+	})
+
 	resp, err := client.Do(req)
 	if err != nil {
-		r.logger.Error(fmt.Sprintf("发送HTTP请求失败: %v", err))
+		r.log.Error("Failed to send HTTP request", logger.Fields{
+			"error": err.Error(),
+			"url":   r.apiURL,
+		})
 		return nil, err
 	}
 	defer func(Body io.ReadCloser) {
 		if err := Body.Close(); err != nil {
-			r.logger.Error("关闭响应体失败")
+			r.log.Error("Failed to close response body", logger.Fields{
+				"error": err.Error(),
+			})
 		}
 	}(resp.Body)
 	body, err := io.ReadAll(resp.Body)
@@ -239,7 +293,11 @@ func (r *ContentReviewer) callAPI(ctx context.Context, requestData map[string]in
 	}
 	if resp.StatusCode != 200 {
 		errorText := string(body)
-		r.logger.Error(fmt.Sprintf("API调用失败: 状态码 %d, 错误: %s", resp.StatusCode, errorText))
+		r.log.Error("API call failed with non-200 status", logger.Fields{
+			"status_code": resp.StatusCode,
+			"error_text":  errorText,
+			"url":         r.apiURL,
+		})
 		return nil, fmt.Errorf("API调用失败: 状态码 %d", resp.StatusCode)
 	}
 	var responseData APIResponse
@@ -247,9 +305,13 @@ func (r *ContentReviewer) callAPI(ctx context.Context, requestData map[string]in
 		return nil, fmt.Errorf("解码API响应失败: %v", err)
 	}
 	if len(responseData.Choices) == 0 {
-		r.logger.Error("API响应中没有结果")
+		r.log.Error("API response has no choices")
 		return nil, fmt.Errorf("API响应中没有结果")
 	}
+
+	r.log.Debug("API call successful", logger.Fields{
+		"choices_count": len(responseData.Choices),
+	})
 	return &responseData, nil
 }
 
@@ -259,7 +321,10 @@ func (r *ContentReviewer) parseResponse(response *APIResponse, content *models.C
 
 	var result ReviewResult
 	if err := json.Unmarshal([]byte(cleanData), &result); err != nil {
-		r.logger.Error(fmt.Sprintf("解析API返回的JSON时出错: %v", err))
+		r.log.Error("Failed to parse API response JSON", logger.Fields{
+			"error":           err.Error(),
+			"raw_data_length": len(cleanData),
+		})
 		return nil, fmt.Errorf("解析API响应失败: %w", err)
 	}
 

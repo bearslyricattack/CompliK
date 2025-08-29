@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bearslyricattack/CompliK/pkg/logger"
 	"github.com/bearslyricattack/CompliK/pkg/models"
-	"github.com/bearslyricattack/CompliK/pkg/utils/logger"
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
 )
@@ -31,12 +31,12 @@ type CollectorInfo struct {
 }
 
 type Collector struct {
-	logger *logger.Logger
+	log logger.Logger
 }
 
-func NewCollector(logger *logger.Logger) *Collector {
+func NewCollector() *Collector {
 	return &Collector{
-		logger: logger,
+		log: logger.GetLogger().WithField("component", "browser_collector"),
 	}
 }
 
@@ -78,7 +78,12 @@ func (s *Collector) CollectorAndScreenshot(ctx context.Context, discovery models
 	wait := page.EachEvent(func(e *proto.NetworkResponseReceived) {
 		if e.Type == proto.NetworkResourceTypeDocument && (e.Response.URL == url) {
 			if e.Response.Status == 502 || e.Response.Status == 503 || e.Response.Status == 504 || e.Response.Status == 404 {
-				s.logger.Error(fmt.Sprintf("检测到错误状态码: %d, URL: %s", e.Response.Status, url))
+				s.log.Error("Detected error status code", logger.Fields{
+					"status_code": e.Response.Status,
+					"url":         url,
+					"namespace":   discovery.Namespace,
+					"name":        discovery.Name,
+				})
 				cancel()
 			}
 		}
@@ -112,7 +117,12 @@ func (s *Collector) CollectorAndScreenshot(ctx context.Context, discovery models
 	}
 	content, err := page.HTML()
 	if err != nil {
-		s.logger.Error(fmt.Sprintf("获取页面内容失败: %v", err))
+		s.log.Warn("Failed to get page content", logger.Fields{
+			"error":     err.Error(),
+			"url":       url,
+			"namespace": discovery.Namespace,
+			"name":      discovery.Name,
+		})
 		content = ""
 	}
 	if s.isErrorPage(content) {
@@ -134,7 +144,14 @@ func (s *Collector) CollectorAndScreenshot(ctx context.Context, discovery models
 	if err != nil {
 		return nil, err
 	}
-	s.logger.Info(fmt.Sprintf("抓取完成: URL=%s HTML长度=%d 截图大小=%d bytes", url, len(content), len(screenshot)))
+	s.log.Debug("Collection completed", logger.Fields{
+		"url":             url,
+		"html_length":     len(content),
+		"screenshot_size": len(screenshot),
+		"namespace":       discovery.Namespace,
+		"name":            discovery.Name,
+		"duration_ms":     time.Since(taskCtx.Value("start_time").(time.Time)).Milliseconds(),
+	})
 	return &models.CollectorInfo{
 		DiscoveryName: discovery.DiscoveryName,
 		CollectorName: name,
@@ -178,7 +195,9 @@ func (s *Collector) setupPage(ctx context.Context, instance *utils.BrowserInstan
 		UserAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36",
 	})
 	if err != nil {
-		s.logger.Error(fmt.Sprintf("设置用户代理失败: %v", err))
+		s.log.Error("Failed to set user agent", logger.Fields{
+			"error": err.Error(),
+		})
 		return nil, err
 	}
 	err = page.SetViewport(&proto.EmulationSetDeviceMetricsOverride{
@@ -188,7 +207,11 @@ func (s *Collector) setupPage(ctx context.Context, instance *utils.BrowserInstan
 		Mobile:            false,
 	})
 	if err != nil {
-		s.logger.Error(fmt.Sprintf("设置视口失败: %v", err))
+		s.log.Error("Failed to set viewport", logger.Fields{
+			"error":  err.Error(),
+			"width":  1366,
+			"height": 768,
+		})
 		return nil, err
 	}
 	return page, nil
@@ -256,14 +279,18 @@ func (s *Collector) takeScreenshot(ctx context.Context, page *rod.Page) ([]byte,
 			Quality: &[]int{75}[0],
 		})
 	}); rodErr != nil {
-		s.logger.Error(fmt.Sprintf("截图过程发生严重错误: %v", rodErr))
+		s.log.Error("Critical error during screenshot", logger.Fields{
+			"error": rodErr.Error(),
+		})
 		return nil, rodErr
 	}
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return nil, err
 		}
-		s.logger.Error(fmt.Sprintf("截图失败: %v", err))
+		s.log.Error("Screenshot failed", logger.Fields{
+			"error": err.Error(),
+		})
 		return nil, err
 	}
 	return screenshot, nil

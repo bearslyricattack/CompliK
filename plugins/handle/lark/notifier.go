@@ -18,15 +18,17 @@ type Notifier struct {
 	WebhookURL       string
 	HTTPClient       *http.Client
 	WhitelistService *whitelist.WhitelistService
+	Region           string
 }
 
-func NewNotifier(webhookURL string, db *gorm.DB) *Notifier {
+func NewNotifier(webhookURL string, db *gorm.DB, timeout time.Duration, region string) *Notifier {
 	return &Notifier{
 		WebhookURL: webhookURL,
 		HTTPClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
-		WhitelistService: whitelist.NewWhitelistService(db),
+		WhitelistService: whitelist.NewWhitelistService(db, timeout),
+		Region:           region,
 	}
 }
 
@@ -40,20 +42,20 @@ func (f *Notifier) SendAnalysisNotification(results *models.DetectorInfo) error 
 	if !results.IsIllegal {
 		return nil
 	}
-	// 检查白名单
 	isWhitelisted := false
+	var whitelistInfo *whitelist.Whitelist
 	if f.WhitelistService != nil {
-		whitelisted, err := f.WhitelistService.IsWhitelisted(results.Namespace, results.Host)
+		whitelisted, whitelist, err := f.WhitelistService.IsWhitelisted(results.Namespace, results.Host, f.Region)
 		if err != nil {
 			log.Printf("白名单检查失败: %v", err)
 		} else {
 			isWhitelisted = whitelisted
+			whitelistInfo = whitelist
 		}
 	}
-
 	var cardContent map[string]interface{}
 	if isWhitelisted {
-		cardContent = f.buildWhitelistMessage(results)
+		cardContent = f.buildWhitelistMessage(results, whitelistInfo)
 		log.Printf("资源 [命名空间: %s, 主机: %s] 在白名单中，发送白名单通知", results.Namespace, results.Host)
 	} else {
 		cardContent = f.buildAlertMessage(results)
@@ -66,18 +68,8 @@ func (f *Notifier) SendAnalysisNotification(results *models.DetectorInfo) error 
 	return f.sendMessage(message)
 }
 
-func (f *Notifier) buildWhitelistMessage(results *models.DetectorInfo) map[string]interface{} {
+func (f *Notifier) buildWhitelistMessage(results *models.DetectorInfo, whitelistInfo *whitelist.Whitelist) map[string]interface{} {
 	basicInfoElements := []map[string]interface{}{
-		{
-			"tag": "div",
-			"text": map[string]interface{}{
-				"content": "**ℹ️ 该资源已在白名单中，检测到的违规内容已被忽略**",
-				"tag":     "lark_md",
-			},
-		},
-		{
-			"tag": "hr",
-		},
 		{
 			"tag": "div",
 			"text": map[string]interface{}{
@@ -156,55 +148,79 @@ func (f *Notifier) buildWhitelistMessage(results *models.DetectorInfo) map[strin
 		{
 			"tag": "div",
 			"text": map[string]interface{}{
-				"content": fmt.Sprintf("**✅ 白名单状态:** 已加入白名单"),
-				"tag":     "lark_md",
-			},
-		},
-		{
-			"tag": "div",
-			"text": map[string]interface{}{
-				"content": fmt.Sprintf("**🔍 匹配规则:** 命名空间: %s, 主机: %s", results.Namespace, results.Host),
+				"content": "**✅ 白名单状态:** 已加入白名单",
 				"tag":     "lark_md",
 			},
 		},
 	}
 
-	// 检测组件信息
-	componentInfoElements := []map[string]interface{}{
-		{
-			"tag": "hr",
-		},
-		{
-			"tag": "div",
-			"text": map[string]interface{}{
-				"content": "**🔍 检测组件信息**",
-				"tag":     "lark_md",
-			},
-		},
-		{
-			"tag": "div",
-			"text": map[string]interface{}{
-				"content": fmt.Sprintf("**发现器:** %s", results.DiscoveryName),
-				"tag":     "lark_md",
-			},
-		},
-		{
-			"tag": "div",
-			"text": map[string]interface{}{
-				"content": fmt.Sprintf("**收集器:** %s", results.CollectorName),
-				"tag":     "lark_md",
-			},
-		},
-		{
-			"tag": "div",
-			"text": map[string]interface{}{
-				"content": fmt.Sprintf("**检测器:** %s", results.DetectorName),
-				"tag":     "lark_md",
-			},
-		},
-	}
+	// 根据白名单类型显示不同信息
+	if whitelistInfo != nil {
+		var whitelistTypeText string
+		var validityText string
 
-	// 检测到的内容信息（仅供参考）
+		if whitelistInfo.Type == whitelist.WhitelistTypeNamespace {
+			whitelistTypeText = "命名空间白名单"
+			validityText = "永久有效"
+		} else if whitelistInfo.Type == whitelist.WhitelistTypeHost {
+			whitelistTypeText = "主机白名单"
+			validityText = "存在有效期"
+		}
+
+		whitelistElements = append(whitelistElements,
+			map[string]interface{}{
+				"tag": "div",
+				"text": map[string]interface{}{
+					"content": fmt.Sprintf("**🏷️ 白名单类型:** %s", whitelistTypeText),
+					"tag":     "lark_md",
+				},
+			},
+			map[string]interface{}{
+				"tag": "div",
+				"text": map[string]interface{}{
+					"content": fmt.Sprintf("**⏰ 有效期:** %s", validityText),
+					"tag":     "lark_md",
+				},
+			},
+			map[string]interface{}{
+				"tag": "div",
+				"text": map[string]interface{}{
+					"content": fmt.Sprintf("**📅 创建时间:** %s", whitelistInfo.CreatedAt.Format("2006-01-02 15:04:05")),
+					"tag":     "lark_md",
+				},
+			},
+		)
+
+		// 显示匹配的具体值
+		if whitelistInfo.Type == whitelist.WhitelistTypeNamespace && whitelistInfo.Namespace != "" {
+			whitelistElements = append(whitelistElements, map[string]interface{}{
+				"tag": "div",
+				"text": map[string]interface{}{
+					"content": fmt.Sprintf("**🔍 匹配规则:** 命名空间 `%s`", whitelistInfo.Namespace),
+					"tag":     "lark_md",
+				},
+			})
+		} else if whitelistInfo.Type == whitelist.WhitelistTypeHost && whitelistInfo.Hostname != "" {
+			whitelistElements = append(whitelistElements, map[string]interface{}{
+				"tag": "div",
+				"text": map[string]interface{}{
+					"content": fmt.Sprintf("**🔍 匹配规则:** 主机 `%s`", whitelistInfo.Hostname),
+					"tag":     "lark_md",
+				},
+			})
+		}
+
+		// 如果有备注信息也显示出来
+		if whitelistInfo.Remark != "" {
+			whitelistElements = append(whitelistElements, map[string]interface{}{
+				"tag": "div",
+				"text": map[string]interface{}{
+					"content": fmt.Sprintf("**📝 备注:** %s", whitelistInfo.Remark),
+					"tag":     "lark_md",
+				},
+			})
+		}
+	}
 	detectionElements := []map[string]interface{}{
 		{
 			"tag": "hr",
@@ -229,7 +245,7 @@ func (f *Notifier) buildWhitelistMessage(results *models.DetectorInfo) map[strin
 	}
 
 	if len(results.Keywords) > 0 {
-		keywordContent := "**🔍 命中关键词:** "
+		keywordContent := "**关键词:** "
 		for i, keyword := range results.Keywords {
 			if i > 0 {
 				keywordContent += ", "
@@ -257,7 +273,6 @@ func (f *Notifier) buildWhitelistMessage(results *models.DetectorInfo) map[strin
 
 	// 合并所有元素
 	elements := append(basicInfoElements, whitelistElements...)
-	elements = append(elements, componentInfoElements...)
 	elements = append(elements, detectionElements...)
 
 	// 时间信息和状态提示
@@ -357,42 +372,7 @@ func (f *Notifier) buildAlertMessage(results *models.DetectorInfo) map[string]in
 	basicInfoElements = append(basicInfoElements, map[string]interface{}{
 		"tag": "hr",
 	})
-
-	componentInfoElements := []map[string]interface{}{
-		{
-			"tag": "div",
-			"text": map[string]interface{}{
-				"content": "**🔍 检测组件信息**",
-				"tag":     "lark_md",
-			},
-		},
-		{
-			"tag": "div",
-			"text": map[string]interface{}{
-				"content": fmt.Sprintf("**发现器:** %s", results.DiscoveryName),
-				"tag":     "lark_md",
-			},
-		},
-		{
-			"tag": "div",
-			"text": map[string]interface{}{
-				"content": fmt.Sprintf("**收集器:** %s", results.CollectorName),
-				"tag":     "lark_md",
-			},
-		},
-		{
-			"tag": "div",
-			"text": map[string]interface{}{
-				"content": fmt.Sprintf("**检测器:** %s", results.DetectorName),
-				"tag":     "lark_md",
-			},
-		},
-	}
-
-	// 合并基础信息和组件信息
-	elements := append(basicInfoElements, componentInfoElements...)
-
-	// 违规信息（如果存在）
+	elements := append(basicInfoElements)
 	if results.IsIllegal {
 		elements = append(elements, map[string]interface{}{
 			"tag": "hr",

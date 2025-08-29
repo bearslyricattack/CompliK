@@ -28,19 +28,19 @@ func NewEventBus(bufferSize int) *EventBus {
 
 func (eb *EventBus) Publish(topic string, event Event) {
 	eb.mu.RLock()
-	defer eb.mu.RUnlock()
-	subscribers := append([]EventChan{}, eb.subscribers[topic]...)
+	subscribers := eb.subscribers[topic]
+	eb.mu.RUnlock()
 
-	var wg sync.WaitGroup
+	// 非阻塞发送，避免死锁
 	for _, subscriber := range subscribers {
-		wg.Add(1)
-		go func(ch EventChan) {
-			defer wg.Done()
-			// 直接发送，会阻塞直到通道有空间
-			ch <- event
-		}(subscriber)
+		select {
+		case subscriber <- event:
+			// 发送成功
+		default:
+			// 通道满了，跳过这个订阅者
+			// 可以考虑记录日志或统计丢失的事件
+		}
 	}
-	wg.Wait() // 等待所有订阅者都收到事件
 }
 
 func (eb *EventBus) Subscribe(topic string) EventChan {

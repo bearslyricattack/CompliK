@@ -8,10 +8,10 @@ import (
 	"github.com/bearslyricattack/CompliK/pkg/constants"
 	"github.com/bearslyricattack/CompliK/pkg/eventbus"
 	"github.com/bearslyricattack/CompliK/pkg/k8s"
+	"github.com/bearslyricattack/CompliK/pkg/logger"
 	"github.com/bearslyricattack/CompliK/pkg/models"
 	"github.com/bearslyricattack/CompliK/pkg/plugin"
 	"github.com/bearslyricattack/CompliK/pkg/utils/config"
-	"github.com/bearslyricattack/CompliK/pkg/utils/logger"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -32,13 +32,13 @@ const (
 func init() {
 	plugin.PluginFactories[pluginName] = func() plugin.Plugin {
 		return &MiningPlugin{
-			logger: logger.NewLogger(),
+			log: logger.GetLogger().WithField("plugin", pluginName),
 		}
 	}
 }
 
 type MiningPlugin struct {
-	logger       *logger.Logger
+	log          logger.Logger
 	miningConfig MiningConfig
 	namespace    string
 }
@@ -108,14 +108,16 @@ func (p *MiningPlugin) loadConfig(setting string) error {
 	p.namespace = "mining-detector"
 
 	if setting == "" {
-		p.logger.Info("使用默认挖矿检测配置")
+		p.log.Info("Using default mining detection configuration")
 		return nil
 	}
 
 	var configFromJSON MiningConfig
 	err := json.Unmarshal([]byte(setting), &configFromJSON)
 	if err != nil {
-		p.logger.Error("解析配置失败，使用默认配置: " + err.Error())
+		p.log.Error("Failed to parse config, using defaults", logger.Fields{
+			"error": err.Error(),
+		})
 		return err
 	}
 
@@ -178,7 +180,10 @@ func (p *MiningPlugin) executeTask(ctx context.Context, eventBus *eventbus.Event
 		default:
 			summary, err := p.detectProcess(processName)
 			if err != nil {
-				p.logger.Error(fmt.Sprintf("检测进程 %s 失败: %v", processName, err))
+				p.log.Error("Process detection failed", logger.Fields{
+					"process": processName,
+					"error":   err.Error(),
+				})
 				continue
 			}
 
@@ -216,7 +221,9 @@ func (p *MiningPlugin) ensureNamespace() error {
 		if err != nil {
 			return fmt.Errorf("failed to create namespace: %v", err)
 		}
-		p.logger.Info(fmt.Sprintf("Created namespace: %s", p.namespace))
+		p.log.Info("Created namespace", logger.Fields{
+			"namespace": p.namespace,
+		})
 	}
 	return nil
 }
@@ -411,7 +418,7 @@ echo "=== End of result file ==="
 		return fmt.Errorf("failed to create configmap: %v", err)
 	}
 
-	p.logger.Info("创建检测脚本ConfigMap成功")
+	p.log.Debug("Detection script ConfigMap created successfully")
 	return nil
 }
 
@@ -446,7 +453,6 @@ func (p *MiningPlugin) getSchedulableNodes() ([]string, error) {
 	return schedulableNodes, nil
 }
 
-// 为每个节点创建检测Job
 func (p *MiningPlugin) createDetectionJobs(processName string, nodes []string) ([]string, error) {
 	var jobNames []string
 	timestamp := time.Now().Unix()
@@ -499,7 +505,12 @@ func (p *MiningPlugin) createDetectionJobs(processName string, nodes []string) (
 								Name:  "detector",
 								Image: "alpine:3.18", // 使用稳定版本
 								SecurityContext: &corev1.SecurityContext{
-									Privileged: &[]bool{true}[0], // 特权模式
+									Privileged: &[]bool{false}[0], // 避免特权模式
+									Capabilities: &corev1.Capabilities{
+										Add: []corev1.Capability{
+											corev1.Capability("SYS_PTRACE"), // 仅添加必要的能力
+										},
+									},
 								},
 								Command: []string{"/bin/sh"},
 								Args: []string{
@@ -616,12 +627,18 @@ func (p *MiningPlugin) createDetectionJobs(processName string, nodes []string) (
 		createdJob, err := k8s.ClientSet.BatchV1().Jobs(p.namespace).Create(
 			context.TODO(), job, metav1.CreateOptions{})
 		if err != nil {
-			p.logger.Error(fmt.Sprintf("为节点 %s 创建Job失败: %v", nodeName, err))
+			p.log.Error("Failed to create job for node", logger.Fields{
+				"node":  nodeName,
+				"error": err.Error(),
+			})
 			continue
 		}
 
 		jobNames = append(jobNames, createdJob.Name)
-		p.logger.Info(fmt.Sprintf("为节点 %s 创建检测Job %s 成功", nodeName, createdJob.Name))
+		p.log.Info("Detection job created for node", logger.Fields{
+			"node": nodeName,
+			"job":  createdJob.Name,
+		})
 	}
 
 	return jobNames, nil
@@ -632,7 +649,9 @@ func (p *MiningPlugin) waitForJobsCompletion(jobNames []string, timeout time.Dur
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	p.logger.Info(fmt.Sprintf("等待 %d 个Job完成...", len(jobNames)))
+	p.log.Info("Waiting for jobs to complete", logger.Fields{
+		"job_count": len(jobNames),
+	})
 
 	return wait.PollUntilContextCancel(ctx, 10*time.Second, true, func(ctx context.Context) (bool, error) {
 		completedJobs := 0
@@ -641,7 +660,10 @@ func (p *MiningPlugin) waitForJobsCompletion(jobNames []string, timeout time.Dur
 		for _, jobName := range jobNames {
 			job, err := k8s.ClientSet.BatchV1().Jobs(p.namespace).Get(ctx, jobName, metav1.GetOptions{})
 			if err != nil {
-				p.logger.Error(fmt.Sprintf("获取Job %s 失败: %v", jobName, err))
+				p.log.Error("Failed to get job", logger.Fields{
+					"job":   jobName,
+					"error": err.Error(),
+				})
 				continue
 			}
 
@@ -652,8 +674,11 @@ func (p *MiningPlugin) waitForJobsCompletion(jobNames []string, timeout time.Dur
 			}
 		}
 
-		p.logger.Info(fmt.Sprintf("Job状态: 已完成=%d, 运行中=%d, 总计=%d",
-			completedJobs, activeJobs, len(jobNames)))
+		p.log.Info("Job status", logger.Fields{
+			"completed": completedJobs,
+			"active":    activeJobs,
+			"total":     len(jobNames),
+		})
 
 		return completedJobs == len(jobNames), nil
 	})
@@ -694,7 +719,7 @@ func (p *MiningPlugin) collectJobResults(jobNames []string) ([]NodeDetectionResu
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 
-	p.logger.Info("收集所有Job的检测结果...")
+	p.log.Info("Collecting detection results from all jobs")
 
 	for _, jobName := range jobNames {
 		wg.Add(1)
@@ -703,7 +728,10 @@ func (p *MiningPlugin) collectJobResults(jobNames []string) ([]NodeDetectionResu
 
 			result, err := p.getResultFromJob(jName)
 			if err != nil {
-				p.logger.Error(fmt.Sprintf("从Job %s 获取结果失败: %v", jName, err))
+				p.log.Error("Failed to get result from job", logger.Fields{
+					"job":   jName,
+					"error": err.Error(),
+				})
 
 				// 创建失败结果
 				failedResult := NodeDetectionResult{
@@ -728,7 +756,9 @@ func (p *MiningPlugin) collectJobResults(jobNames []string) ([]NodeDetectionResu
 	}
 
 	wg.Wait()
-	p.logger.Info(fmt.Sprintf("从 %d 个Job收集结果完成", len(results)))
+	p.log.Info("Results collected from jobs", logger.Fields{
+		"result_count": len(results),
+	})
 	return results, nil
 }
 
@@ -766,7 +796,11 @@ func (p *MiningPlugin) getResultFromJob(jobName string) (NodeDetectionResult, er
 
 	stdout, stderr, err := p.execInPod(pod.Name, "detector", cmd)
 	if err != nil {
-		p.logger.Error(fmt.Sprintf("在Pod %s 中执行命令失败: %v, stderr: %s", pod.Name, err, stderr))
+		p.log.Error("Failed to execute command in pod", logger.Fields{
+			"pod":    pod.Name,
+			"error":  err.Error(),
+			"stderr": stderr,
+		})
 		return NodeDetectionResult{
 			NodeName:   pod.Spec.NodeName,
 			Hostname:   pod.Spec.NodeName,
@@ -791,7 +825,11 @@ func (p *MiningPlugin) getResultFromJob(jobName string) (NodeDetectionResult, er
 	// 解析JSON结果
 	var nodeResult NodeDetectionResult
 	if err := json.Unmarshal([]byte(stdout), &nodeResult); err != nil {
-		p.logger.Error(fmt.Sprintf("解析Pod %s 的JSON结果失败: %v\n输出: %s", pod.Name, err, stdout))
+		p.log.Error("Failed to parse JSON result from pod", logger.Fields{
+			"pod":    pod.Name,
+			"error":  err.Error(),
+			"output": stdout,
+		})
 		return NodeDetectionResult{
 			NodeName:   pod.Spec.NodeName,
 			Hostname:   pod.Spec.NodeName,
@@ -854,7 +892,9 @@ func (p *MiningPlugin) generateSummary(results []NodeDetectionResult, processNam
 func (p *MiningPlugin) detectProcess(processName string) (*DetectionSummary, error) {
 	startTime := time.Now()
 
-	p.logger.Info(fmt.Sprintf("开始检测进程: %s", processName))
+	p.log.Info("Starting process detection", logger.Fields{
+		"process": processName,
+	})
 
 	// 1. 创建检测脚本
 	if err := p.createDetectionScript(); err != nil {
@@ -871,7 +911,9 @@ func (p *MiningPlugin) detectProcess(processName string) (*DetectionSummary, err
 		return nil, fmt.Errorf("没有找到可调度的节点")
 	}
 
-	p.logger.Info(fmt.Sprintf("找到 %d 个可调度节点", len(nodes)))
+	p.log.Info("Found schedulable nodes", logger.Fields{
+		"node_count": len(nodes),
+	})
 
 	// 3. 为每个节点创建检测Job
 	jobNames, err := p.createDetectionJobs(processName, nodes)
@@ -883,25 +925,31 @@ func (p *MiningPlugin) detectProcess(processName string) (*DetectionSummary, err
 		return nil, fmt.Errorf("没有成功创建任何检测任务")
 	}
 
-	p.logger.Info(fmt.Sprintf("成功创建 %d 个检测任务", len(jobNames)))
+	p.log.Info("Detection tasks created", logger.Fields{
+		"task_count": len(jobNames),
+	})
 
 	// 确保清理资源
 	defer func() {
 		if err := p.cleanupJobs(jobNames); err != nil {
-			p.logger.Error(fmt.Sprintf("清理资源失败: %v", err))
+			p.log.Error("Failed to cleanup resources", logger.Fields{
+				"error": err.Error(),
+			})
 		}
 	}()
 
 	// 4. 等待所有Job完成
-	p.logger.Info("等待检测任务完成...")
+	p.log.Info("Waiting for detection tasks to complete")
 	timeout := time.Duration(p.miningConfig.JobTimeoutMinute) * time.Minute
 	if err := p.waitForJobsCompletion(jobNames, timeout); err != nil {
-		p.logger.Error(fmt.Sprintf("等待任务完成超时: %v", err))
+		p.log.Error("Timeout waiting for tasks to complete", logger.Fields{
+			"error": err.Error(),
+		})
 		// 即使超时也尝试收集已完成的结果
 	}
 
 	// 5. 收集检测结果
-	p.logger.Info("收集检测结果...")
+	p.log.Info("Collecting detection results")
 	results, err := p.collectJobResults(jobNames)
 	if err != nil {
 		return nil, fmt.Errorf("收集检测结果失败: %v", err)
@@ -911,106 +959,54 @@ func (p *MiningPlugin) detectProcess(processName string) (*DetectionSummary, err
 	endTime := time.Now()
 	summary := p.generateSummary(results, processName, startTime, endTime)
 
-	p.logger.Info(fmt.Sprintf("检测完成，总耗时: %v", summary.Duration.Round(time.Second)))
+	p.log.Info("Detection completed", logger.Fields{
+		"duration": summary.Duration.Round(time.Second).String(),
+	})
 	return summary, nil
 }
 
 // 转换为DiscoveryInfo格式
-func (p *MiningPlugin) convertToDiscoveryInfo(summary *DetectionSummary) []models.DiscoveryInfo {
-	var discoveryInfos []models.DiscoveryInfo
+func (p *MiningPlugin) convertToDiscoveryInfo(summary *DetectionSummary) []models.MiningInfo {
+	var discoveryInfos []models.MiningInfo
 
 	for _, result := range summary.Results {
 		if len(result.Detections) > 0 {
 			for _, detection := range result.Detections {
-				discoveryInfo := models.DiscoveryInfo{
-					ClusterName: "default", // 可以从配置获取
-					Namespace:   detection.Namespace,
-					PodName:     detection.PodName,
-					NodeName:    detection.NodeName,
-					Title:       fmt.Sprintf("检测到挖矿进程: %s", summary.ProcessName),
-					Description: fmt.Sprintf("在节点 %s 上发现可疑挖矿进程 %s (PID: %d)",
-						detection.NodeName, summary.ProcessName, detection.PID),
-					Severity:  "HIGH", // 挖矿进程属于高危
-					Type:      "SECURITY_THREAT",
-					Source:    p.Name(),
-					Timestamp: time.Now(),
-					Details: map[string]interface{}{
-						"process_name":     summary.ProcessName,
-						"pid":              detection.PID,
-						"command":          detection.Command,
-						"container_id":     detection.ContainerID,
-						"node_name":        detection.NodeName,
-						"hostname":         result.Hostname,
-						"detection_time":   result.Timestamp,
-						"total_detections": summary.TotalDetections,
-						"affected_nodes":   summary.NodesWithIssues,
-					},
-					Tags: []string{
-						"mining",
-						"security",
-						"malware",
-						"cryptocurrency",
-						summary.ProcessName,
-					},
+				discoveryInfo := models.MiningInfo{
+					Namespace: detection.Namespace,
+					PodName:   detection.PodName,
+					NodeName:  detection.NodeName,
+					Command:   detection.Command,
 				}
 				discoveryInfos = append(discoveryInfos, discoveryInfo)
 			}
 		}
 	}
-
-	// 如果没有发现挖矿进程，也可以发送一个正常状态的信息
-	if len(discoveryInfos) == 0 && summary.SuccessNodes > 0 {
-		discoveryInfo := models.DiscoveryInfo{
-			ClusterName: "default",
-			Title:       fmt.Sprintf("挖矿进程检测完成: %s", summary.ProcessName),
-			Description: fmt.Sprintf("在 %d 个节点上未发现挖矿进程 %s",
-				summary.SuccessNodes, summary.ProcessName),
-			Severity:  "INFO",
-			Type:      "SECURITY_SCAN",
-			Source:    p.Name(),
-			Timestamp: time.Now(),
-			Details: map[string]interface{}{
-				"process_name":  summary.ProcessName,
-				"total_nodes":   summary.TotalNodes,
-				"success_nodes": summary.SuccessNodes,
-				"failed_nodes":  summary.FailedNodes,
-				"scan_duration": summary.Duration.String(),
-			},
-			Tags: []string{
-				"mining",
-				"security",
-				"scan_complete",
-				summary.ProcessName,
-			},
-		}
-		discoveryInfos = append(discoveryInfos, discoveryInfo)
-	}
-
 	return discoveryInfos
 }
 
-// 清理Job资源
 func (p *MiningPlugin) cleanupJobs(jobNames []string) error {
 	for _, jobName := range jobNames {
 		err := k8s.ClientSet.BatchV1().Jobs(p.namespace).Delete(
 			context.TODO(), jobName, metav1.DeleteOptions{})
 		if err != nil {
-			p.logger.Error(fmt.Sprintf("删除Job %s 失败: %v", jobName, err))
+			p.log.Error("Failed to delete job", logger.Fields{
+				"job":   jobName,
+				"error": err.Error(),
+			})
 		}
 	}
 	return nil
 }
 
-// 清理所有资源
 func (p *MiningPlugin) cleanup() error {
-	// 删除ConfigMap
 	err := k8s.ClientSet.CoreV1().ConfigMaps(p.namespace).Delete(
 		context.TODO(), "detection-script", metav1.DeleteOptions{})
 	if err != nil {
-		p.logger.Error(fmt.Sprintf("删除ConfigMap失败: %v", err))
+		p.log.Error("Failed to delete ConfigMap", logger.Fields{
+			"error": err.Error(),
+		})
 	}
-
-	// 清理所有相关的Job
 	jobs, err := k8s.ClientSet.BatchV1().Jobs(p.namespace).List(
 		context.TODO(), metav1.ListOptions{
 			LabelSelector: "app=mining-detector",
@@ -1021,8 +1017,6 @@ func (p *MiningPlugin) cleanup() error {
 				context.TODO(), job.Name, metav1.DeleteOptions{})
 		}
 	}
-
-	// 清理所有相关的Pod
 	pods, err := k8s.ClientSet.CoreV1().Pods(p.namespace).List(
 		context.TODO(), metav1.ListOptions{
 			LabelSelector: "app=mining-detector",
@@ -1034,6 +1028,6 @@ func (p *MiningPlugin) cleanup() error {
 		}
 	}
 
-	p.logger.Info("资源清理完成")
+	p.log.Info("Resource cleanup completed")
 	return nil
 }

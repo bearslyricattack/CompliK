@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"github.com/bearslyricattack/CompliK/pkg/constants"
 	"github.com/bearslyricattack/CompliK/pkg/eventbus"
+	"github.com/bearslyricattack/CompliK/pkg/logger"
 	"github.com/bearslyricattack/CompliK/pkg/models"
 	"github.com/bearslyricattack/CompliK/pkg/plugin"
 	"github.com/bearslyricattack/CompliK/pkg/utils/config"
-	"github.com/bearslyricattack/CompliK/pkg/utils/logger"
 	"github.com/bearslyricattack/CompliK/plugins/handle/lark/whitelist"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -28,13 +28,13 @@ const (
 func init() {
 	plugin.PluginFactories[pluginName] = func() plugin.Plugin {
 		return &LarkPlugin{
-			logger: logger.NewLogger(),
+			log: logger.GetLogger().WithField("plugin", pluginName),
 		}
 	}
 }
 
 type LarkPlugin struct {
-	logger     *logger.Logger
+	log        logger.Logger
 	notifier   *Notifier
 	larkConfig LarkConfig
 }
@@ -58,6 +58,7 @@ type LarkConfig struct {
 	DatabaseName     string `json:"databaseName"`
 	TableName        string `json:"tableName"`
 	Charset          string `json:"charset"`
+	HostTimeoutHour  int    `json:"host_timeout_hour"`
 }
 
 func (p *LarkPlugin) getDefaultConfig() LarkConfig {
@@ -79,13 +80,16 @@ func (p *LarkPlugin) loadConfig(setting string) error {
 	var configFromJSON LarkConfig
 	err := json.Unmarshal([]byte(setting), &configFromJSON)
 	if err != nil {
-		p.logger.Error("解析配置失败: " + err.Error())
+		p.log.Error("Failed to parse config", logger.Fields{
+			"error": err.Error(),
+		})
 		return err
 	}
 	if configFromJSON.Webhook == "" {
 		return errors.New("webhook 配置不能为空")
 	}
-	if *configFromJSON.EnabledWhitelist == true {
+	if configFromJSON.EnabledWhitelist != nil && *configFromJSON.EnabledWhitelist == true {
+		p.larkConfig.EnabledWhitelist = configFromJSON.EnabledWhitelist
 		if configFromJSON.Host == "" {
 			return errors.New("host 配置不能为空")
 		}
@@ -101,7 +105,15 @@ func (p *LarkPlugin) loadConfig(setting string) error {
 		p.larkConfig.Host = configFromJSON.Host
 		p.larkConfig.Port = configFromJSON.Port
 		p.larkConfig.Username = configFromJSON.Username
-		p.larkConfig.Password = configFromJSON.Password
+		// 支持从环境变量或加密值获取密码
+		if pwd, err := config.GetSecureValue(configFromJSON.Password); err == nil {
+			p.larkConfig.Password = pwd
+		} else {
+			p.larkConfig.Password = configFromJSON.Password
+		}
+	}
+	if configFromJSON.HostTimeoutHour > 0 {
+		p.larkConfig.HostTimeoutHour = configFromJSON.HostTimeoutHour
 	}
 	if configFromJSON.DatabaseName != "" {
 		p.larkConfig.DatabaseName = configFromJSON.DatabaseName
@@ -135,10 +147,9 @@ func (p *LarkPlugin) initDB() (db *gorm.DB, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("连接 MySQL 服务器失败: %v", err)
 	}
-	err = db.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s CHARACTER SET %s COLLATE %s_unicode_ci",
-		p.larkConfig.DatabaseName,
-		p.larkConfig.Charset,
-		p.larkConfig.Charset)).Error
+	// 使用参数化查询避免SQL注入
+	createDBSQL := "CREATE DATABASE IF NOT EXISTS ? CHARACTER SET ? COLLATE ?_unicode_ci"
+	err = db.Exec(createDBSQL, p.larkConfig.DatabaseName, p.larkConfig.Charset, p.larkConfig.Charset).Error
 	if err != nil {
 		return nil, fmt.Errorf("创建数据库失败: %v", err)
 	}
@@ -178,36 +189,65 @@ func (p *LarkPlugin) Start(ctx context.Context, config config.PluginConfig, even
 		if err := db.AutoMigrate(&whitelist.Whitelist{}); err != nil {
 			return fmt.Errorf("数据库迁移失败: %v", err)
 		}
-		p.notifier = NewNotifier(p.larkConfig.Webhook, db)
+		p.notifier = NewNotifier(p.larkConfig.Webhook, db, time.Duration(p.larkConfig.HostTimeoutHour)*time.Hour, p.larkConfig.Region)
+		var count int64
+		db.Model(&whitelist.Whitelist{}).Count(&count)
+		if count == 0 {
+			testData := &whitelist.Whitelist{
+				Region:    "cn-beijing",
+				Name:      "测试白名单项目",
+				Namespace: "default",
+				Hostname:  "test.example.com",
+				Type:      "namespace",
+				Remark:    "这是一条初始化的测试数据，用于验证白名单功能",
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			}
+			if err := db.Create(testData).Error; err != nil {
+				p.log.Error("Failed to insert test data", logger.Fields{
+					"error": err.Error(),
+				})
+			} else {
+				p.log.Info("Test data inserted successfully")
+			}
+		}
+
 	} else {
-		p.notifier = NewNotifier(p.larkConfig.Webhook, nil)
+		p.notifier = NewNotifier(p.larkConfig.Webhook, nil, 0, "")
 	}
 	subscribe := eventBus.Subscribe(constants.DetectorTopic)
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				log.Printf("WebsitePlugin goroutine panic: %v", r)
+				p.log.Error("Plugin goroutine panic", logger.Fields{
+					"panic": r,
+				})
 			}
 		}()
 		for {
 			select {
 			case event, ok := <-subscribe:
 				if !ok {
-					log.Println("事件订阅通道已关闭")
+					p.log.Info("Event subscription channel closed")
 					return
 				}
 				result, ok := event.Payload.(*models.DetectorInfo)
 				if !ok {
-					log.Printf("事件负载类型错误，期望*models.DetectorInfo，实际: %T", event.Payload)
+					p.log.Error("Invalid event payload type", logger.Fields{
+						"expected": "*models.DetectorInfo",
+						"actual":   fmt.Sprintf("%T", event.Payload),
+					})
 					continue
 				}
 				result.Region = p.larkConfig.Region
 				err := p.notifier.SendAnalysisNotification(result)
 				if err != nil {
-					log.Printf("发送失败: %v", err)
+					p.log.Error("Failed to send notification", logger.Fields{
+						"error": err.Error(),
+					})
 				}
 			case <-ctx.Done():
-				log.Println("WebsitePlugin 收到停止信号")
+				p.log.Info("Plugin received stop signal")
 				return
 			}
 		}
