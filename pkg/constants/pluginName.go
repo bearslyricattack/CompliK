@@ -8,6 +8,7 @@ const (
 	DiscoveryInformerStatefulSetName     = "StatefulSet"
 	DiscoveryInformerEndPointSliceName   = "Endpointslice"
 	DiscoveryInformerServiceNodePortName = "NodePort"
+	DiscoveryInformerIngressName         = "Ingress"
 )
 
 const (

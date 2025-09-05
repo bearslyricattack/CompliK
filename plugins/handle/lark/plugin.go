@@ -147,9 +147,11 @@ func (p *LarkPlugin) initDB() (db *gorm.DB, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("连接 MySQL 服务器失败: %v", err)
 	}
-	// 使用参数化查询避免SQL注入
-	createDBSQL := "CREATE DATABASE IF NOT EXISTS ? CHARACTER SET ? COLLATE ?_unicode_ci"
-	err = db.Exec(createDBSQL, p.larkConfig.DatabaseName, p.larkConfig.Charset, p.larkConfig.Charset).Error
+	createDBSQL := fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET %s COLLATE %s_unicode_ci",
+		p.larkConfig.DatabaseName,
+		p.larkConfig.Charset,
+		p.larkConfig.Charset)
+	err = db.Exec(createDBSQL).Error
 	if err != nil {
 		return nil, fmt.Errorf("创建数据库失败: %v", err)
 	}

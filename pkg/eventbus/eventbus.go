@@ -33,13 +33,9 @@ func (eb *EventBus) Publish(topic string, event Event) {
 
 	// 非阻塞发送，避免死锁
 	for _, subscriber := range subscribers {
-		select {
-		case subscriber <- event:
-			// 发送成功
-		default:
-			// 通道满了，跳过这个订阅者
-			// 可以考虑记录日志或统计丢失的事件
-		}
+		go func(sub chan Event) {
+			sub <- event
+		}(subscriber)
 	}
 }
 
