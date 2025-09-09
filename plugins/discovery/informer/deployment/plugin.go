@@ -129,9 +129,15 @@ func (p *DeploymentPlugin) startDeploymentInformerWatch(ctx context.Context) {
 	if p.deploymentInformer == nil {
 		p.deploymentInformer = p.factory.Apps().V1().Deployments().Informer()
 	}
-	p.deploymentInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err := p.deploymentInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj any) {
-			deployment := obj.(*appsv1.Deployment)
+			deployment, ok := obj.(*appsv1.Deployment)
+			if !ok {
+				p.log.Error("Failed to cast object to Deployment", logger.Fields{
+					"object_type": fmt.Sprintf("%T", obj),
+				})
+				return
+			}
 			if time.Since(
 				deployment.CreationTimestamp.Time,
 			) > time.Duration(
@@ -148,8 +154,20 @@ func (p *DeploymentPlugin) startDeploymentInformerWatch(ctx context.Context) {
 			}
 		},
 		UpdateFunc: func(oldObj, newObj any) {
-			oldDeployment := oldObj.(*appsv1.Deployment)
-			newDeployment := newObj.(*appsv1.Deployment)
+			oldDeployment, ok := oldObj.(*appsv1.Deployment)
+			if !ok {
+				p.log.Error("Failed to cast object to Deployment", logger.Fields{
+					"object_type": fmt.Sprintf("%T", oldDeployment),
+				})
+				return
+			}
+			newDeployment, ok := newObj.(*appsv1.Deployment)
+			if !ok {
+				p.log.Error("Failed to cast object to Deployment", logger.Fields{
+					"object_type": fmt.Sprintf("%T", oldDeployment),
+				})
+				return
+			}
 			if p.shouldProcessDeployment(newDeployment) {
 				hasChanged := p.hasDeploymentChanged(oldDeployment, newDeployment)
 				if hasChanged {
@@ -162,6 +180,10 @@ func (p *DeploymentPlugin) startDeploymentInformerWatch(ctx context.Context) {
 			}
 		},
 	})
+	if err != nil {
+		p.log.Error("Deployment informer stopped with error", logger.Fields{})
+		return
+	}
 	p.factory.Start(p.stopChan)
 	if !cache.WaitForCacheSync(p.stopChan, p.deploymentInformer.HasSynced) {
 		p.log.Error("Failed to wait for deployment caches to sync")

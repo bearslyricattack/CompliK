@@ -35,7 +35,7 @@ func NewNotifier(webhookURL string, db *gorm.DB, timeout time.Duration, region s
 
 func (f *Notifier) SendAnalysisNotification(results *models.DetectorInfo) error {
 	if f.WebhookURL == "" {
-		return fmt.Errorf("未设置webhook URL，跳过通知发送")
+		return errors.New("未设置webhook URL，跳过通知发送")
 	}
 	if results == nil {
 		return errors.New("分析结果为空")
@@ -88,35 +88,35 @@ func (f *Notifier) buildWhitelistMessage(
 		{
 			"tag": "div",
 			"text": map[string]any{
-				"content": fmt.Sprintf("**🏷️ 可用区:** %s", results.Region),
+				"content": "**🏷️ 可用区:** " + results.Region,
 				"tag":     "lark_md",
 			},
 		},
 		{
 			"tag": "div",
 			"text": map[string]any{
-				"content": fmt.Sprintf("**🏷️ 资源名称:** %s", results.Name),
+				"content": "**🏷️ 资源名称:** " + results.Name,
 				"tag":     "lark_md",
 			},
 		},
 		{
 			"tag": "div",
 			"text": map[string]any{
-				"content": fmt.Sprintf("**📦 命名空间:** %s", results.Namespace),
+				"content": "**📦 命名空间:** " + results.Namespace,
 				"tag":     "lark_md",
 			},
 		},
 		{
 			"tag": "div",
 			"text": map[string]any{
-				"content": fmt.Sprintf("**🌐 主机地址:** %s", results.Host),
+				"content": "**🌐 主机地址:** " + results.Host,
 				"tag":     "lark_md",
 			},
 		},
 		{
 			"tag": "div",
 			"text": map[string]any{
-				"content": fmt.Sprintf("**🔗 完整URL:** %s", results.URL),
+				"content": "**🔗 完整URL:** " + results.URL,
 				"tag":     "lark_md",
 			},
 		},
@@ -180,25 +180,22 @@ func (f *Notifier) buildWhitelistMessage(
 			map[string]any{
 				"tag": "div",
 				"text": map[string]any{
-					"content": fmt.Sprintf("**🏷️ 白名单类型:** %s", whitelistTypeText),
+					"content": "**🏷️ 白名单类型:** " + whitelistTypeText,
 					"tag":     "lark_md",
 				},
 			},
 			map[string]any{
 				"tag": "div",
 				"text": map[string]any{
-					"content": fmt.Sprintf("**⏰ 有效期:** %s", validityText),
+					"content": "**⏰ 有效期:** " + validityText,
 					"tag":     "lark_md",
 				},
 			},
 			map[string]any{
 				"tag": "div",
 				"text": map[string]any{
-					"content": fmt.Sprintf(
-						"**📅 创建时间:** %s",
-						whitelistInfo.CreatedAt.Format(time.DateTime),
-					),
-					"tag": "lark_md",
+					"content": "**📅 创建时间:** " + whitelistInfo.CreatedAt.Format(time.DateTime),
+					"tag":     "lark_md",
 				},
 			},
 		)
@@ -227,7 +224,7 @@ func (f *Notifier) buildWhitelistMessage(
 			whitelistElements = append(whitelistElements, map[string]any{
 				"tag": "div",
 				"text": map[string]any{
-					"content": fmt.Sprintf("**📝 备注:** %s", whitelistInfo.Remark),
+					"content": "**📝 备注:** " + whitelistInfo.Remark,
 					"tag":     "lark_md",
 				},
 			})
@@ -250,7 +247,7 @@ func (f *Notifier) buildWhitelistMessage(
 		detectionElements = append(detectionElements, map[string]any{
 			"tag": "div",
 			"text": map[string]any{
-				"content": fmt.Sprintf("**描述:** %s", results.Description),
+				"content": "**描述:** " + results.Description,
 				"tag":     "lark_md",
 			},
 		})
@@ -277,7 +274,7 @@ func (f *Notifier) buildWhitelistMessage(
 		detectionElements = append(detectionElements, map[string]any{
 			"tag": "div",
 			"text": map[string]any{
-				"content": fmt.Sprintf("**检测证据:** %s", results.Explanation),
+				"content": "**检测证据:** " + results.Explanation,
 				"tag":     "lark_md",
 			},
 		})
@@ -295,7 +292,7 @@ func (f *Notifier) buildWhitelistMessage(
 		map[string]any{
 			"tag": "div",
 			"text": map[string]any{
-				"content": fmt.Sprintf("**⏰ 检测时间:** %s", time.Now().Format(time.DateTime)),
+				"content": "**⏰ 检测时间:** " + time.Now().Format(time.DateTime),
 				"tag":     "lark_md",
 			},
 		},
@@ -328,35 +325,35 @@ func (f *Notifier) buildAlertMessage(results *models.DetectorInfo) map[string]an
 		{
 			"tag": "div",
 			"text": map[string]any{
-				"content": fmt.Sprintf("**🏷️ 可用区:** %s", results.Region),
+				"content": "**🏷️ 可用区:** " + results.Region,
 				"tag":     "lark_md",
 			},
 		},
 		{
 			"tag": "div",
 			"text": map[string]any{
-				"content": fmt.Sprintf("**🏷️ 资源名称:** %s", results.Name),
+				"content": "**🏷️ 资源名称:** " + results.Name,
 				"tag":     "lark_md",
 			},
 		},
 		{
 			"tag": "div",
 			"text": map[string]any{
-				"content": fmt.Sprintf("**📦 命名空间:** %s", results.Namespace),
+				"content": "**📦 命名空间:** " + results.Namespace,
 				"tag":     "lark_md",
 			},
 		},
 		{
 			"tag": "div",
 			"text": map[string]any{
-				"content": fmt.Sprintf("**🌐 主机地址:** %s", results.Host),
+				"content": "**🌐 主机地址:** " + results.Host,
 				"tag":     "lark_md",
 			},
 		},
 		{
 			"tag": "div",
 			"text": map[string]any{
-				"content": fmt.Sprintf("**🔗 完整URL:** %s", results.URL),
+				"content": "**🔗 完整URL:** " + results.URL,
 				"tag":     "lark_md",
 			},
 		},
@@ -404,13 +401,10 @@ func (f *Notifier) buildAlertMessage(results *models.DetectorInfo) map[string]an
 			violationElements = append(violationElements, map[string]any{
 				"tag": "div",
 				"text": map[string]any{
-					"content": fmt.Sprintf("**描述:** %s", results.Description),
+					"content": "**描述:** " + results.Description,
 					"tag":     "lark_md",
 				},
 			})
-		}
-
-		if len(results.Keywords) > 0 {
 		}
 		if len(results.Keywords) > 0 {
 			keywordContent := "**🔍 命中关键词:** "
@@ -433,7 +427,7 @@ func (f *Notifier) buildAlertMessage(results *models.DetectorInfo) map[string]an
 			violationElements = append(violationElements, map[string]any{
 				"tag": "div",
 				"text": map[string]any{
-					"content": fmt.Sprintf("**违规证据:** %s", results.Explanation),
+					"content": "**违规证据:** " + results.Explanation,
 					"tag":     "lark_md",
 				},
 			})
@@ -450,7 +444,7 @@ func (f *Notifier) buildAlertMessage(results *models.DetectorInfo) map[string]an
 		map[string]any{
 			"tag": "div",
 			"text": map[string]any{
-				"content": fmt.Sprintf("**⏰ 检测时间:** %s", time.Now().Format(time.DateTime)),
+				"content": "**⏰ 检测时间:** " + time.Now().Format(time.DateTime),
 				"tag":     "lark_md",
 			},
 		},

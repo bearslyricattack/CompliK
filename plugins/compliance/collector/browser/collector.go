@@ -150,13 +150,19 @@ func (s *Collector) CollectorAndScreenshot(
 	if err != nil {
 		return nil, err
 	}
+	var duration int64
+	if startTime, ok := taskCtx.Value("start_time").(time.Time); ok {
+		duration = time.Since(startTime).Milliseconds()
+	} else {
+		duration = 0
+	}
 	s.log.Debug("Collection completed", logger.Fields{
 		"url":             url,
 		"html_length":     len(content),
 		"screenshot_size": len(screenshot),
 		"namespace":       discovery.Namespace,
 		"name":            discovery.Name,
-		"duration_ms":     time.Since(taskCtx.Value("start_time").(time.Time)).Milliseconds(),
+		"duration_ms":     duration,
 	})
 	return &models.CollectorInfo{
 		DiscoveryName: discovery.DiscoveryName,

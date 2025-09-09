@@ -96,7 +96,7 @@ func (s *Scanner) scanProcesses() error {
 	if err != nil {
 		return err
 	}
-	var maliciousProcesses []types.ProcessInfo
+	maliciousProcesses := make([]types.ProcessInfo, 0, len(pids))
 	for _, pid := range pids {
 		processInfo, err := s.processor.AnalyzeProcess(pid)
 		if err != nil {
@@ -109,8 +109,6 @@ func (s *Scanner) scanProcesses() error {
 
 		log.Printf("发现恶意进程: PID=%d, 进程名=%s, 命令行=%s",
 			processInfo.PID, processInfo.ProcessName, processInfo.Command)
-
-		// 获取容器信息
 		containerInfo, err := s.containerInfo.GetContainerInfo(pid)
 		if err != nil {
 			log.Printf("获取容器信息失败: %v", err)
@@ -119,15 +117,11 @@ func (s *Scanner) scanProcesses() error {
 			processInfo.PodName = containerInfo.PodName
 			processInfo.Namespace = containerInfo.Namespace
 		}
-
 		maliciousProcesses = append(maliciousProcesses, *processInfo)
 	}
-
-	// 批量发送告警
 	if len(maliciousProcesses) > 0 {
 		return s.alertSender.SendBatchAlerts(maliciousProcesses)
 	}
-
 	return nil
 }
 

@@ -27,31 +27,25 @@ func NewProcessor(procPath, nodeName string, config types.Config) *Processor {
 	}
 }
 
-// GetAllProcesses 获取所有进程ID
 func (p *Processor) GetAllProcesses() ([]int, error) {
 	procDirs, err := ioutil.ReadDir(p.procPath)
 	if err != nil {
 		return nil, fmt.Errorf("读取 /proc 目录失败: %w", err)
 	}
-
-	var pids []int
+	pids := make([]int, 0, len(procDirs))
 	for _, dir := range procDirs {
 		if !dir.IsDir() {
 			continue
 		}
-
-		// 检查是否为数字目录（PID）
 		pid, err := strconv.Atoi(dir.Name())
 		if err != nil {
 			continue
 		}
 		pids = append(pids, pid)
 	}
-
 	return pids, nil
 }
 
-// AnalyzeProcess 分析单个进程
 func (p *Processor) AnalyzeProcess(pid int) (*types.ProcessInfo, error) {
 	procDir := filepath.Join(p.procPath, strconv.Itoa(pid))
 

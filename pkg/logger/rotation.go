@@ -169,8 +169,7 @@ func (w *RotatingFileWriter) cleanupBackups() {
 		path    string
 		modTime time.Time
 	}
-
-	var files []fileInfo
+	files := make([]fileInfo, 0, len(matches))
 	for _, match := range matches {
 		info, err := os.Stat(match)
 		if err != nil {
@@ -181,8 +180,6 @@ func (w *RotatingFileWriter) cleanupBackups() {
 			modTime: info.ModTime(),
 		})
 	}
-
-	// 删除超过数量限制的文件
 	if w.maxBackups > 0 && len(files) > w.maxBackups {
 		// 按时间排序，保留最新的
 		for i := range len(files) - w.maxBackups {

@@ -101,6 +101,10 @@ func (p *StatefulSetPlugin) Start(
 	config config.PluginConfig,
 	eventBus *eventbus.EventBus,
 ) error {
+	err := p.loadConfig(config.Settings)
+	if err != nil {
+		return err
+	}
 	p.stopChan = make(chan struct{})
 	p.eventBus = eventBus
 	go p.startStatefulSetInformerWatch(ctx)
@@ -117,10 +121,14 @@ func (p *StatefulSetPlugin) startStatefulSetInformerWatch(ctx context.Context) {
 	if p.statefulsetInformer == nil {
 		p.statefulsetInformer = p.factory.Apps().V1().StatefulSets().Informer()
 	}
-
-	p.statefulsetInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err := p.statefulsetInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj any) {
-			statefulset := obj.(*appsv1.StatefulSet)
+			statefulset, ok := obj.(*appsv1.StatefulSet)
+			if !ok {
+				p.log.Error("Failed to get StatefulSet related Ingresses", logger.Fields{
+					"object_type": fmt.Sprintf("%T", obj),
+				})
+			}
 			if time.Since(
 				statefulset.CreationTimestamp.Time,
 			) > time.Duration(
@@ -140,8 +148,18 @@ func (p *StatefulSetPlugin) startStatefulSetInformerWatch(ctx context.Context) {
 			}
 		},
 		UpdateFunc: func(oldObj, newObj any) {
-			oldStatefulSet := oldObj.(*appsv1.StatefulSet)
-			newStatefulSet := newObj.(*appsv1.StatefulSet)
+			oldStatefulSet, ok := oldObj.(*appsv1.StatefulSet)
+			if !ok {
+				p.log.Error("Failed to get StatefulSet related Ingresses", logger.Fields{
+					"object_type": fmt.Sprintf("%T", oldStatefulSet),
+				})
+			}
+			newStatefulSet, ok := newObj.(*appsv1.StatefulSet)
+			if !ok {
+				p.log.Error("Failed to get StatefulSet related Ingresses", logger.Fields{
+					"object_type": fmt.Sprintf("%T", newStatefulSet),
+				})
+			}
 			if p.shouldProcessStatefulSet(newStatefulSet) {
 				hasChanged := p.hasStatefulSetChanged(oldStatefulSet, newStatefulSet)
 				if hasChanged {
@@ -157,6 +175,9 @@ func (p *StatefulSetPlugin) startStatefulSetInformerWatch(ctx context.Context) {
 			}
 		},
 	})
+	if err != nil {
+		return
+	}
 
 	p.factory.Start(p.stopChan)
 	if !cache.WaitForCacheSync(p.stopChan, p.statefulsetInformer.HasSynced) {

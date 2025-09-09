@@ -49,9 +49,9 @@ type DevboxPlugin struct {
 }
 
 type DevboxConfig struct {
-	IntervalMinute  int  `config:"intervalMinute"`
-	AutoStart       bool `                        json:"autoStart"`
-	StartTimeSecond int  `                        json:"startTimeSecond"`
+	IntervalMinute  int  `json:"intervalMinute"`
+	AutoStart       bool `json:"autoStart"`
+	StartTimeSecond int  `json:"startTimeSecond"`
 }
 
 func (p *DevboxPlugin) getDefaultDevboxConfig() DevboxConfig {

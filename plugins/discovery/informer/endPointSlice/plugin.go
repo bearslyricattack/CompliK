@@ -89,13 +89,15 @@ func (p *EndPointInformerPlugin) startInformerWatch(ctx context.Context) {
 
 	factory := informers.NewSharedInformerFactory(k8s.ClientSet, 60*time.Second)
 	endpointSliceInformer := factory.Discovery().V1().EndpointSlices().Informer()
-	endpointSliceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err := endpointSliceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj any) {
-			endpointSlice := obj.(*discoveryv1.EndpointSlice)
-			p.log.Debug("EndpointSlice ADD event received", logger.Fields{
-				"namespace": endpointSlice.Namespace,
-				"name":      endpointSlice.Name,
-			})
+			endpointSlice, ok := obj.(*discoveryv1.EndpointSlice)
+			if !ok {
+				p.log.Error("Failed to cast object to EndpointSlice", logger.Fields{
+					"object_type": fmt.Sprintf("%T", obj),
+				})
+				return
+			}
 
 			if p.shouldProcessEndpointSlice(endpointSlice) {
 				info, err := p.extractEndpointSliceInfo(endpointSlice)
@@ -134,9 +136,18 @@ func (p *EndPointInformerPlugin) startInformerWatch(ctx context.Context) {
 			}
 		},
 		UpdateFunc: func(oldObj, newObj any) {
-			oldEndpointSlice := oldObj.(*discoveryv1.EndpointSlice)
-			newEndpointSlice := newObj.(*discoveryv1.EndpointSlice)
-
+			oldEndpointSlice, ok := oldObj.(*discoveryv1.EndpointSlice)
+			if !ok {
+				p.log.Error("Failed to cast object to EndpointSlice", logger.Fields{
+					"object_type": fmt.Sprintf("%T", oldObj),
+				})
+			}
+			newEndpointSlice, ok := newObj.(*discoveryv1.EndpointSlice)
+			if !ok {
+				p.log.Error("Failed to cast object to EndpointSlice", logger.Fields{
+					"object_type": fmt.Sprintf("%T", newObj),
+				})
+			}
 			p.log.Debug("EndpointSlice UPDATE event received", logger.Fields{
 				"namespace": newEndpointSlice.Namespace,
 				"name":      newEndpointSlice.Name,
@@ -171,6 +182,9 @@ func (p *EndPointInformerPlugin) startInformerWatch(ctx context.Context) {
 			}
 		},
 	})
+	if err != nil {
+		return
+	}
 
 	p.log.Debug("Starting informer factory")
 	factory.Start(p.stopChan)
@@ -432,31 +446,6 @@ func (p *EndPointInformerPlugin) handleEndpointSliceEvent(endpointInfo *Endpoint
 	})
 
 	p.log.Debug("EndpointSlice event published successfully")
-}
-
-func (p *EndPointInformerPlugin) getPodImagesByAddresses(
-	namespace string,
-	addresses []string,
-) (map[string][]string, error) {
-	if len(addresses) == 0 {
-		return make(map[string][]string), nil
-	}
-	podImages := make(map[string][]string)
-	pods, err := k8s.ClientSet.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list pods: %w", err)
-	}
-	addressSet := p.sliceToSet(addresses)
-	for _, pod := range pods.Items {
-		if pod.Status.PodIP != "" && addressSet[pod.Status.PodIP] {
-			var images []string
-			for _, container := range pod.Spec.Containers {
-				images = append(images, container.Image)
-			}
-			podImages[pod.Status.PodIP] = images
-		}
-	}
-	return podImages, nil
 }
 
 func (p *EndPointInformerPlugin) checkServiceHasIngress(

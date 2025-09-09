@@ -297,6 +297,9 @@ func (r *ContentReviewer) callAPI(
 
 	resp, err := client.Do(req)
 	if err != nil {
+		if resp != nil && resp.Body != nil {
+			resp.Body.Close()
+		}
 		r.log.Error("Failed to send HTTP request", logger.Fields{
 			"error": err.Error(),
 			"url":   r.apiURL,
@@ -389,32 +392,6 @@ func (r *ContentReviewer) cleanResponseData(data string) string {
 	})
 }
 
-func (r *ContentReviewer) extractJSON(response string) string {
-	startIdx := strings.Index(response, "{")
-	endIdx := strings.LastIndex(response, "}")
-	if startIdx >= 0 && endIdx > startIdx {
-		return response[startIdx : endIdx+1]
-	}
-	return ""
-}
-
-func (r *ContentReviewer) parseKeywords(keywords any) []string {
-	var result []string
-	switch kw := keywords.(type) {
-	case []any:
-		for _, k := range kw {
-			if str, ok := k.(string); ok {
-				result = append(result, str)
-			}
-		}
-	case string:
-		for _, k := range strings.Split(kw, ",") {
-			result = append(result, strings.TrimSpace(k))
-		}
-	}
-	return result
-}
-
 type CustomKeywordRule struct {
 	Type        string `json:"type"`
 	Keywords    string `json:"keywords"`
@@ -428,9 +405,6 @@ type CustomComplianceResult struct {
 	ViolatedTypes []string `json:"violated_types,omitempty"` // 违规类型列表
 }
 
-type CustomContentReviewer struct {
-	customRules []CustomKeywordRule
-}
 type ReviewResult struct {
 	Description string     `json:"description"`
 	Keywords    []string   `json:"keywords"`

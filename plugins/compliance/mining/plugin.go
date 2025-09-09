@@ -244,14 +244,13 @@ func (p *MiningPlugin) ensureNamespace() error {
 	return nil
 }
 
-// 创建检测脚本的ConfigMap
 func (p *MiningPlugin) createDetectionScript() error {
 	configMapName := "detection-script"
-
-	// 先尝试删除已存在的ConfigMap
-	k8s.ClientSet.CoreV1().ConfigMaps(p.namespace).Delete(
+	err := k8s.ClientSet.CoreV1().ConfigMaps(p.namespace).Delete(
 		context.TODO(), configMapName, metav1.DeleteOptions{})
-
+	if err != nil {
+		return err
+	}
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      configMapName,
@@ -428,7 +427,7 @@ echo "=== End of result file ==="
 		},
 	}
 
-	_, err := k8s.ClientSet.CoreV1().ConfigMaps(p.namespace).Create(
+	_, err = k8s.ClientSet.CoreV1().ConfigMaps(p.namespace).Create(
 		context.TODO(), configMap, metav1.CreateOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to create configmap: %w", err)
@@ -470,9 +469,8 @@ func (p *MiningPlugin) getSchedulableNodes() ([]string, error) {
 }
 
 func (p *MiningPlugin) createDetectionJobs(processName string, nodes []string) ([]string, error) {
-	var jobNames []string
 	timestamp := time.Now().Unix()
-
+	jobNames := make([]string, 0, len(nodes))
 	for i, nodeName := range nodes {
 		jobName := fmt.Sprintf("detect-%s-%s-%d-%d", processName, nodeName, timestamp, i)
 
@@ -1028,6 +1026,7 @@ func (p *MiningPlugin) cleanupJobs(jobNames []string) error {
 				"job":   jobName,
 				"error": err.Error(),
 			})
+			return err
 		}
 	}
 	return nil
@@ -1047,8 +1046,11 @@ func (p *MiningPlugin) cleanup() error {
 		})
 	if err == nil {
 		for _, job := range jobs.Items {
-			k8s.ClientSet.BatchV1().Jobs(p.namespace).Delete(
+			err := k8s.ClientSet.BatchV1().Jobs(p.namespace).Delete(
 				context.TODO(), job.Name, metav1.DeleteOptions{})
+			if err != nil {
+				return err
+			}
 		}
 	}
 	pods, err := k8s.ClientSet.CoreV1().Pods(p.namespace).List(
@@ -1057,8 +1059,11 @@ func (p *MiningPlugin) cleanup() error {
 		})
 	if err == nil {
 		for _, pod := range pods.Items {
-			k8s.ClientSet.CoreV1().Pods(p.namespace).Delete(
+			err := k8s.ClientSet.CoreV1().Pods(p.namespace).Delete(
 				context.TODO(), pod.Name, metav1.DeleteOptions{})
+			if err != nil {
+				return err
+			}
 		}
 	}
 

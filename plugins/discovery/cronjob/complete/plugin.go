@@ -284,17 +284,15 @@ func (p *CompletePlugin) deduplicateIngressesByPath(
 							"ingress":   fmt.Sprintf("%s/%s", ingress.Namespace, ingress.Name),
 							"timestamp": ingress.CreationTimestamp.Time,
 						})
-					} else {
-						if ingress.CreationTimestamp.After(existingIngress.CreationTimestamp.Time) {
-							pathMap[pathKey] = ingress
-							p.log.Debug("Updated path mapping with newer ingress", logger.Fields{
-								"pathKey":      pathKey,
-								"oldIngress":   fmt.Sprintf("%s/%s", existingIngress.Namespace, existingIngress.Name),
-								"newIngress":   fmt.Sprintf("%s/%s", ingress.Namespace, ingress.Name),
-								"oldTimestamp": existingIngress.CreationTimestamp.Time,
-								"newTimestamp": ingress.CreationTimestamp.Time,
-							})
-						}
+					} else if ingress.CreationTimestamp.After(existingIngress.CreationTimestamp.Time) {
+						pathMap[pathKey] = ingress
+						p.log.Debug("Updated path mapping with newer ingress", logger.Fields{
+							"pathKey":      pathKey,
+							"oldIngress":   fmt.Sprintf("%s/%s", existingIngress.Namespace, existingIngress.Name),
+							"newIngress":   fmt.Sprintf("%s/%s", ingress.Namespace, ingress.Name),
+							"oldTimestamp": existingIngress.CreationTimestamp.Time,
+							"newTimestamp": ingress.CreationTimestamp.Time,
+						})
 					}
 				}
 			}

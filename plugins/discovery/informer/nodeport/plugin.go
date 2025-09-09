@@ -134,9 +134,14 @@ func (p *ServicePlugin) startServiceInformerWatch(ctx context.Context) {
 	if p.serviceInformer == nil {
 		p.serviceInformer = p.factory.Core().V1().Services().Informer()
 	}
-	p.serviceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err := p.serviceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj any) {
-			service := obj.(*corev1.Service)
+			service, ok := obj.(*corev1.Service)
+			if !ok {
+				p.log.Error("Failed to cast object to Service", logger.Fields{
+					"object_type": fmt.Sprintf("%T", service),
+				})
+			}
 			if time.Since(
 				service.CreationTimestamp.Time,
 			) > time.Duration(
@@ -164,7 +169,12 @@ func (p *ServicePlugin) startServiceInformerWatch(ctx context.Context) {
 			}
 		},
 		UpdateFunc: func(oldObj, newObj any) {
-			oldService := oldObj.(*corev1.Service)
+			oldService, ok := oldObj.(*corev1.Service)
+			if !ok {
+				p.log.Error("Failed to cast object to Service", logger.Fields{
+					"object_type": fmt.Sprintf("%T", oldService),
+				})
+			}
 			newService := newObj.(*corev1.Service)
 			if p.shouldProcessService(newService) {
 				hasChanged := p.hasServiceChanged(oldService, newService)
@@ -189,6 +199,9 @@ func (p *ServicePlugin) startServiceInformerWatch(ctx context.Context) {
 			}
 		},
 	})
+	if err != nil {
+		return
+	}
 	p.factory.Start(p.stopChan)
 	if !cache.WaitForCacheSync(p.stopChan, p.serviceInformer.HasSynced) {
 		p.log.Error("Failed to wait for service caches to sync")

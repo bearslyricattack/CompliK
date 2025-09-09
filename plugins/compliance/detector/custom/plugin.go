@@ -200,7 +200,6 @@ func (p *CustomPlugin) Start(
 		})
 		return fmt.Errorf("初始化数据库失败: %w", err)
 	}
-
 	p.reviewer = utils.NewContentReviewer(
 		p.log,
 		p.customConfig.APIKey,
@@ -209,7 +208,6 @@ func (p *CustomPlugin) Start(
 		p.customConfig.Model,
 	)
 	p.log.Debug("Content reviewer initialized")
-
 	err = p.readFromDatabase(ctx)
 	if err != nil {
 		p.log.Error("Failed to read keywords from database", logger.Fields{
@@ -217,20 +215,16 @@ func (p *CustomPlugin) Start(
 		})
 		return err
 	}
-
 	p.log.Info("Keywords loaded from database", logger.Fields{
 		"keyword_count": len(p.keywords),
 	})
-
 	subscribe := eventBus.Subscribe(constants.CollectorTopic)
 	p.log.Debug("Subscribed to collector topic", logger.Fields{
 		"topic": constants.CollectorTopic,
 	})
-
 	semaphore := make(chan struct{}, p.customConfig.MaxWorkers)
 	ticker := time.NewTicker(time.Duration(p.customConfig.TickerMinute) * time.Minute)
 	defer ticker.Stop()
-
 	p.log.Info("Custom detector started", logger.Fields{
 		"worker_pool_size":         p.customConfig.MaxWorkers,
 		"refresh_interval_minutes": p.customConfig.TickerMinute,

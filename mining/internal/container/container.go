@@ -43,7 +43,7 @@ func (c *InfoProvider) GetContainerInfo(pid int) (*types.ContainerInfo, error) {
 	}
 
 	// 通过crictl或其他方式获取容器信息
-	podInfo, err := c.getPodInfoFromContainer(containerID)
+	podInfo, err := c.getPodInfoFromContainer()
 	if err != nil {
 		return &types.ContainerInfo{
 			ContainerID: containerID,
@@ -73,7 +73,7 @@ func (c *InfoProvider) extractContainerID(cgroupContent string) string {
 }
 
 // getPodInfoFromContainer 通过容器ID获取Pod信息
-func (c *InfoProvider) getPodInfoFromContainer(containerID string) (*types.PodInfo, error) {
+func (c *InfoProvider) getPodInfoFromContainer() (*types.PodInfo, error) {
 	// 这里简化处理，实际环境中需要调用crictl或者kubernetes API
 	// 由于在容器中运行，这里使用环境变量或者其他方式获取
 

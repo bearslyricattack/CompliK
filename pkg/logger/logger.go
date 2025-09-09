@@ -70,7 +70,6 @@ type StandardLogger struct {
 	level      LogLevel
 	output     io.Writer
 	fields     Fields
-	ctx        context.Context
 	colored    bool
 	jsonFormat bool
 	showCaller bool
@@ -202,7 +201,6 @@ func (l *StandardLogger) WithFields(fields Fields) Logger {
 		level:      l.level,
 		output:     l.output,
 		fields:     newFields,
-		ctx:        l.ctx,
 		colored:    l.colored,
 		jsonFormat: l.jsonFormat,
 		showCaller: l.showCaller,
@@ -219,7 +217,6 @@ func (l *StandardLogger) WithContext(ctx context.Context) Logger {
 		level:      l.level,
 		output:     l.output,
 		fields:     make(Fields, len(l.fields)),
-		ctx:        ctx,
 		colored:    l.colored,
 		jsonFormat: l.jsonFormat,
 		showCaller: l.showCaller,

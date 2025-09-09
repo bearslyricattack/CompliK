@@ -370,12 +370,10 @@ func (p *HigressPlugin) parseLogResponse(body io.Reader) ([]LogEntry, error) {
 		p.log.Debug("Empty response body")
 		return []LogEntry{}, nil
 	}
-
-	var logs []LogEntry
 	lines := strings.Split(string(bodyBytes), "\n")
 	validLines := 0
 	parseErrors := 0
-
+	logs := make([]LogEntry, 0, len(lines))
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {

@@ -118,9 +118,12 @@ func (p *IngressPlugin) startIngressInformerWatch(ctx context.Context) {
 		p.ingressInformer = p.factory.Networking().V1().Ingresses().Informer()
 	}
 
-	p.ingressInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err := p.ingressInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj any) {
-			ingress := obj.(*networkingv1.Ingress)
+			ingress, ok := obj.(*networkingv1.Ingress)
+			if !ok {
+				p.log.Error("Failed to get ingress object", logger.Fields{})
+			}
 			if time.Since(
 				ingress.CreationTimestamp.Time,
 			) > time.Duration(
@@ -142,7 +145,12 @@ func (p *IngressPlugin) startIngressInformerWatch(ctx context.Context) {
 			}
 		},
 		UpdateFunc: func(oldObj, newObj any) {
-			oldIngress := oldObj.(*networkingv1.Ingress)
+			oldIngress, ok := oldObj.(*networkingv1.Ingress)
+			if !ok {
+				p.log.Error("Failed to get ingress object", logger.Fields{
+					"object_type": fmt.Sprintf("%T", oldObj),
+				})
+			}
 			newIngress := newObj.(*networkingv1.Ingress)
 			if p.shouldProcessIngress(newIngress) {
 				hasChanged := p.hasIngressChanged(oldIngress, newIngress)
@@ -163,12 +171,14 @@ func (p *IngressPlugin) startIngressInformerWatch(ctx context.Context) {
 		DeleteFunc: func(obj any) {
 			ingress := obj.(*networkingv1.Ingress)
 			if p.shouldProcessIngress(ingress) {
-				// 对于删除事件，发送 pod 数量为 0 的信息
 				discoveryInfos := utils.GenerateDiscoveryInfo(*ingress, false, 0, p.Name())
 				p.handleIngressEvent(discoveryInfos)
 			}
 		},
 	})
+	if err != nil {
+		return
+	}
 
 	p.factory.Start(p.stopChan)
 	if !cache.WaitForCacheSync(p.stopChan, p.ingressInformer.HasSynced) {
