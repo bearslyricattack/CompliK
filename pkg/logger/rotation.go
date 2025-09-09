@@ -22,7 +22,11 @@ type RotatingFileWriter struct {
 }
 
 // NewRotatingFileWriter 创建轮转文件写入器
-func NewRotatingFileWriter(filename string, maxSize int64, maxBackups, maxAge int) (*RotatingFileWriter, error) {
+func NewRotatingFileWriter(
+	filename string,
+	maxSize int64,
+	maxBackups, maxAge int,
+) (*RotatingFileWriter, error) {
 	w := &RotatingFileWriter{
 		filename:   filename,
 		maxSize:    maxSize,
@@ -33,7 +37,7 @@ func NewRotatingFileWriter(filename string, maxSize int64, maxBackups, maxAge in
 
 	// 确保目录存在
 	dir := filepath.Dir(filename)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
 	}
 
@@ -119,7 +123,7 @@ func (w *RotatingFileWriter) rotate() error {
 
 // openFile 打开日志文件
 func (w *RotatingFileWriter) openFile() error {
-	file, err := os.OpenFile(w.filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	file, err := os.OpenFile(w.filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o666)
 	if err != nil {
 		return err
 	}
@@ -181,7 +185,7 @@ func (w *RotatingFileWriter) cleanupBackups() {
 	// 删除超过数量限制的文件
 	if w.maxBackups > 0 && len(files) > w.maxBackups {
 		// 按时间排序，保留最新的
-		for i := 0; i < len(files)-w.maxBackups; i++ {
+		for i := range len(files) - w.maxBackups {
 			os.Remove(files[i].path)
 		}
 	}

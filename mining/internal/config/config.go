@@ -2,11 +2,12 @@ package config
 
 import (
 	"fmt"
+	"io/ioutil"
+	"log"
+
 	"github.com/bearslyricattack/CompliK/mining/internal/types"
 	"github.com/bearslyricattack/CompliK/mining/pkg/utils"
 	"gopkg.in/yaml.v3"
-	"io/ioutil"
-	"log"
 )
 
 // Manager 配置管理器
@@ -26,11 +27,11 @@ func NewManager(configPath string) *Manager {
 func (m *Manager) LoadConfig() error {
 	data, err := ioutil.ReadFile(m.configPath)
 	if err != nil {
-		return fmt.Errorf("读取配置文件失败: %v", err)
+		return fmt.Errorf("读取配置文件失败: %w", err)
 	}
 
 	if err := yaml.Unmarshal(data, &m.config); err != nil {
-		return fmt.Errorf("解析配置文件失败: %v", err)
+		return fmt.Errorf("解析配置文件失败: %w", err)
 	}
 
 	log.Printf("已加载配置: 禁用进程 %d 个, 关键词 %d 个",
@@ -46,7 +47,10 @@ func (m *Manager) GetConfig() types.Config {
 // LoadScannerConfig 加载扫描器配置
 func LoadScannerConfig() types.ScannerConfig {
 	return types.ScannerConfig{
-		ComplianceURL: utils.GetEnvOrDefault("COMPLIANCE_URL", "http://compliance-service:8080/alert"),
+		ComplianceURL: utils.GetEnvOrDefault(
+			"COMPLIANCE_URL",
+			"http://compliance-service:8080/alert",
+		),
 		NodeName:      utils.GetEnvOrDefault("NODE_NAME", "unknown"),
 		ScanInterval:  utils.GetEnvIntOrDefault("SCAN_INTERVAL", 30),
 		ProcPath:      utils.GetEnvOrDefault("PROC_PATH", "/host/proc"),

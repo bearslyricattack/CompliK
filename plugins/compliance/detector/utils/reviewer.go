@@ -4,14 +4,15 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/bearslyricattack/CompliK/pkg/logger"
 	"io"
 	"net/http"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/bearslyricattack/CompliK/pkg/logger"
 	"github.com/bearslyricattack/CompliK/pkg/models"
 )
 
@@ -22,7 +23,10 @@ type ContentReviewer struct {
 	model  string
 }
 
-func NewContentReviewer(log logger.Logger, apiKey string, apiBase string, apiPath string, model string) *ContentReviewer {
+func NewContentReviewer(
+	log logger.Logger,
+	apiKey, apiBase, apiPath, model string,
+) *ContentReviewer {
 	apiURL := apiBase + apiPath
 	return &ContentReviewer{
 		log:    log,
@@ -32,10 +36,15 @@ func NewContentReviewer(log logger.Logger, apiKey string, apiBase string, apiPat
 	}
 }
 
-func (r *ContentReviewer) ReviewSiteContent(ctx context.Context, content *models.CollectorInfo, name string, customRules []CustomKeywordRule) (*models.DetectorInfo, error) {
+func (r *ContentReviewer) ReviewSiteContent(
+	ctx context.Context,
+	content *models.CollectorInfo,
+	name string,
+	customRules []CustomKeywordRule,
+) (*models.DetectorInfo, error) {
 	if content == nil {
 		r.log.Error("Review called with nil content")
-		return nil, fmt.Errorf("ScrapeResult 参数为空")
+		return nil, errors.New("ScrapeResult 参数为空")
 	}
 
 	r.log.Debug("Preparing review request", logger.Fields{
@@ -49,7 +58,7 @@ func (r *ContentReviewer) ReviewSiteContent(ctx context.Context, content *models
 			"error": err.Error(),
 			"host":  content.Host,
 		})
-		return nil, fmt.Errorf("准备请求数据失败: %v", err)
+		return nil, fmt.Errorf("准备请求数据失败: %w", err)
 	}
 
 	r.log.Debug("Calling review API", logger.Fields{
@@ -63,7 +72,7 @@ func (r *ContentReviewer) ReviewSiteContent(ctx context.Context, content *models
 			"error": err.Error(),
 			"host":  content.Host,
 		})
-		return nil, fmt.Errorf("调用API失败: %v", err)
+		return nil, fmt.Errorf("调用API失败: %w", err)
 	}
 
 	r.log.Debug("Parsing API response")
@@ -73,7 +82,7 @@ func (r *ContentReviewer) ReviewSiteContent(ctx context.Context, content *models
 			"error": err.Error(),
 			"host":  content.Host,
 		})
-		return nil, fmt.Errorf("解析响应失败: %v", err)
+		return nil, fmt.Errorf("解析响应失败: %w", err)
 	}
 
 	r.log.Debug("Review completed", logger.Fields{
@@ -85,7 +94,10 @@ func (r *ContentReviewer) ReviewSiteContent(ctx context.Context, content *models
 	return result, nil
 }
 
-func (r *ContentReviewer) prepareRequestData(content *models.CollectorInfo, customRules []CustomKeywordRule) (map[string]interface{}, error) {
+func (r *ContentReviewer) prepareRequestData(
+	content *models.CollectorInfo,
+	customRules []CustomKeywordRule,
+) (map[string]any, error) {
 	base64Image := base64.StdEncoding.EncodeToString(content.Screenshot)
 	htmlContent := content.HTML
 	originalLength := len(htmlContent)
@@ -102,12 +114,12 @@ func (r *ContentReviewer) prepareRequestData(content *models.CollectorInfo, cust
 	} else {
 		prompt = r.buildCustomPrompt(htmlContent, customRules)
 	}
-	requestData := map[string]interface{}{
+	requestData := map[string]any{
 		"model": r.model,
-		"messages": []map[string]interface{}{
+		"messages": []map[string]any{
 			{
 				"role": "user",
-				"content": []map[string]interface{}{
+				"content": []map[string]any{
 					{
 						"type": "text",
 						"text": prompt,
@@ -128,7 +140,7 @@ func (r *ContentReviewer) prepareRequestData(content *models.CollectorInfo, cust
 }
 
 func (r *ContentReviewer) buildPrompt(htmlContent string) string {
-	return fmt.Sprintf(`# Role: Content Analysis and Compliance Checker
+	return `# Role: Content Analysis and Compliance Checker
 
 # Goal:
 1. 对给定的网页内容或用途进行一句话的简明描述。
@@ -171,7 +183,7 @@ func (r *ContentReviewer) buildPrompt(htmlContent string) string {
     "is_illegal": "<Yes/No>",
     "explanation": "<简短的说明，列出具体违反的类别及证据>"
   }
-}`)
+}`
 }
 
 func (r *ContentReviewer) buildRulesDescription(rules []CustomKeywordRule) string {
@@ -195,7 +207,10 @@ func (r *ContentReviewer) buildRulesDescription(rules []CustomKeywordRule) strin
 	return result
 }
 
-func (r *ContentReviewer) buildCustomPrompt(htmlContent string, customRules []CustomKeywordRule) string {
+func (r *ContentReviewer) buildCustomPrompt(
+	htmlContent string,
+	customRules []CustomKeywordRule,
+) string {
 	rulesDescription := r.buildRulesDescription(customRules)
 	return fmt.Sprintf(`# Role: 智能网页内容合规检测专家
 
@@ -245,7 +260,10 @@ func (r *ContentReviewer) buildCustomPrompt(htmlContent string, customRules []Cu
 - description: 简洁明了的一句话描述`, rulesDescription, htmlContent)
 }
 
-func (r *ContentReviewer) callAPI(ctx context.Context, requestData map[string]interface{}) (*APIResponse, error) {
+func (r *ContentReviewer) callAPI(
+	ctx context.Context,
+	requestData map[string]any,
+) (*APIResponse, error) {
 	requestBody, err := json.Marshal(requestData)
 	if err != nil {
 		r.log.Error("Failed to serialize request data", logger.Fields{
@@ -253,7 +271,12 @@ func (r *ContentReviewer) callAPI(ctx context.Context, requestData map[string]in
 		})
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, "POST", r.apiURL, strings.NewReader(string(requestBody)))
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		r.apiURL,
+		strings.NewReader(string(requestBody)),
+	)
 	if err != nil {
 		r.log.Error("Failed to create HTTP request", logger.Fields{
 			"error": err.Error(),
@@ -289,9 +312,9 @@ func (r *ContentReviewer) callAPI(ctx context.Context, requestData map[string]in
 	}(resp.Body)
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("读取响应体失败: %v", err)
+		return nil, fmt.Errorf("读取响应体失败: %w", err)
 	}
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		errorText := string(body)
 		r.log.Error("API call failed with non-200 status", logger.Fields{
 			"status_code": resp.StatusCode,
@@ -302,11 +325,11 @@ func (r *ContentReviewer) callAPI(ctx context.Context, requestData map[string]in
 	}
 	var responseData APIResponse
 	if err := json.Unmarshal(body, &responseData); err != nil {
-		return nil, fmt.Errorf("解码API响应失败: %v", err)
+		return nil, fmt.Errorf("解码API响应失败: %w", err)
 	}
 	if len(responseData.Choices) == 0 {
 		r.log.Error("API response has no choices")
-		return nil, fmt.Errorf("API响应中没有结果")
+		return nil, errors.New("API响应中没有结果")
 	}
 
 	r.log.Debug("API call successful", logger.Fields{
@@ -315,7 +338,11 @@ func (r *ContentReviewer) callAPI(ctx context.Context, requestData map[string]in
 	return &responseData, nil
 }
 
-func (r *ContentReviewer) parseResponse(response *APIResponse, content *models.CollectorInfo, name string) (*models.DetectorInfo, error) {
+func (r *ContentReviewer) parseResponse(
+	response *APIResponse,
+	content *models.CollectorInfo,
+	name string,
+) (*models.DetectorInfo, error) {
 	reviewResult := response.Choices[0].Message.Content
 	cleanData := r.cleanResponseData(reviewResult)
 
@@ -371,10 +398,10 @@ func (r *ContentReviewer) extractJSON(response string) string {
 	return ""
 }
 
-func (r *ContentReviewer) parseKeywords(keywords interface{}) []string {
+func (r *ContentReviewer) parseKeywords(keywords any) []string {
 	var result []string
 	switch kw := keywords.(type) {
-	case []interface{}:
+	case []any:
 		for _, k := range kw {
 			if str, ok := k.(string); ok {
 				result = append(result, str)
@@ -415,35 +442,35 @@ type Compliance struct {
 	Explanation string `json:"explanation"`
 }
 
-var ReviewResultSchema = map[string]interface{}{
+var ReviewResultSchema = map[string]any{
 	"type": "json_schema",
-	"json_schema": map[string]interface{}{
+	"json_schema": map[string]any{
 		"name":   "review_result",
 		"strict": true,
-		"schema": map[string]interface{}{
+		"schema": map[string]any{
 			"type": "object",
-			"properties": map[string]interface{}{
-				"description": map[string]interface{}{
+			"properties": map[string]any{
+				"description": map[string]any{
 					"type":        "string",
 					"description": "网页内容的简明描述，一句话概括网页的主要内容或用途",
 				},
-				"keywords": map[string]interface{}{
+				"keywords": map[string]any{
 					"type": "array",
-					"items": map[string]interface{}{
+					"items": map[string]any{
 						"type": "string",
 					},
 					"maxItems":    5,
 					"description": "与网页内容最相关的关键词，最多5个",
 				},
-				"compliance": map[string]interface{}{
+				"compliance": map[string]any{
 					"type": "object",
-					"properties": map[string]interface{}{
-						"is_illegal": map[string]interface{}{
+					"properties": map[string]any{
+						"is_illegal": map[string]any{
 							"type":        "string",
 							"enum":        []string{"Yes", "No"},
 							"description": "是否包含违法违规内容，Yes表示违规，No表示合规",
 						},
-						"explanation": map[string]interface{}{
+						"explanation": map[string]any{
 							"type":        "string",
 							"description": "简短的说明，列出具体违反的类别及证据",
 						},

@@ -5,6 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"os"
+	"runtime/debug"
+	"strings"
+	"time"
+
 	"github.com/bearslyricattack/CompliK/pkg/constants"
 	"github.com/bearslyricattack/CompliK/pkg/eventbus"
 	"github.com/bearslyricattack/CompliK/pkg/logger"
@@ -15,11 +21,6 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	gormLogger "gorm.io/gorm/logger"
-	"log"
-	"os"
-	"runtime/debug"
-	"strings"
-	"time"
 )
 
 const (
@@ -177,7 +178,11 @@ func (p *CustomPlugin) loadConfig(setting string) error {
 	return nil
 }
 
-func (p *CustomPlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
+func (p *CustomPlugin) Start(
+	ctx context.Context,
+	config config.PluginConfig,
+	eventBus *eventbus.EventBus,
+) error {
 	p.log.Info("Starting custom detector plugin")
 
 	err := p.loadConfig(config.Settings)
@@ -185,7 +190,7 @@ func (p *CustomPlugin) Start(ctx context.Context, config config.PluginConfig, ev
 		p.log.Error("Failed to load configuration", logger.Fields{
 			"error": err.Error(),
 		})
-		return fmt.Errorf("加载配置失败: %v", err)
+		return fmt.Errorf("加载配置失败: %w", err)
 	}
 
 	p.log.Debug("Initializing database connection")
@@ -193,10 +198,16 @@ func (p *CustomPlugin) Start(ctx context.Context, config config.PluginConfig, ev
 		p.log.Error("Failed to initialize database", logger.Fields{
 			"error": err.Error(),
 		})
-		return fmt.Errorf("初始化数据库失败: %v", err)
+		return fmt.Errorf("初始化数据库失败: %w", err)
 	}
 
-	p.reviewer = utils.NewContentReviewer(p.log, p.customConfig.APIKey, p.customConfig.APIBase, p.customConfig.APIPath, p.customConfig.Model)
+	p.reviewer = utils.NewContentReviewer(
+		p.log,
+		p.customConfig.APIKey,
+		p.customConfig.APIBase,
+		p.customConfig.APIPath,
+		p.customConfig.Model,
+	)
 	p.log.Debug("Content reviewer initialized")
 
 	err = p.readFromDatabase(ctx)
@@ -308,7 +319,7 @@ func (p *CustomPlugin) Start(ctx context.Context, config config.PluginConfig, ev
 		case <-ctx.Done():
 			p.log.Info("Shutting down custom detector plugin")
 			// Wait for all workers to finish
-			for i := 0; i < p.customConfig.MaxWorkers; i++ {
+			for range p.customConfig.MaxWorkers {
 				semaphore <- struct{}{}
 			}
 			p.log.Debug("All workers finished")
@@ -350,30 +361,34 @@ func (p *CustomPlugin) initDB() error {
 	}
 	db, err := gorm.Open(mysql.Open(serverDSN), dbConfig)
 	if err != nil {
-		return fmt.Errorf("连接 MySQL 服务器失败: %v", err)
+		return fmt.Errorf("连接 MySQL 服务器失败: %w", err)
 	}
-	err = db.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s CHARACTER SET %s COLLATE %s_unicode_ci",
-		p.customConfig.DatabaseName,
-		p.customConfig.Charset,
-		p.customConfig.Charset)).Error
+	err = db.Exec(
+		fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s CHARACTER SET %s COLLATE %s_unicode_ci",
+			p.customConfig.DatabaseName,
+			p.customConfig.Charset,
+			p.customConfig.Charset),
+	).Error
 	if err != nil {
-		return fmt.Errorf("创建数据库失败: %v", err)
+		return fmt.Errorf("创建数据库失败: %w", err)
 	}
 	dbDSN := p.buildDSN(true)
 	db, err = gorm.Open(mysql.Open(dbDSN), dbConfig)
 	if err != nil {
-		return fmt.Errorf("连接到数据库失败: %v", err)
+		return fmt.Errorf("连接到数据库失败: %w", err)
 	}
 	p.db = db
 	tableName := db.NamingStrategy.TableName("CustomKeywordRule")
 
 	err = db.AutoMigrate(&utils.CustomKeywordRule{})
 	if err != nil {
-		return fmt.Errorf("创建表失败: %v", err)
+		return fmt.Errorf("创建表失败: %w", err)
 	}
 	var tableExists bool
 	err = db.Raw("SELECT COUNT(*) > 0 FROM information_schema.tables WHERE table_schema = ? AND table_name = ?",
-		p.customConfig.TableName, tableName).Scan(&tableExists).Error
+		p.customConfig.TableName, tableName).
+		Scan(&tableExists).
+		Error
 	if err != nil {
 		p.log.Warn("Failed to check table existence", logger.Fields{
 			"error": err.Error(),
@@ -383,7 +398,7 @@ func (p *CustomPlugin) initDB() error {
 	var count int64
 	err = db.Model(&utils.CustomKeywordRule{}).Count(&count).Error
 	if err != nil {
-		return fmt.Errorf("查询数据数量失败: %v", err)
+		return fmt.Errorf("查询数据数量失败: %w", err)
 	}
 	if count == 0 {
 		sampleRule := utils.CustomKeywordRule{
@@ -393,7 +408,7 @@ func (p *CustomPlugin) initDB() error {
 		}
 		err = db.Create(&sampleRule).Error
 		if err != nil {
-			return fmt.Errorf("插入示例数据失败: %v", err)
+			return fmt.Errorf("插入示例数据失败: %w", err)
 		}
 		var newCount int64
 		db.Model(&utils.CustomKeywordRule{}).Count(&newCount)
@@ -454,7 +469,10 @@ func (p *CustomPlugin) readFromDatabase(ctx context.Context) error {
 	return nil
 }
 
-func (p *CustomPlugin) customJudge(ctx context.Context, collector *models.CollectorInfo) (res *models.DetectorInfo, err error) {
+func (p *CustomPlugin) customJudge(
+	ctx context.Context,
+	collector *models.CollectorInfo,
+) (res *models.DetectorInfo, err error) {
 	taskCtx, cancel := context.WithTimeout(ctx, 80*time.Second)
 	defer cancel()
 
@@ -464,7 +482,7 @@ func (p *CustomPlugin) customJudge(ctx context.Context, collector *models.Collec
 		"keyword_rules": len(p.keywords),
 	})
 
-	if collector.IsEmpty == true {
+	if collector.IsEmpty {
 		p.log.Debug("Skipping empty content", logger.Fields{
 			"host": collector.Host,
 		})

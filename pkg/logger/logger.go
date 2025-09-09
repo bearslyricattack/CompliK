@@ -45,7 +45,7 @@ var (
 )
 
 // Fields 日志字段类型
-type Fields map[string]interface{}
+type Fields map[string]any
 
 // Logger 日志接口
 type Logger interface {
@@ -55,7 +55,7 @@ type Logger interface {
 	Error(msg string, fields ...Fields)
 	Fatal(msg string, fields ...Fields)
 
-	WithField(key string, value interface{}) Logger
+	WithField(key string, value any) Logger
 	WithFields(fields Fields) Logger
 	WithContext(ctx context.Context) Logger
 	WithError(err error) Logger
@@ -137,7 +137,7 @@ func configureFromEnv() {
 
 	// 日志文件
 	if logFile := os.Getenv("COMPLIK_LOG_FILE"); logFile != "" {
-		file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o666)
 		if err == nil {
 			globalLogger.SetOutput(file)
 			globalLogger.colored = false // 文件输出不使用颜色
@@ -181,7 +181,7 @@ func (l *StandardLogger) SetOutput(w io.Writer) {
 }
 
 // WithField 添加单个字段
-func (l *StandardLogger) WithField(key string, value interface{}) Logger {
+func (l *StandardLogger) WithField(key string, value any) Logger {
 	return l.WithFields(Fields{key: value})
 }
 
@@ -407,7 +407,7 @@ func Fatal(msg string, fields ...Fields) {
 	GetLogger().Fatal(msg, fields...)
 }
 
-func WithField(key string, value interface{}) Logger {
+func WithField(key string, value any) Logger {
 	return GetLogger().WithField(key, value)
 }
 

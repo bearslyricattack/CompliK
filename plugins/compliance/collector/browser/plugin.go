@@ -4,6 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"runtime/debug"
+	"strings"
+	"time"
+
 	"github.com/bearslyricattack/CompliK/pkg/constants"
 	"github.com/bearslyricattack/CompliK/pkg/eventbus"
 	"github.com/bearslyricattack/CompliK/pkg/logger"
@@ -11,9 +15,6 @@ import (
 	"github.com/bearslyricattack/CompliK/pkg/plugin"
 	"github.com/bearslyricattack/CompliK/pkg/utils/config"
 	"github.com/bearslyricattack/CompliK/plugins/compliance/collector/browser/utils"
-	"runtime/debug"
-	"strings"
-	"time"
 )
 
 const (
@@ -91,7 +92,11 @@ func (p *BrowserPlugin) loadConfig(setting string) error {
 	return nil
 }
 
-func (p *BrowserPlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
+func (p *BrowserPlugin) Start(
+	ctx context.Context,
+	config config.PluginConfig,
+	eventBus *eventbus.EventBus,
+) error {
 	err := p.loadConfig(config.Settings)
 	if err != nil {
 		return err
@@ -103,7 +108,10 @@ func (p *BrowserPlugin) Start(ctx context.Context, config config.PluginConfig, e
 		"browser_pool_size": p.browserConfig.BrowserNumber,
 	})
 
-	p.browserPool = utils.NewBrowserPool(p.browserConfig.BrowserNumber, time.Duration(p.browserConfig.BrowserTimeoutMinute)*time.Minute)
+	p.browserPool = utils.NewBrowserPool(
+		p.browserConfig.BrowserNumber,
+		time.Duration(p.browserConfig.BrowserTimeoutMinute)*time.Minute,
+	)
 	subscribe := eventBus.Subscribe(constants.DiscoveryTopic)
 	semaphore := make(chan struct{}, p.browserConfig.MaxWorkers)
 	for {
@@ -133,7 +141,10 @@ func (p *BrowserPlugin) Start(ctx context.Context, config config.PluginConfig, e
 					return
 				}
 				var result *models.CollectorInfo
-				taskCtx, cancel := context.WithTimeout(ctx, time.Duration(p.browserConfig.CollectorTimeoutSecond)*time.Second)
+				taskCtx, cancel := context.WithTimeout(
+					ctx,
+					time.Duration(p.browserConfig.CollectorTimeoutSecond)*time.Second,
+				)
 				taskCtx = context.WithValue(taskCtx, "start_time", time.Now())
 				defer cancel()
 
@@ -143,7 +154,12 @@ func (p *BrowserPlugin) Start(ctx context.Context, config config.PluginConfig, e
 					"host":      ingress.Host,
 				})
 
-				result, err := p.collector.CollectorAndScreenshot(taskCtx, ingress, p.browserPool, p.Name())
+				result, err := p.collector.CollectorAndScreenshot(
+					taskCtx,
+					ingress,
+					p.browserPool,
+					p.Name(),
+				)
 				if err != nil {
 					if p.shouldSkipError(err) {
 						result = &models.CollectorInfo{
@@ -184,10 +200,9 @@ func (p *BrowserPlugin) Start(ctx context.Context, config config.PluginConfig, e
 						"name":      ingress.Name,
 					})
 				}
-
 			}(event)
 		case <-ctx.Done():
-			for i := 0; i < p.browserConfig.MaxWorkers; i++ {
+			for range p.browserConfig.MaxWorkers {
 				semaphore <- struct{}{}
 			}
 			return nil

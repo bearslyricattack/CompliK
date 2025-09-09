@@ -4,22 +4,21 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/bearslyricattack/CompliK/pkg/constants"
+	"github.com/bearslyricattack/CompliK/pkg/eventbus"
+	"github.com/bearslyricattack/CompliK/pkg/k8s"
+	"github.com/bearslyricattack/CompliK/pkg/logger"
 	"github.com/bearslyricattack/CompliK/pkg/models"
+	"github.com/bearslyricattack/CompliK/pkg/plugin"
+	"github.com/bearslyricattack/CompliK/pkg/utils/config"
 	"github.com/bearslyricattack/CompliK/plugins/discovery/utils"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"strings"
-	"time"
-
-	"github.com/bearslyricattack/CompliK/pkg/eventbus"
-	"github.com/bearslyricattack/CompliK/pkg/k8s"
-	"github.com/bearslyricattack/CompliK/pkg/logger"
-	"github.com/bearslyricattack/CompliK/pkg/plugin"
-	"github.com/bearslyricattack/CompliK/pkg/utils/config"
-
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 )
@@ -93,7 +92,11 @@ func (p *IngressPlugin) Type() string {
 	return ingressPluginType
 }
 
-func (p *IngressPlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
+func (p *IngressPlugin) Start(
+	ctx context.Context,
+	config config.PluginConfig,
+	eventBus *eventbus.EventBus,
+) error {
 	err := p.loadConfig(config.Settings)
 	if err != nil {
 		return err
@@ -106,16 +109,23 @@ func (p *IngressPlugin) Start(ctx context.Context, config config.PluginConfig, e
 
 func (p *IngressPlugin) startIngressInformerWatch(ctx context.Context) {
 	if p.factory == nil {
-		p.factory = informers.NewSharedInformerFactory(k8s.ClientSet, time.Duration(p.ingressConfig.ResyncTimeSecond)*time.Second)
+		p.factory = informers.NewSharedInformerFactory(
+			k8s.ClientSet,
+			time.Duration(p.ingressConfig.ResyncTimeSecond)*time.Second,
+		)
 	}
 	if p.ingressInformer == nil {
 		p.ingressInformer = p.factory.Networking().V1().Ingresses().Informer()
 	}
 
 	p.ingressInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
+		AddFunc: func(obj any) {
 			ingress := obj.(*networkingv1.Ingress)
-			if time.Since(ingress.CreationTimestamp.Time) > time.Duration(p.ingressConfig.AgeThresholdSecond)*time.Second {
+			if time.Since(
+				ingress.CreationTimestamp.Time,
+			) > time.Duration(
+				p.ingressConfig.AgeThresholdSecond,
+			)*time.Second {
 				return
 			}
 			if p.shouldProcessIngress(ingress) {
@@ -131,7 +141,7 @@ func (p *IngressPlugin) startIngressInformerWatch(ctx context.Context) {
 				p.handleIngressEvent(discoveryInfos)
 			}
 		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
+		UpdateFunc: func(oldObj, newObj any) {
 			oldIngress := oldObj.(*networkingv1.Ingress)
 			newIngress := newObj.(*networkingv1.Ingress)
 			if p.shouldProcessIngress(newIngress) {
@@ -150,7 +160,7 @@ func (p *IngressPlugin) startIngressInformerWatch(ctx context.Context) {
 				}
 			}
 		},
-		DeleteFunc: func(obj interface{}) {
+		DeleteFunc: func(obj any) {
 			ingress := obj.(*networkingv1.Ingress)
 			if p.shouldProcessIngress(ingress) {
 				// 对于删除事件，发送 pod 数量为 0 的信息
@@ -240,11 +250,15 @@ func (p *IngressPlugin) handleIngressEvent(discoveryInfo []models.DiscoveryInfo)
 	}
 }
 
-func (p *IngressPlugin) getIngressWithPodInfo(ingress *networkingv1.Ingress) ([]models.DiscoveryInfo, error) {
+func (p *IngressPlugin) getIngressWithPodInfo(
+	ingress *networkingv1.Ingress,
+) ([]models.DiscoveryInfo, error) {
 	// 获取命名空间中所有的 EndpointSlice
-	endpointSlices, err := k8s.ClientSet.DiscoveryV1().EndpointSlices(ingress.Namespace).List(context.TODO(), metav1.ListOptions{})
+	endpointSlices, err := k8s.ClientSet.DiscoveryV1().
+		EndpointSlices(ingress.Namespace).
+		List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("获取命名空间 %s 中的 EndpointSlice 列表失败: %v", ingress.Namespace, err)
+		return nil, fmt.Errorf("获取命名空间 %s 中的 EndpointSlice 列表失败: %w", ingress.Namespace, err)
 	}
 
 	// 构建 EndpointSlice 映射
@@ -281,9 +295,11 @@ func (p *IngressPlugin) getPodCountForService(namespace, serviceName string) (bo
 	}
 
 	// 获取服务
-	service, err := k8s.ClientSet.CoreV1().Services(namespace).Get(context.TODO(), serviceName, metav1.GetOptions{})
+	service, err := k8s.ClientSet.CoreV1().
+		Services(namespace).
+		Get(context.TODO(), serviceName, metav1.GetOptions{})
 	if err != nil {
-		return false, 0, fmt.Errorf("获取服务 %s/%s 失败: %v", namespace, serviceName, err)
+		return false, 0, fmt.Errorf("获取服务 %s/%s 失败: %w", namespace, serviceName, err)
 	}
 
 	// 使用服务的选择器获取 Pod
@@ -292,7 +308,7 @@ func (p *IngressPlugin) getPodCountForService(namespace, serviceName string) (bo
 		LabelSelector: selector.String(),
 	})
 	if err != nil {
-		return false, 0, fmt.Errorf("获取命名空间 %s 中的 Pod 列表失败: %v", namespace, err)
+		return false, 0, fmt.Errorf("获取命名空间 %s 中的 Pod 列表失败: %w", namespace, err)
 	}
 
 	// 统计就绪的 Pod 数量

@@ -2,9 +2,10 @@ package whitelist
 
 import (
 	"errors"
+	"time"
+
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	"time"
 )
 
 type WhitelistType string
@@ -15,15 +16,15 @@ const (
 )
 
 type Whitelist struct {
-	ID        uint          `gorm:"primaryKey" json:"id"`
-	Region    string        `json:"region"`
+	ID        uint          `gorm:"primaryKey"     json:"id"`
+	Region    string        `                      json:"region"`
 	Name      string        `gorm:"not null;index" json:"name"`
-	Namespace string        `gorm:"index" json:"namespace"`
-	Hostname  string        `gorm:"index" json:"hostname"`
+	Namespace string        `gorm:"index"          json:"namespace"`
+	Hostname  string        `gorm:"index"          json:"hostname"`
 	Type      WhitelistType `gorm:"not null;index" json:"type"`
-	Remark    string        `gorm:"type:text" json:"remark"`
-	CreatedAt time.Time     `json:"created_at"`
-	UpdatedAt time.Time     `json:"updated_at"`
+	Remark    string        `gorm:"type:text"      json:"remark"`
+	CreatedAt time.Time     `                      json:"created_at"`
+	UpdatedAt time.Time     `                      json:"updated_at"`
 }
 
 func (Whitelist) TableName() string {
@@ -42,7 +43,9 @@ func NewWhitelistService(db *gorm.DB, timeout time.Duration) *WhitelistService {
 	}
 }
 
-func (s *WhitelistService) IsNamespaceWhitelisted(namespace, region string) (bool, *Whitelist, error) {
+func (s *WhitelistService) IsNamespaceWhitelisted(
+	namespace, region string,
+) (bool, *Whitelist, error) {
 	var whitelist Whitelist
 	err := s.db.Session(&gorm.Session{Logger: logger.Discard}).
 		Model(&Whitelist{}).
@@ -121,7 +124,11 @@ func (s *WhitelistService) AddHostWhitelist(name, hostname, remark string) error
 	return s.db.Create(whitelist).Error
 }
 
-func (s *WhitelistService) AddWhitelist(name, namespace, hostname string, whitelistType WhitelistType, remark string) error {
+func (s *WhitelistService) AddWhitelist(
+	name, namespace, hostname string,
+	whitelistType WhitelistType,
+	remark string,
+) error {
 	whitelist := &Whitelist{
 		Name:      name,
 		Namespace: namespace,
@@ -146,8 +153,11 @@ func (s *WhitelistService) RemoveHostWhitelist(hostname string) error {
 		Delete(&Whitelist{}).Error
 }
 
-func (s *WhitelistService) UpdateWhitelist(id uint, name, namespace, hostname, remark string) error {
-	updates := map[string]interface{}{
+func (s *WhitelistService) UpdateWhitelist(
+	id uint,
+	name, namespace, hostname, remark string,
+) error {
+	updates := map[string]any{
 		"name":      name,
 		"namespace": namespace,
 		"hostname":  hostname,

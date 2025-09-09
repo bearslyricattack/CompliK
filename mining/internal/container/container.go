@@ -1,12 +1,13 @@
 package container
 
 import (
-	"github.com/bearslyricattack/CompliK/mining/internal/types"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
+
+	"github.com/bearslyricattack/CompliK/mining/internal/types"
 )
 
 // InfoProvider 容器信息提供者

@@ -3,20 +3,20 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/bearslyricattack/CompliK/pkg/constants"
-	"github.com/bearslyricattack/CompliK/pkg/models"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
 	"time"
 
+	"github.com/bearslyricattack/CompliK/pkg/constants"
 	"github.com/bearslyricattack/CompliK/pkg/eventbus"
 	"github.com/bearslyricattack/CompliK/pkg/k8s"
 	"github.com/bearslyricattack/CompliK/pkg/logger"
+	"github.com/bearslyricattack/CompliK/pkg/models"
 	"github.com/bearslyricattack/CompliK/pkg/plugin"
 	"github.com/bearslyricattack/CompliK/pkg/utils/config"
-
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 )
@@ -99,7 +99,11 @@ func (p *ServicePlugin) Type() string {
 	return servicePluginType
 }
 
-func (p *ServicePlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
+func (p *ServicePlugin) Start(
+	ctx context.Context,
+	config config.PluginConfig,
+	eventBus *eventbus.EventBus,
+) error {
 	p.log.Info("Starting NodePort service informer plugin")
 
 	err := p.loadConfig(config.Settings)
@@ -122,15 +126,22 @@ func (p *ServicePlugin) Start(ctx context.Context, config config.PluginConfig, e
 
 func (p *ServicePlugin) startServiceInformerWatch(ctx context.Context) {
 	if p.factory == nil {
-		p.factory = informers.NewSharedInformerFactory(k8s.ClientSet, time.Duration(p.serviceConfig.ResyncTimeSecond)*time.Second)
+		p.factory = informers.NewSharedInformerFactory(
+			k8s.ClientSet,
+			time.Duration(p.serviceConfig.ResyncTimeSecond)*time.Second,
+		)
 	}
 	if p.serviceInformer == nil {
 		p.serviceInformer = p.factory.Core().V1().Services().Informer()
 	}
 	p.serviceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
+		AddFunc: func(obj any) {
 			service := obj.(*corev1.Service)
-			if time.Since(service.CreationTimestamp.Time) > time.Duration(p.serviceConfig.AgeThresholdSecond)*time.Second {
+			if time.Since(
+				service.CreationTimestamp.Time,
+			) > time.Duration(
+				p.serviceConfig.AgeThresholdSecond,
+			)*time.Second {
 				return
 			}
 			if p.shouldProcessService(service) {
@@ -152,7 +163,7 @@ func (p *ServicePlugin) startServiceInformerWatch(ctx context.Context) {
 				p.handleServiceEvent(res)
 			}
 		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
+		UpdateFunc: func(oldObj, newObj any) {
 			oldService := oldObj.(*corev1.Service)
 			newService := newObj.(*corev1.Service)
 			if p.shouldProcessService(newService) {
@@ -268,14 +279,16 @@ func (p *ServicePlugin) handleServiceEvent(discoveryInfo []models.DiscoveryInfo)
 	}
 }
 
-func (p *ServicePlugin) getServiceDiscoveryInfo(service *corev1.Service) ([]models.DiscoveryInfo, error) {
+func (p *ServicePlugin) getServiceDiscoveryInfo(
+	service *corev1.Service,
+) ([]models.DiscoveryInfo, error) {
 	appName, exists := service.Labels[AppDeployManagerLabel]
 	if !exists {
 		return []models.DiscoveryInfo{}, nil
 	}
 	nodes, err := k8s.ClientSet.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("获取节点列表失败: %v", err)
+		return nil, fmt.Errorf("获取节点列表失败: %w", err)
 	}
 	if len(nodes.Items) == 0 {
 		return []models.DiscoveryInfo{}, nil
@@ -302,7 +315,7 @@ func (p *ServicePlugin) getServiceDiscoveryInfo(service *corev1.Service) ([]mode
 	}
 	if nodeIP == "" {
 		p.log.Error("Unable to get node IP address")
-		return nil, fmt.Errorf("无法获取节点IP地址")
+		return nil, errors.New("无法获取节点IP地址")
 	}
 
 	p.log.Debug("Found node IP", logger.Fields{
@@ -321,7 +334,12 @@ func (p *ServicePlugin) getServiceDiscoveryInfo(service *corev1.Service) ([]mode
 		if port.NodePort > 0 {
 			paths := []string{"/"}
 			discoveryInfo := models.DiscoveryInfo{
-				DiscoveryName: fmt.Sprintf("nodeport-%s-%s-%d", service.Namespace, service.Name, port.NodePort),
+				DiscoveryName: fmt.Sprintf(
+					"nodeport-%s-%s-%d",
+					service.Namespace,
+					service.Name,
+					port.NodePort,
+				),
 				Name:          appName,
 				Namespace:     service.Namespace,
 				Host:          fmt.Sprintf("%s:%d", nodeIP, port.NodePort),
@@ -354,13 +372,15 @@ func (p *ServicePlugin) getPodInfo(service *corev1.Service) (int, bool, error) {
 	}
 	labelSelector, err := metav1.LabelSelectorAsSelector(&selector)
 	if err != nil {
-		return 0, false, fmt.Errorf("构建标签选择器失败: %v", err)
+		return 0, false, fmt.Errorf("构建标签选择器失败: %w", err)
 	}
-	pods, err := k8s.ClientSet.CoreV1().Pods(service.Namespace).List(context.TODO(), metav1.ListOptions{
-		LabelSelector: labelSelector.String(),
-	})
+	pods, err := k8s.ClientSet.CoreV1().
+		Pods(service.Namespace).
+		List(context.TODO(), metav1.ListOptions{
+			LabelSelector: labelSelector.String(),
+		})
 	if err != nil {
-		return 0, false, fmt.Errorf("获取Pod列表失败: %v", err)
+		return 0, false, fmt.Errorf("获取Pod列表失败: %w", err)
 	}
 	totalCount := len(pods.Items)
 	activeCount := 0

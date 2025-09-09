@@ -2,16 +2,14 @@ package plugin
 
 import (
 	"context"
-	"github.com/bearslyricattack/CompliK/pkg/logger"
-	"github.com/bearslyricattack/CompliK/pkg/utils/config"
 	"sync"
 
 	"github.com/bearslyricattack/CompliK/pkg/eventbus"
+	"github.com/bearslyricattack/CompliK/pkg/logger"
+	"github.com/bearslyricattack/CompliK/pkg/utils/config"
 )
 
-var (
-	PluginFactories = make(map[string]func() Plugin)
-)
+var PluginFactories = make(map[string]func() Plugin)
 
 type PluginInstance struct {
 	Plugin Plugin

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/bearslyricattack/CompliK/plugins/compliance/detector/utils"
 	"runtime/debug"
 	"time"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/bearslyricattack/CompliK/pkg/models"
 	"github.com/bearslyricattack/CompliK/pkg/plugin"
 	"github.com/bearslyricattack/CompliK/pkg/utils/config"
+	"github.com/bearslyricattack/CompliK/plugins/compliance/detector/utils"
 )
 
 const (
@@ -116,7 +116,11 @@ func (p *SafetyPlugin) loadConfig(setting string) error {
 	return nil
 }
 
-func (p *SafetyPlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
+func (p *SafetyPlugin) Start(
+	ctx context.Context,
+	config config.PluginConfig,
+	eventBus *eventbus.EventBus,
+) error {
 	p.log.Info("Starting safety detector plugin")
 
 	err := p.loadConfig(config.Settings)
@@ -127,7 +131,13 @@ func (p *SafetyPlugin) Start(ctx context.Context, config config.PluginConfig, ev
 		return err
 	}
 
-	p.reviewer = utils.NewContentReviewer(p.log, p.safetyConfig.APIKey, p.safetyConfig.APIBase, p.safetyConfig.APIPath, p.safetyConfig.Model)
+	p.reviewer = utils.NewContentReviewer(
+		p.log,
+		p.safetyConfig.APIKey,
+		p.safetyConfig.APIBase,
+		p.safetyConfig.APIPath,
+		p.safetyConfig.Model,
+	)
 	p.log.Debug("Content reviewer initialized")
 
 	subscribe := eventBus.Subscribe(constants.CollectorTopic)
@@ -218,7 +228,7 @@ func (p *SafetyPlugin) Start(ctx context.Context, config config.PluginConfig, ev
 		case <-ctx.Done():
 			p.log.Info("Shutting down safety detector plugin")
 			// Wait for all workers to finish
-			for i := 0; i < p.safetyConfig.MaxWorkers; i++ {
+			for range p.safetyConfig.MaxWorkers {
 				semaphore <- struct{}{}
 			}
 			p.log.Debug("All workers finished")
@@ -236,7 +246,10 @@ func (p *SafetyPlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (p *SafetyPlugin) safetyJudge(ctx context.Context, collector *models.CollectorInfo) (res *models.DetectorInfo, err error) {
+func (p *SafetyPlugin) safetyJudge(
+	ctx context.Context,
+	collector *models.CollectorInfo,
+) (res *models.DetectorInfo, err error) {
 	taskCtx, cancel := context.WithTimeout(ctx, 80*time.Second)
 	defer cancel()
 
@@ -246,7 +259,7 @@ func (p *SafetyPlugin) safetyJudge(ctx context.Context, collector *models.Collec
 		"timeout_seconds": 80,
 	})
 
-	if collector.IsEmpty == true {
+	if collector.IsEmpty {
 		p.log.Debug("Skipping empty content", logger.Fields{
 			"host":   collector.Host,
 			"reason": collector.CollectorMessage,

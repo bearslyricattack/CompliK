@@ -4,20 +4,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/bearslyricattack/CompliK/pkg/constants"
-	"github.com/bearslyricattack/CompliK/pkg/models"
-	"github.com/bearslyricattack/CompliK/plugins/discovery/utils"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
 	"time"
 
+	"github.com/bearslyricattack/CompliK/pkg/constants"
 	"github.com/bearslyricattack/CompliK/pkg/eventbus"
 	"github.com/bearslyricattack/CompliK/pkg/k8s"
 	"github.com/bearslyricattack/CompliK/pkg/logger"
+	"github.com/bearslyricattack/CompliK/pkg/models"
 	"github.com/bearslyricattack/CompliK/pkg/plugin"
 	"github.com/bearslyricattack/CompliK/pkg/utils/config"
-
+	"github.com/bearslyricattack/CompliK/plugins/discovery/utils"
 	appsv1 "k8s.io/api/apps/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 )
@@ -97,7 +96,11 @@ func (p *StatefulSetPlugin) Type() string {
 	return statefulsetPluginType
 }
 
-func (p *StatefulSetPlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
+func (p *StatefulSetPlugin) Start(
+	ctx context.Context,
+	config config.PluginConfig,
+	eventBus *eventbus.EventBus,
+) error {
 	p.stopChan = make(chan struct{})
 	p.eventBus = eventBus
 	go p.startStatefulSetInformerWatch(ctx)
@@ -106,16 +109,23 @@ func (p *StatefulSetPlugin) Start(ctx context.Context, config config.PluginConfi
 
 func (p *StatefulSetPlugin) startStatefulSetInformerWatch(ctx context.Context) {
 	if p.factory == nil {
-		p.factory = informers.NewSharedInformerFactory(k8s.ClientSet, time.Duration(p.statefulSetConfig.ResyncTimeSecond)*time.Second)
+		p.factory = informers.NewSharedInformerFactory(
+			k8s.ClientSet,
+			time.Duration(p.statefulSetConfig.ResyncTimeSecond)*time.Second,
+		)
 	}
 	if p.statefulsetInformer == nil {
 		p.statefulsetInformer = p.factory.Apps().V1().StatefulSets().Informer()
 	}
 
 	p.statefulsetInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
+		AddFunc: func(obj any) {
 			statefulset := obj.(*appsv1.StatefulSet)
-			if time.Since(statefulset.CreationTimestamp.Time) > time.Duration(p.statefulSetConfig.AgeThresholdSecond)*time.Second {
+			if time.Since(
+				statefulset.CreationTimestamp.Time,
+			) > time.Duration(
+				p.statefulSetConfig.AgeThresholdSecond,
+			)*time.Second {
 				return
 			}
 			if p.shouldProcessStatefulSet(statefulset) {
@@ -129,7 +139,7 @@ func (p *StatefulSetPlugin) startStatefulSetInformerWatch(ctx context.Context) {
 				p.handleStatefulSetEvent(res)
 			}
 		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
+		UpdateFunc: func(oldObj, newObj any) {
 			oldStatefulSet := oldObj.(*appsv1.StatefulSet)
 			newStatefulSet := newObj.(*appsv1.StatefulSet)
 			if p.shouldProcessStatefulSet(newStatefulSet) {
@@ -173,7 +183,9 @@ func (p *StatefulSetPlugin) shouldProcessStatefulSet(statefulset *appsv1.Statefu
 	return strings.HasPrefix(statefulset.Namespace, "ns-")
 }
 
-func (p *StatefulSetPlugin) hasStatefulSetChanged(oldStatefulSet, newStatefulSet *appsv1.StatefulSet) bool {
+func (p *StatefulSetPlugin) hasStatefulSetChanged(
+	oldStatefulSet, newStatefulSet *appsv1.StatefulSet,
+) bool {
 	oldImages := extractImagesFromStatefulSet(oldStatefulSet)
 	newImages := extractImagesFromStatefulSet(newStatefulSet)
 	hasChanged := !compareStringSlices(oldImages, newImages)
@@ -224,18 +236,23 @@ func (p *StatefulSetPlugin) handleStatefulSetEvent(discoveryInfo []models.Discov
 	}
 }
 
-func (p *StatefulSetPlugin) getStatefulSetRelatedIngresses(statefulset *appsv1.StatefulSet) ([]models.DiscoveryInfo, error) {
+func (p *StatefulSetPlugin) getStatefulSetRelatedIngresses(
+	statefulset *appsv1.StatefulSet,
+) ([]models.DiscoveryInfo, error) {
 	appName, exists := statefulset.Labels[AppDeployManagerLabel]
 	if !exists {
 		return []models.DiscoveryInfo{}, nil
 	}
-	ingressItems, err := k8s.ClientSet.NetworkingV1().Ingresses(statefulset.Namespace).List(context.TODO(), metav1.ListOptions{})
+	ingressItems, err := k8s.ClientSet.NetworkingV1().
+		Ingresses(statefulset.Namespace).
+		List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("获取命名空间 %s 中的Ingress列表失败: %v", statefulset.Namespace, err)
+		return nil, fmt.Errorf("获取命名空间 %s 中的Ingress列表失败: %w", statefulset.Namespace, err)
 	}
 	var ingresses []models.DiscoveryInfo
 	for _, ingress := range ingressItems.Items {
-		if ingressAppName, exists := ingress.Labels[AppDeployManagerLabel]; exists && ingressAppName == appName {
+		if ingressAppName, exists := ingress.Labels[AppDeployManagerLabel]; exists &&
+			ingressAppName == appName {
 			res := utils.GenerateDiscoveryInfo(ingress, true, 1, p.Name())
 			ingresses = append(ingresses, res...)
 		}

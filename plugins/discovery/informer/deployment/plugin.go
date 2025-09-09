@@ -4,20 +4,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/bearslyricattack/CompliK/pkg/constants"
-	"github.com/bearslyricattack/CompliK/pkg/models"
-	"github.com/bearslyricattack/CompliK/plugins/discovery/utils"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
 	"time"
 
+	"github.com/bearslyricattack/CompliK/pkg/constants"
 	"github.com/bearslyricattack/CompliK/pkg/eventbus"
 	"github.com/bearslyricattack/CompliK/pkg/k8s"
 	"github.com/bearslyricattack/CompliK/pkg/logger"
+	"github.com/bearslyricattack/CompliK/pkg/models"
 	"github.com/bearslyricattack/CompliK/pkg/plugin"
 	"github.com/bearslyricattack/CompliK/pkg/utils/config"
-
+	"github.com/bearslyricattack/CompliK/plugins/discovery/utils"
 	appsv1 "k8s.io/api/apps/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 )
@@ -105,7 +104,11 @@ func (p *DeploymentPlugin) Type() string {
 	return deploymentPluginType
 }
 
-func (p *DeploymentPlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
+func (p *DeploymentPlugin) Start(
+	ctx context.Context,
+	config config.PluginConfig,
+	eventBus *eventbus.EventBus,
+) error {
 	err := p.loadConfig(config.Settings)
 	if err != nil {
 		return err
@@ -118,15 +121,22 @@ func (p *DeploymentPlugin) Start(ctx context.Context, config config.PluginConfig
 
 func (p *DeploymentPlugin) startDeploymentInformerWatch(ctx context.Context) {
 	if p.factory == nil {
-		p.factory = informers.NewSharedInformerFactory(k8s.ClientSet, time.Duration(p.deploymentConfig.ResyncTimeSecond)*time.Second)
+		p.factory = informers.NewSharedInformerFactory(
+			k8s.ClientSet,
+			time.Duration(p.deploymentConfig.ResyncTimeSecond)*time.Second,
+		)
 	}
 	if p.deploymentInformer == nil {
 		p.deploymentInformer = p.factory.Apps().V1().Deployments().Informer()
 	}
 	p.deploymentInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
+		AddFunc: func(obj any) {
 			deployment := obj.(*appsv1.Deployment)
-			if time.Since(deployment.CreationTimestamp.Time) > time.Duration(p.deploymentConfig.AgeThresholdSecond)*time.Second {
+			if time.Since(
+				deployment.CreationTimestamp.Time,
+			) > time.Duration(
+				p.deploymentConfig.AgeThresholdSecond,
+			)*time.Second {
 				return
 			}
 			if p.shouldProcessDeployment(deployment) {
@@ -137,7 +147,7 @@ func (p *DeploymentPlugin) startDeploymentInformerWatch(ctx context.Context) {
 				p.handleDeploymentEvent(res)
 			}
 		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
+		UpdateFunc: func(oldObj, newObj any) {
 			oldDeployment := oldObj.(*appsv1.Deployment)
 			newDeployment := newObj.(*appsv1.Deployment)
 			if p.shouldProcessDeployment(newDeployment) {
@@ -177,7 +187,9 @@ func (p *DeploymentPlugin) shouldProcessDeployment(deployment *appsv1.Deployment
 	return strings.HasPrefix(deployment.Namespace, "ns-")
 }
 
-func (p *DeploymentPlugin) hasDeploymentChanged(oldDeployment, newDeployment *appsv1.Deployment) bool {
+func (p *DeploymentPlugin) hasDeploymentChanged(
+	oldDeployment, newDeployment *appsv1.Deployment,
+) bool {
 	oldImages := extractImagesFromDeployment(oldDeployment)
 	newImages := extractImagesFromDeployment(newDeployment)
 	hasChanged := !compareStringSlices(oldImages, newImages)
@@ -228,18 +240,23 @@ func (p *DeploymentPlugin) handleDeploymentEvent(discoveryInfo []models.Discover
 	}
 }
 
-func (p *DeploymentPlugin) getDeploymentRelatedIngresses(deployment *appsv1.Deployment) ([]models.DiscoveryInfo, error) {
+func (p *DeploymentPlugin) getDeploymentRelatedIngresses(
+	deployment *appsv1.Deployment,
+) ([]models.DiscoveryInfo, error) {
 	appName, exists := deployment.Labels[AppDeployManagerLabel]
 	if !exists {
 		return []models.DiscoveryInfo{}, nil
 	}
-	ingressItems, err := k8s.ClientSet.NetworkingV1().Ingresses(deployment.Namespace).List(context.TODO(), metav1.ListOptions{})
+	ingressItems, err := k8s.ClientSet.NetworkingV1().
+		Ingresses(deployment.Namespace).
+		List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("获取命名空间 %s 中的Ingress列表失败: %v", deployment.Namespace, err)
+		return nil, fmt.Errorf("获取命名空间 %s 中的Ingress列表失败: %w", deployment.Namespace, err)
 	}
 	var ingresses []models.DiscoveryInfo
 	for _, ingress := range ingressItems.Items {
-		if ingressAppName, exists := ingress.Labels[AppDeployManagerLabel]; exists && ingressAppName == appName {
+		if ingressAppName, exists := ingress.Labels[AppDeployManagerLabel]; exists &&
+			ingressAppName == appName {
 			res := utils.GenerateDiscoveryInfo(ingress, true, 1, p.Name())
 			ingresses = append(ingresses, res...)
 		}

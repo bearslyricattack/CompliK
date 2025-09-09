@@ -2,14 +2,15 @@ package app
 
 import (
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
+
 	"github.com/bearslyricattack/CompliK/pkg/eventbus"
 	"github.com/bearslyricattack/CompliK/pkg/k8s"
 	"github.com/bearslyricattack/CompliK/pkg/logger"
 	"github.com/bearslyricattack/CompliK/pkg/plugin"
 	"github.com/bearslyricattack/CompliK/pkg/utils/config"
-	"os"
-	"os/signal"
-	"syscall"
 )
 
 func Run(configPath string) error {
@@ -51,7 +52,6 @@ func Run(configPath string) error {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	sig := <-sigChan
 
-	// 优雅关闭
 	log.Info("Received shutdown signal", logger.Fields{"signal": sig.String()})
 	log.Info("Shutting down gracefully...")
 	if err := m.StopAll(); err != nil {

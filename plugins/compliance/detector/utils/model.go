@@ -15,6 +15,6 @@ type ComplianceResult struct {
 
 type ResultDict struct {
 	Description string           `json:"description"`
-	Keywords    interface{}      `json:"keywords"`
+	Keywords    any              `json:"keywords"`
 	Compliance  ComplianceResult `json:"compliance"`
 }

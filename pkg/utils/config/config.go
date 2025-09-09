@@ -1,15 +1,15 @@
 package config
 
 type Config struct {
-	Plugins    []PluginConfig `yaml:"plugins" json:"plugins"`
-	Logging    LoggingConfig  `yaml:"logging" json:"logging"`
+	Plugins    []PluginConfig `yaml:"plugins"    json:"plugins"`
+	Logging    LoggingConfig  `yaml:"logging"    json:"logging"`
 	Kubeconfig string         `yaml:"kubeconfig" json:"kubeconfig"`
 }
 
 type PluginConfig struct {
-	Name     string `yaml:"name" json:"name"`
-	Type     string `yaml:"type" json:"type"`
-	Enabled  bool   `yaml:"enabled" json:"enabled"`
+	Name     string `yaml:"name"     json:"name"`
+	Type     string `yaml:"type"     json:"type"`
+	Enabled  bool   `yaml:"enabled"  json:"enabled"`
 	Settings string `yaml:"settings" json:"settings"`
 }
 

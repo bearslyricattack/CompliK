@@ -3,20 +3,19 @@ package endPointSlice
 import (
 	"context"
 	"fmt"
-	"github.com/bearslyricattack/CompliK/pkg/constants"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"strings"
 	"time"
 
+	"github.com/bearslyricattack/CompliK/pkg/constants"
 	"github.com/bearslyricattack/CompliK/pkg/eventbus"
 	"github.com/bearslyricattack/CompliK/pkg/k8s"
 	"github.com/bearslyricattack/CompliK/pkg/logger"
 	"github.com/bearslyricattack/CompliK/pkg/plugin"
 	"github.com/bearslyricattack/CompliK/pkg/utils/config"
-
 	discoveryv1 "k8s.io/api/discovery/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
-	"strings"
 )
 
 const (
@@ -66,7 +65,11 @@ func (p *EndPointInformerPlugin) Type() string {
 	return pluginType
 }
 
-func (p *EndPointInformerPlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
+func (p *EndPointInformerPlugin) Start(
+	ctx context.Context,
+	config config.PluginConfig,
+	eventBus *eventbus.EventBus,
+) error {
 	p.log.Info("Starting EndPointSlice informer plugin", logger.Fields{
 		"plugin": pluginName,
 	})
@@ -87,7 +90,7 @@ func (p *EndPointInformerPlugin) startInformerWatch(ctx context.Context) {
 	factory := informers.NewSharedInformerFactory(k8s.ClientSet, 60*time.Second)
 	endpointSliceInformer := factory.Discovery().V1().EndpointSlices().Informer()
 	endpointSliceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
+		AddFunc: func(obj any) {
 			endpointSlice := obj.(*discoveryv1.EndpointSlice)
 			p.log.Debug("EndpointSlice ADD event received", logger.Fields{
 				"namespace": endpointSlice.Namespace,
@@ -130,7 +133,7 @@ func (p *EndPointInformerPlugin) startInformerWatch(ctx context.Context) {
 				})
 			}
 		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
+		UpdateFunc: func(oldObj, newObj any) {
 			oldEndpointSlice := oldObj.(*discoveryv1.EndpointSlice)
 			newEndpointSlice := newObj.(*discoveryv1.EndpointSlice)
 
@@ -198,11 +201,15 @@ func (p *EndPointInformerPlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (p *EndPointInformerPlugin) shouldProcessEndpointSlice(endpointSlice *discoveryv1.EndpointSlice) bool {
+func (p *EndPointInformerPlugin) shouldProcessEndpointSlice(
+	endpointSlice *discoveryv1.EndpointSlice,
+) bool {
 	return strings.HasPrefix(endpointSlice.Namespace, "ns-")
 }
 
-func (p *EndPointInformerPlugin) extractEndpointSliceInfo(endpointSlice *discoveryv1.EndpointSlice) (*EndpointSliceInfo, error) {
+func (p *EndPointInformerPlugin) extractEndpointSliceInfo(
+	endpointSlice *discoveryv1.EndpointSlice,
+) (*EndpointSliceInfo, error) {
 	p.log.Debug("Extracting EndpointSlice info", logger.Fields{
 		"namespace": endpointSlice.Namespace,
 		"name":      endpointSlice.Name,
@@ -215,7 +222,11 @@ func (p *EndPointInformerPlugin) extractEndpointSliceInfo(endpointSlice *discove
 			"name":      endpointSlice.Name,
 			"labelKey":  discoveryv1.LabelServiceName,
 		})
-		return nil, fmt.Errorf("EndpointSlice %s/%s missing service name label", endpointSlice.Namespace, endpointSlice.Name)
+		return nil, fmt.Errorf(
+			"EndpointSlice %s/%s missing service name label",
+			endpointSlice.Namespace,
+			endpointSlice.Name,
+		)
 	}
 
 	p.log.Debug("Checking for matching ingresses", logger.Fields{
@@ -277,7 +288,11 @@ func (p *EndPointInformerPlugin) extractEndpointSliceInfo(endpointSlice *discove
 	return info, nil
 }
 
-func (p *EndPointInformerPlugin) logEndpointSliceEvent(eventType string, counter int64, info *EndpointSliceInfo) {
+func (p *EndPointInformerPlugin) logEndpointSliceEvent(
+	eventType string,
+	counter int64,
+	info *EndpointSliceInfo,
+) {
 	p.log.Info("EndpointSlice event processed", logger.Fields{
 		"eventType":     eventType,
 		"eventCounter":  counter,
@@ -309,7 +324,9 @@ func (p *EndPointInformerPlugin) logEndpointSliceEvent(eventType string, counter
 	}
 }
 
-func (p *EndPointInformerPlugin) hasEndpointSliceChanged(oldEndpointSlice, newEndpointSlice *discoveryv1.EndpointSlice) (*EndpointSliceInfo, error) {
+func (p *EndPointInformerPlugin) hasEndpointSliceChanged(
+	oldEndpointSlice, newEndpointSlice *discoveryv1.EndpointSlice,
+) (*EndpointSliceInfo, error) {
 	p.log.Debug("Comparing EndpointSlice changes", logger.Fields{
 		"namespace": newEndpointSlice.Namespace,
 		"name":      newEndpointSlice.Name,
@@ -417,14 +434,17 @@ func (p *EndPointInformerPlugin) handleEndpointSliceEvent(endpointInfo *Endpoint
 	p.log.Debug("EndpointSlice event published successfully")
 }
 
-func (p *EndPointInformerPlugin) getPodImagesByAddresses(namespace string, addresses []string) (map[string][]string, error) {
+func (p *EndPointInformerPlugin) getPodImagesByAddresses(
+	namespace string,
+	addresses []string,
+) (map[string][]string, error) {
 	if len(addresses) == 0 {
 		return make(map[string][]string), nil
 	}
 	podImages := make(map[string][]string)
 	pods, err := k8s.ClientSet.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to list pods: %v", err)
+		return nil, fmt.Errorf("failed to list pods: %w", err)
 	}
 	addressSet := p.sliceToSet(addresses)
 	for _, pod := range pods.Items {
@@ -439,19 +459,23 @@ func (p *EndPointInformerPlugin) getPodImagesByAddresses(namespace string, addre
 	return podImages, nil
 }
 
-func (p *EndPointInformerPlugin) checkServiceHasIngress(namespace, serviceName string) ([]IngressInfo, error) {
+func (p *EndPointInformerPlugin) checkServiceHasIngress(
+	namespace, serviceName string,
+) ([]IngressInfo, error) {
 	p.log.Debug("Checking service for matching ingresses", logger.Fields{
 		"namespace":   namespace,
 		"serviceName": serviceName,
 	})
 
-	ingressItems, err := k8s.ClientSet.NetworkingV1().Ingresses(namespace).List(context.TODO(), metav1.ListOptions{})
+	ingressItems, err := k8s.ClientSet.NetworkingV1().
+		Ingresses(namespace).
+		List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		p.log.Error("Failed to list ingresses", logger.Fields{
 			"namespace": namespace,
 			"error":     err.Error(),
 		})
-		return nil, fmt.Errorf("failed to list ingresses in namespace %s: %v", namespace, err)
+		return nil, fmt.Errorf("failed to list ingresses in namespace %s: %w", namespace, err)
 	}
 
 	p.log.Debug("Retrieved ingresses for namespace", logger.Fields{

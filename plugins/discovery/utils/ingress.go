@@ -6,7 +6,12 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 )
 
-func GenerateDiscoveryInfo(ing networkingv1.Ingress, hasActivePod bool, podCount int, discoveryName string) []models.DiscoveryInfo {
+func GenerateDiscoveryInfo(
+	ing networkingv1.Ingress,
+	hasActivePod bool,
+	podCount int,
+	discoveryName string,
+) []models.DiscoveryInfo {
 	var discoveryList []models.DiscoveryInfo
 	for _, rule := range ing.Spec.Rules {
 		host := "*"
@@ -42,7 +47,11 @@ func GenerateDiscoveryInfo(ing networkingv1.Ingress, hasActivePod bool, podCount
 	return discoveryList
 }
 
-func GenerateIngressAndPodInfo(ing networkingv1.Ingress, endpointSlicesMap map[string]map[string][]*discoveryv1.EndpointSlice, discoveryName string) []models.DiscoveryInfo {
+func GenerateIngressAndPodInfo(
+	ing networkingv1.Ingress,
+	endpointSlicesMap map[string]map[string][]*discoveryv1.EndpointSlice,
+	discoveryName string,
+) []models.DiscoveryInfo {
 	var discoveryList []models.DiscoveryInfo
 	for _, rule := range ing.Spec.Rules {
 		host := "*"
@@ -59,7 +68,11 @@ func GenerateIngressAndPodInfo(ing networkingv1.Ingress, endpointSlicesMap map[s
 				if path.Path != "" {
 					pathPattern = path.Path
 				}
-				hasActivePod, podCount := getInfoFromEndpointSlices(endpointSlicesMap, ing.Namespace, serviceName)
+				hasActivePod, podCount := getInfoFromEndpointSlices(
+					endpointSlicesMap,
+					ing.Namespace,
+					serviceName,
+				)
 				discoveryInfo := models.DiscoveryInfo{
 					DiscoveryName: discoveryName,
 					Name:          ing.Name,
@@ -79,7 +92,10 @@ func GenerateIngressAndPodInfo(ing networkingv1.Ingress, endpointSlicesMap map[s
 	return discoveryList
 }
 
-func getInfoFromEndpointSlices(endpointSlicesMap map[string]map[string][]*discoveryv1.EndpointSlice, namespace, serviceName string) (bool, int) {
+func getInfoFromEndpointSlices(
+	endpointSlicesMap map[string]map[string][]*discoveryv1.EndpointSlice,
+	namespace, serviceName string,
+) (bool, int) {
 	if serviceName == "" {
 		return false, 0
 	}

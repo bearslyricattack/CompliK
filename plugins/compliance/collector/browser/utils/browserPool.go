@@ -1,12 +1,14 @@
 package utils
 
 import (
+	"errors"
 	"fmt"
+	"sync"
+	"time"
+
 	"github.com/bearslyricattack/CompliK/pkg/logger"
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
-	"sync"
-	"time"
 )
 
 type BrowserInstance struct {
@@ -93,11 +95,11 @@ func (p *BrowserPool) Get() (*BrowserInstance, error) {
 			return instance, nil
 		case <-timer.C:
 			p.log.Warn("Timeout waiting for browser instance")
-			return nil, fmt.Errorf("等待浏览器实例超时")
+			return nil, errors.New("等待浏览器实例超时")
 		}
 	default:
 		p.log.Error("Browser pool full and wait queue full")
-		return nil, fmt.Errorf("浏览器池已满，无法创建新实例")
+		return nil, errors.New("浏览器池已满，无法创建新实例")
 	}
 }
 
@@ -143,7 +145,7 @@ func (p *BrowserPool) createInstance() (*BrowserInstance, error) {
 		p.log.Error("Failed to launch browser", logger.Fields{
 			"error": err.Error(),
 		})
-		return nil, fmt.Errorf("启动浏览器失败: %v", err)
+		return nil, fmt.Errorf("启动浏览器失败: %w", err)
 	}
 
 	browser := rod.New().
@@ -201,23 +203,25 @@ func (p *BrowserPool) removeInstance(target *BrowserInstance) {
 func (p *BrowserPool) cleanupInstance(instance *BrowserInstance) {
 	defer func() {
 		if r := recover(); r != nil {
-			p.log.Error("Panic during browser cleanup", logger.Fields{
-				"panic": r,
-			})
+			p.log.Error("Panic during browser cleanup", logger.Fields{"panic": r})
 		}
 	}()
 	if instance.Browser != nil {
-		err := instance.Browser.Close()
-		if err != nil {
-			return
+		if err := instance.Browser.Close(); err != nil {
+			p.log.Warn("Browser close failed, will force kill launcher", logger.Fields{
+				"error": err.Error(),
+			})
+		} else {
+			p.log.Debug("Browser closed gracefully")
 		}
 	}
 	if instance.Launcher != nil {
 		instance.Launcher.Kill()
+		p.log.Debug("Launcher killed")
+		time.Sleep(100 * time.Millisecond)
 	}
 }
 
-// backgroundCleanup 后台定期清理过期实例
 func (p *BrowserPool) backgroundCleanup() {
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()

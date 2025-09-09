@@ -4,12 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/bearslyricattack/CompliK/mining/internal/types"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"time"
-
-	"process-scanner/internal/types"
 )
 
 // Sender 告警发送器

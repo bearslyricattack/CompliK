@@ -2,12 +2,13 @@ package process
 
 import (
 	"fmt"
-	"github.com/bearslyricattack/CompliK/mining/internal/types"
 	"io/ioutil"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/bearslyricattack/CompliK/mining/internal/types"
 )
 
 // Processor 进程处理器
@@ -30,7 +31,7 @@ func NewProcessor(procPath, nodeName string, config types.Config) *Processor {
 func (p *Processor) GetAllProcesses() ([]int, error) {
 	procDirs, err := ioutil.ReadDir(p.procPath)
 	if err != nil {
-		return nil, fmt.Errorf("读取 /proc 目录失败: %v", err)
+		return nil, fmt.Errorf("读取 /proc 目录失败: %w", err)
 	}
 
 	var pids []int

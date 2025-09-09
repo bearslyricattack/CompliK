@@ -2,13 +2,14 @@ package scanner
 
 import (
 	"context"
+	"log"
+	"time"
+
 	"github.com/bearslyricattack/CompliK/mining/internal/alert"
 	"github.com/bearslyricattack/CompliK/mining/internal/config"
 	"github.com/bearslyricattack/CompliK/mining/internal/container"
 	"github.com/bearslyricattack/CompliK/mining/internal/process"
 	"github.com/bearslyricattack/CompliK/mining/internal/types"
-	"log"
-	"time"
 )
 
 // Scanner 扫描器结构

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
+
 	"github.com/bearslyricattack/CompliK/pkg/constants"
 	"github.com/bearslyricattack/CompliK/pkg/eventbus"
 	"github.com/bearslyricattack/CompliK/pkg/k8s"
@@ -15,7 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"time"
 )
 
 const (
@@ -49,8 +50,8 @@ type DevboxPlugin struct {
 
 type DevboxConfig struct {
 	IntervalMinute  int  `config:"intervalMinute"`
-	AutoStart       bool `json:"autoStart"`
-	StartTimeSecond int  `json:"startTimeSecond"`
+	AutoStart       bool `                        json:"autoStart"`
+	StartTimeSecond int  `                        json:"startTimeSecond"`
 }
 
 func (p *DevboxPlugin) getDefaultDevboxConfig() DevboxConfig {
@@ -83,7 +84,10 @@ func (p *DevboxPlugin) loadConfig(setting string) error {
 	}
 	if configFromJSON.IntervalMinute > 0 {
 		p.devboxConfig.IntervalMinute = configFromJSON.IntervalMinute
-		p.log.Debug("Set interval from config", logger.Fields{"intervalMinute": configFromJSON.IntervalMinute})
+		p.log.Debug(
+			"Set interval from config",
+			logger.Fields{"intervalMinute": configFromJSON.IntervalMinute},
+		)
 	}
 	if configFromJSON.AutoStart {
 		p.devboxConfig.AutoStart = configFromJSON.AutoStart
@@ -91,7 +95,10 @@ func (p *DevboxPlugin) loadConfig(setting string) error {
 	}
 	if configFromJSON.StartTimeSecond > 0 {
 		p.devboxConfig.StartTimeSecond = configFromJSON.StartTimeSecond
-		p.log.Debug("Set startTime from config", logger.Fields{"startTimeSecond": configFromJSON.StartTimeSecond})
+		p.log.Debug(
+			"Set startTime from config",
+			logger.Fields{"startTimeSecond": configFromJSON.StartTimeSecond},
+		)
 	}
 
 	p.log.Info("DevBox configuration loaded successfully", logger.Fields{
@@ -111,7 +118,11 @@ func (p *DevboxPlugin) Type() string {
 	return pluginType
 }
 
-func (p *DevboxPlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
+func (p *DevboxPlugin) Start(
+	ctx context.Context,
+	config config.PluginConfig,
+	eventBus *eventbus.EventBus,
+) error {
 	p.log.Info("Starting DevBox plugin", logger.Fields{
 		"plugin": pluginName,
 	})
@@ -206,9 +217,11 @@ func (p *DevboxPlugin) GetIngressList() ([]models.DiscoveryInfo, error) {
 	})
 
 	var ingressList []models.DiscoveryInfo
-	ingresses, err := k8s.ClientSet.NetworkingV1().Ingresses("").List(context.TODO(), metav1.ListOptions{
-		LabelSelector: DevboxManagerLabel,
-	})
+	ingresses, err := k8s.ClientSet.NetworkingV1().
+		Ingresses("").
+		List(context.TODO(), metav1.ListOptions{
+			LabelSelector: DevboxManagerLabel,
+		})
 	if err != nil {
 		p.log.Error("Failed to list DevBox ingresses", logger.Fields{
 			"labelSelector": DevboxManagerLabel,
@@ -232,7 +245,8 @@ func (p *DevboxPlugin) GetIngressList() ([]models.DiscoveryInfo, error) {
 		"resource": DevboxResource,
 	})
 
-	devboxes, err := k8s.DynamicClient.Resource(devboxGVR).List(context.TODO(), metav1.ListOptions{})
+	devboxes, err := k8s.DynamicClient.Resource(devboxGVR).
+		List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		p.log.Error("Failed to list DevBox resources", logger.Fields{
 			"group":    DevboxGroup,
@@ -250,7 +264,8 @@ func (p *DevboxPlugin) GetIngressList() ([]models.DiscoveryInfo, error) {
 	runningCount := 0
 	for _, devbox := range devboxes.Items {
 		key := fmt.Sprintf("%s/%s", devbox.GetNamespace(), devbox.GetName())
-		if phase, found, err := unstructured.NestedString(devbox.Object, "status", "phase"); err == nil && found {
+		if phase, found, err := unstructured.NestedString(devbox.Object, "status", "phase"); err == nil &&
+			found {
 			statusMap[key] = phase
 			p.log.Debug("DevBox status retrieved", logger.Fields{
 				"devbox": key,

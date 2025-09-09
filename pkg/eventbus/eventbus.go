@@ -5,7 +5,7 @@ import (
 )
 
 type Event struct {
-	Payload interface{}
+	Payload any
 }
 
 type EventChan chan Event

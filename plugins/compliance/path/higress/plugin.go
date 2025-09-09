@@ -64,7 +64,11 @@ func (p *HigressPlugin) Type() string {
 	return pluginType
 }
 
-func (p *HigressPlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
+func (p *HigressPlugin) Start(
+	ctx context.Context,
+	config config.PluginConfig,
+	eventBus *eventbus.EventBus,
+) error {
 	p.log.Debug("Starting Higress plugin", logger.Fields{
 		"plugin":     pluginName,
 		"maxWorkers": maxWorkers,
@@ -75,7 +79,7 @@ func (p *HigressPlugin) Start(ctx context.Context, config config.PluginConfig, e
 		p.log.Error("Failed to parse plugin config", logger.Fields{
 			"error": err.Error(),
 		})
-		return fmt.Errorf("解析配置失败: %v", err)
+		return fmt.Errorf("解析配置失败: %w", err)
 	}
 
 	p.log.Debug("Plugin config parsed successfully", logger.Fields{
@@ -153,7 +157,7 @@ func (p *HigressPlugin) Start(ctx context.Context, config config.PluginConfig, e
 		case <-ctx.Done():
 			p.log.Info("Context cancelled, stopping Higress plugin")
 			// 等待所有工作协程完成
-			for i := 0; i < maxWorkers; i++ {
+			for range maxWorkers {
 				semaphore <- struct{}{}
 			}
 			p.log.Info("Higress plugin stopped successfully")
@@ -211,7 +215,10 @@ func (p *HigressPlugin) parseConfig(config config.PluginConfig) error {
 	return nil
 }
 
-func (p *HigressPlugin) queryLogs(ctx context.Context, ingress models.DiscoveryInfo) ([]LogEntry, error) {
+func (p *HigressPlugin) queryLogs(
+	ctx context.Context,
+	ingress models.DiscoveryInfo,
+) ([]LogEntry, error) {
 	p.log.Debug("Starting log query", logger.Fields{
 		"host":      ingress.Host,
 		"namespace": ingress.Namespace,
@@ -230,7 +237,7 @@ func (p *HigressPlugin) queryLogs(ctx context.Context, ingress models.DiscoveryI
 			"query": query,
 			"error": err.Error(),
 		})
-		return nil, fmt.Errorf("发送日志查询请求失败: %v", err)
+		return nil, fmt.Errorf("发送日志查询请求失败: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -240,7 +247,7 @@ func (p *HigressPlugin) queryLogs(ctx context.Context, ingress models.DiscoveryI
 		p.log.Error("Failed to parse log response", logger.Fields{
 			"error": err.Error(),
 		})
-		return nil, fmt.Errorf("解析日志响应失败: %v", err)
+		return nil, fmt.Errorf("解析日志响应失败: %w", err)
 	}
 
 	p.log.Debug("Log query completed successfully", logger.Fields{
@@ -297,7 +304,7 @@ func (p *HigressPlugin) sendLogQuery(query string) (*http.Response, error) {
 			"url":   req.URL.String(),
 			"error": err.Error(),
 		})
-		return nil, fmt.Errorf("HTTP 请求错误: %v", err)
+		return nil, fmt.Errorf("HTTP 请求错误: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -326,13 +333,13 @@ func (p *HigressPlugin) generateRequest(query string) (*http.Request, error) {
 		"url": baseURL,
 	})
 
-	req, err := http.NewRequest("GET", baseURL, nil)
+	req, err := http.NewRequest(http.MethodGet, baseURL, nil)
 	if err != nil {
 		p.log.Error("Failed to create HTTP request", logger.Fields{
 			"url":   baseURL,
 			"error": err.Error(),
 		})
-		return nil, fmt.Errorf("创建 HTTP 请求错误: %v", err)
+		return nil, fmt.Errorf("创建 HTTP 请求错误: %w", err)
 	}
 
 	// 设置基础认证
@@ -352,7 +359,7 @@ func (p *HigressPlugin) parseLogResponse(body io.Reader) ([]LogEntry, error) {
 		p.log.Error("Failed to read response body", logger.Fields{
 			"error": err.Error(),
 		})
-		return nil, fmt.Errorf("读取响应体失败: %v", err)
+		return nil, fmt.Errorf("读取响应体失败: %w", err)
 	}
 
 	p.log.Debug("Read response body", logger.Fields{

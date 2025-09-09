@@ -4,6 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/bearslyricattack/CompliK/pkg/constants"
 	"github.com/bearslyricattack/CompliK/pkg/eventbus"
 	"github.com/bearslyricattack/CompliK/pkg/k8s"
@@ -15,9 +19,6 @@ import (
 	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"strings"
-	"sync"
-	"time"
 )
 
 const (
@@ -83,15 +84,24 @@ func (p *CompletePlugin) loadConfig(setting string) error {
 	}
 	if configFromJSON.IntervalMinute > 0 {
 		p.completeConfig.IntervalMinute = configFromJSON.IntervalMinute
-		p.log.Debug("Set interval from config", logger.Fields{"intervalMinute": configFromJSON.IntervalMinute})
+		p.log.Debug(
+			"Set interval from config",
+			logger.Fields{"intervalMinute": configFromJSON.IntervalMinute},
+		)
 	}
 	if configFromJSON.AutoStart != nil {
 		p.completeConfig.AutoStart = configFromJSON.AutoStart
-		p.log.Debug("Set autoStart from config", logger.Fields{"autoStart": *configFromJSON.AutoStart})
+		p.log.Debug(
+			"Set autoStart from config",
+			logger.Fields{"autoStart": *configFromJSON.AutoStart},
+		)
 	}
 	if configFromJSON.StartTimeSecond > 0 {
 		p.completeConfig.StartTimeSecond = configFromJSON.StartTimeSecond
-		p.log.Debug("Set startTime from config", logger.Fields{"startTimeSecond": configFromJSON.StartTimeSecond})
+		p.log.Debug(
+			"Set startTime from config",
+			logger.Fields{"startTimeSecond": configFromJSON.StartTimeSecond},
+		)
 	}
 
 	p.log.Info("Complete configuration loaded successfully", logger.Fields{
@@ -103,7 +113,11 @@ func (p *CompletePlugin) loadConfig(setting string) error {
 	return nil
 }
 
-func (p *CompletePlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
+func (p *CompletePlugin) Start(
+	ctx context.Context,
+	config config.PluginConfig,
+	eventBus *eventbus.EventBus,
+) error {
 	p.log.Info("Starting Complete plugin", logger.Fields{
 		"plugin": pluginName,
 	})
@@ -207,12 +221,16 @@ func (p *CompletePlugin) GetIngressList() ([]models.DiscoveryInfo, error) {
 	go func() {
 		defer wg.Done()
 		p.log.Debug("Fetching ingresses from all namespaces")
-		ingressItems, ingressErr = k8s.ClientSet.NetworkingV1().Ingresses("").List(context.TODO(), metav1.ListOptions{})
+		ingressItems, ingressErr = k8s.ClientSet.NetworkingV1().
+			Ingresses("").
+			List(context.TODO(), metav1.ListOptions{})
 	}()
 	go func() {
 		defer wg.Done()
 		p.log.Debug("Fetching endpoint slices from all namespaces")
-		endpointSlicesList, endpointSlicesErr = k8s.ClientSet.DiscoveryV1().EndpointSlices("").List(context.TODO(), metav1.ListOptions{})
+		endpointSlicesList, endpointSlicesErr = k8s.ClientSet.DiscoveryV1().
+			EndpointSlices("").
+			List(context.TODO(), metav1.ListOptions{})
 	}()
 	wg.Wait()
 
@@ -220,13 +238,13 @@ func (p *CompletePlugin) GetIngressList() ([]models.DiscoveryInfo, error) {
 		p.log.Error("Failed to get ingress list", logger.Fields{
 			"error": ingressErr.Error(),
 		})
-		return nil, fmt.Errorf("获取Ingress列表失败: %v", ingressErr)
+		return nil, fmt.Errorf("获取Ingress列表失败: %w", ingressErr)
 	}
 	if endpointSlicesErr != nil {
 		p.log.Error("Failed to get endpoint slices list", logger.Fields{
 			"error": endpointSlicesErr.Error(),
 		})
-		return nil, fmt.Errorf("获取EndpointSlices列表失败: %v", endpointSlicesErr)
+		return nil, fmt.Errorf("获取EndpointSlices列表失败: %w", endpointSlicesErr)
 	}
 
 	p.log.Debug("Successfully fetched Kubernetes resources", logger.Fields{
@@ -243,7 +261,9 @@ func (p *CompletePlugin) GetIngressList() ([]models.DiscoveryInfo, error) {
 	return p.processIngressAndEndpointSlices(uniqueIngresses, endpointSlicesList.Items)
 }
 
-func (p *CompletePlugin) deduplicateIngressesByPath(ingresses []networkingv1.Ingress) []networkingv1.Ingress {
+func (p *CompletePlugin) deduplicateIngressesByPath(
+	ingresses []networkingv1.Ingress,
+) []networkingv1.Ingress {
 	p.log.Debug("Starting ingress deduplication by path", logger.Fields{
 		"totalIngresses": len(ingresses),
 	})
@@ -308,7 +328,10 @@ func (p *CompletePlugin) deduplicateIngressesByPath(ingresses []networkingv1.Ing
 	return result
 }
 
-func (p *CompletePlugin) processIngressAndEndpointSlices(ingressItems []networkingv1.Ingress, endpointSlicesItems []discoveryv1.EndpointSlice) ([]models.DiscoveryInfo, error) {
+func (p *CompletePlugin) processIngressAndEndpointSlices(
+	ingressItems []networkingv1.Ingress,
+	endpointSlicesItems []discoveryv1.EndpointSlice,
+) ([]models.DiscoveryInfo, error) {
 	p.log.Debug("Processing ingresses and endpoint slices", logger.Fields{
 		"ingressCount":       len(ingressItems),
 		"endpointSliceCount": len(endpointSlicesItems),
@@ -330,7 +353,10 @@ func (p *CompletePlugin) processIngressAndEndpointSlices(ingressItems []networki
 		if endpointSlicesMap[namespace] == nil {
 			endpointSlicesMap[namespace] = make(map[string][]*discoveryv1.EndpointSlice)
 		}
-		endpointSlicesMap[namespace][serviceName] = append(endpointSlicesMap[namespace][serviceName], endpointSlice)
+		endpointSlicesMap[namespace][serviceName] = append(
+			endpointSlicesMap[namespace][serviceName],
+			endpointSlice,
+		)
 		processedEndpointSlices++
 	}
 

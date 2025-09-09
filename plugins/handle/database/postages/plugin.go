@@ -128,25 +128,29 @@ func (p *DatabasePlugin) loadConfig(setting string) error {
 
 type DetectorRecord struct {
 	ID            uint      `gorm:"primaryKey" json:"id"`
-	DiscoveryName string    `gorm:"size:255" json:"discovery_name"`
-	CollectorName string    `gorm:"size:255" json:"collector_name"`
-	DetectorName  string    `gorm:"size:255" json:"detector_name"`
-	Name          string    `gorm:"size:255" json:"name"`
-	Namespace     string    `gorm:"size:255" json:"namespace"`
-	Host          string    `gorm:"size:255" json:"host"`
-	Path          *string   `gorm:"type:json" json:"path"`
-	URL           string    `gorm:"size:500" json:"url"`
-	IsIllegal     bool      `json:"is_illegal"`
-	Description   string    `gorm:"type:text" json:"description,omitempty"`
-	Keywords      *string   `gorm:"type:json" json:"keywords,omitempty"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	DiscoveryName string    `gorm:"size:255"   json:"discovery_name"`
+	CollectorName string    `gorm:"size:255"   json:"collector_name"`
+	DetectorName  string    `gorm:"size:255"   json:"detector_name"`
+	Name          string    `gorm:"size:255"   json:"name"`
+	Namespace     string    `gorm:"size:255"   json:"namespace"`
+	Host          string    `gorm:"size:255"   json:"host"`
+	Path          *string   `gorm:"type:json"  json:"path"`
+	URL           string    `gorm:"size:500"   json:"url"`
+	IsIllegal     bool      `                  json:"is_illegal"`
+	Description   string    `gorm:"type:text"  json:"description,omitempty"`
+	Keywords      *string   `gorm:"type:json"  json:"keywords,omitempty"`
+	CreatedAt     time.Time `                  json:"created_at"`
+	UpdatedAt     time.Time `                  json:"updated_at"`
 }
 
 func (p *DatabasePlugin) Name() string { return pluginName }
 func (p *DatabasePlugin) Type() string { return pluginType }
 
-func (p *DatabasePlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
+func (p *DatabasePlugin) Start(
+	ctx context.Context,
+	config config.PluginConfig,
+	eventBus *eventbus.EventBus,
+) error {
 	p.log.Info("Starting database plugin")
 
 	err := p.loadConfig(config.Settings)
@@ -162,7 +166,7 @@ func (p *DatabasePlugin) Start(ctx context.Context, config config.PluginConfig, 
 		p.log.Error("Failed to initialize database", logger.Fields{
 			"error": err.Error(),
 		})
-		return fmt.Errorf("初始化数据库失败: %v", err)
+		return fmt.Errorf("初始化数据库失败: %w", err)
 	}
 
 	p.log.Debug("Running database migration")
@@ -171,7 +175,7 @@ func (p *DatabasePlugin) Start(ctx context.Context, config config.PluginConfig, 
 			"error": err.Error(),
 			"table": p.databaseConfig.TableName,
 		})
-		return fmt.Errorf("数据库迁移失败: %v", err)
+		return fmt.Errorf("数据库迁移失败: %w", err)
 	}
 
 	p.log.Info("Database migration completed successfully")
@@ -246,7 +250,7 @@ func (p *DatabasePlugin) Stop(ctx context.Context) error {
 			p.log.Error("Failed to get database connection", logger.Fields{
 				"error": err.Error(),
 			})
-			return fmt.Errorf("获取数据库连接失败: %v", err)
+			return fmt.Errorf("获取数据库连接失败: %w", err)
 		}
 
 		if err := sqlDB.Close(); err != nil {
@@ -281,19 +285,21 @@ func (p *DatabasePlugin) initDB() error {
 	}
 	db, err := gorm.Open(mysql.Open(serverDSN), dbConfig)
 	if err != nil {
-		return fmt.Errorf("连接 MySQL 服务器失败: %v", err)
+		return fmt.Errorf("连接 MySQL 服务器失败: %w", err)
 	}
-	err = db.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s CHARACTER SET %s COLLATE %s_unicode_ci",
-		p.databaseConfig.DatabaseName,
-		p.databaseConfig.Charset,
-		p.databaseConfig.Charset)).Error
+	err = db.Exec(
+		fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s CHARACTER SET %s COLLATE %s_unicode_ci",
+			p.databaseConfig.DatabaseName,
+			p.databaseConfig.Charset,
+			p.databaseConfig.Charset),
+	).Error
 	if err != nil {
-		return fmt.Errorf("创建数据库失败: %v", err)
+		return fmt.Errorf("创建数据库失败: %w", err)
 	}
 	dbDSN := p.buildDSN(true)
 	db, err = gorm.Open(mysql.Open(dbDSN), dbConfig)
 	if err != nil {
-		return fmt.Errorf("连接到数据库失败: %v", err)
+		return fmt.Errorf("连接到数据库失败: %w", err)
 	}
 	p.db = db
 
@@ -322,15 +328,15 @@ func (p *DatabasePlugin) buildDSN(includeDB bool) string {
 func (p *DatabasePlugin) saveResults(result *models.DetectorInfo) error {
 	if p == nil {
 		p.log.Error("DatabasePlugin instance is nil")
-		return fmt.Errorf("DatabasePlugin 实例为空")
+		return errors.New("DatabasePlugin 实例为空")
 	}
 	if p.db == nil {
 		p.log.Error("Database connection not initialized")
-		return fmt.Errorf("数据库连接未初始化")
+		return errors.New("数据库连接未初始化")
 	}
 	if result == nil {
 		p.log.Error("Detection result is nil")
-		return fmt.Errorf("分析结果为空")
+		return errors.New("分析结果为空")
 	}
 	record := DetectorRecord{
 		DiscoveryName: result.DiscoveryName,

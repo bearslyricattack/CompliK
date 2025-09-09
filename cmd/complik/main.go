@@ -2,6 +2,9 @@ package main
 
 import (
 	"flag"
+	"os"
+	"runtime/debug"
+
 	"github.com/bearslyricattack/CompliK/internal/app"
 	"github.com/bearslyricattack/CompliK/pkg/logger"
 	_ "github.com/bearslyricattack/CompliK/plugins/compliance/collector/browser"
@@ -14,8 +17,6 @@ import (
 	_ "github.com/bearslyricattack/CompliK/plugins/discovery/informer/statefulset"
 	_ "github.com/bearslyricattack/CompliK/plugins/handle/database/postages"
 	_ "github.com/bearslyricattack/CompliK/plugins/handle/lark"
-	"os"
-	"runtime/debug"
 )
 
 func main() {

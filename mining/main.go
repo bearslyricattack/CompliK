@@ -2,11 +2,12 @@ package main
 
 import (
 	"context"
-	"github.com/bearslyricattack/CompliK/mining/internal/scanner"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/bearslyricattack/CompliK/mining/internal/scanner"
 )
 
 func main() {

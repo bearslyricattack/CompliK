@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"context"
+
 	"github.com/bearslyricattack/CompliK/pkg/eventbus"
 	"github.com/bearslyricattack/CompliK/pkg/utils/config"
 )

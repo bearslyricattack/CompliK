@@ -3,15 +3,15 @@ package browser
 import (
 	"errors"
 	"fmt"
-	"github.com/bearslyricattack/CompliK/plugins/compliance/collector/browser/utils"
-	"golang.org/x/net/context"
 	"strings"
 	"time"
 
 	"github.com/bearslyricattack/CompliK/pkg/logger"
 	"github.com/bearslyricattack/CompliK/pkg/models"
+	"github.com/bearslyricattack/CompliK/plugins/compliance/collector/browser/utils"
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
+	"golang.org/x/net/context"
 )
 
 type CollectorInfo struct {
@@ -40,7 +40,12 @@ func NewCollector() *Collector {
 	}
 }
 
-func (s *Collector) CollectorAndScreenshot(ctx context.Context, discovery models.DiscoveryInfo, browserPool *utils.BrowserPool, name string) (*models.CollectorInfo, error) {
+func (s *Collector) CollectorAndScreenshot(
+	ctx context.Context,
+	discovery models.DiscoveryInfo,
+	browserPool *utils.BrowserPool,
+	name string,
+) (*models.CollectorInfo, error) {
 	taskCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 	if discovery.PodCount == 0 {
@@ -59,7 +64,7 @@ func (s *Collector) CollectorAndScreenshot(ctx context.Context, discovery models
 	}
 	instance, err := browserPool.Get()
 	if err != nil {
-		return nil, fmt.Errorf("获取浏览器实例失败: %v", err)
+		return nil, fmt.Errorf("获取浏览器实例失败: %w", err)
 	}
 	defer browserPool.Put(instance)
 	page, err := s.setupPage(taskCtx, instance)
@@ -67,7 +72,7 @@ func (s *Collector) CollectorAndScreenshot(ctx context.Context, discovery models
 		return nil, err
 	}
 	if page == nil {
-		return nil, fmt.Errorf("页面对象为空")
+		return nil, errors.New("页面对象为空")
 	}
 	defer func() {
 		if page != nil {
@@ -77,7 +82,8 @@ func (s *Collector) CollectorAndScreenshot(ctx context.Context, discovery models
 	url := s.formatUrl(discovery)
 	wait := page.EachEvent(func(e *proto.NetworkResponseReceived) {
 		if e.Type == proto.NetworkResourceTypeDocument && (e.Response.URL == url) {
-			if e.Response.Status == 502 || e.Response.Status == 503 || e.Response.Status == 504 || e.Response.Status == 404 {
+			if e.Response.Status == 502 || e.Response.Status == 503 || e.Response.Status == 504 ||
+				e.Response.Status == 404 {
 				s.log.Error("Detected error status code", logger.Fields{
 					"status_code": e.Response.Status,
 					"url":         url,
@@ -177,19 +183,22 @@ func (s *Collector) formatUrl(ingress models.DiscoveryInfo) string {
 	return "http://" + host
 }
 
-func (s *Collector) setupPage(ctx context.Context, instance *utils.BrowserInstance) (*rod.Page, error) {
+func (s *Collector) setupPage(
+	ctx context.Context,
+	instance *utils.BrowserInstance,
+) (*rod.Page, error) {
 	var page *rod.Page
 	if instance == nil {
-		return nil, fmt.Errorf("浏览器实例为空")
+		return nil, errors.New("浏览器实例为空")
 	}
 	if instance.Browser == nil {
-		return nil, fmt.Errorf("浏览器对象为空")
+		return nil, errors.New("浏览器对象为空")
 	}
 	err := rod.Try(func() {
 		page = instance.Browser.MustPage().Context(ctx)
 	})
 	if err != nil {
-		return nil, fmt.Errorf("创建页面失败: %v", err)
+		return nil, fmt.Errorf("创建页面失败: %w", err)
 	}
 	err = page.SetUserAgent(&proto.NetworkSetUserAgentOverride{
 		UserAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36",

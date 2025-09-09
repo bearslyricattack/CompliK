@@ -5,6 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"os"
+	"time"
+
 	"github.com/bearslyricattack/CompliK/pkg/constants"
 	"github.com/bearslyricattack/CompliK/pkg/eventbus"
 	"github.com/bearslyricattack/CompliK/pkg/logger"
@@ -15,9 +19,6 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	gormLogger "gorm.io/gorm/logger"
-	"log"
-	"os"
-	"time"
 )
 
 const (
@@ -88,7 +89,7 @@ func (p *LarkPlugin) loadConfig(setting string) error {
 	if configFromJSON.Webhook == "" {
 		return errors.New("webhook 配置不能为空")
 	}
-	if configFromJSON.EnabledWhitelist != nil && *configFromJSON.EnabledWhitelist == true {
+	if configFromJSON.EnabledWhitelist != nil && *configFromJSON.EnabledWhitelist {
 		p.larkConfig.EnabledWhitelist = configFromJSON.EnabledWhitelist
 		if configFromJSON.Host == "" {
 			return errors.New("host 配置不能为空")
@@ -145,20 +146,22 @@ func (p *LarkPlugin) initDB() (db *gorm.DB, err error) {
 	}
 	db, err = gorm.Open(mysql.Open(serverDSN), dbConfig)
 	if err != nil {
-		return nil, fmt.Errorf("连接 MySQL 服务器失败: %v", err)
+		return nil, fmt.Errorf("连接 MySQL 服务器失败: %w", err)
 	}
-	createDBSQL := fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET %s COLLATE %s_unicode_ci",
+	createDBSQL := fmt.Sprintf(
+		"CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET %s COLLATE %s_unicode_ci",
 		p.larkConfig.DatabaseName,
 		p.larkConfig.Charset,
-		p.larkConfig.Charset)
+		p.larkConfig.Charset,
+	)
 	err = db.Exec(createDBSQL).Error
 	if err != nil {
-		return nil, fmt.Errorf("创建数据库失败: %v", err)
+		return nil, fmt.Errorf("创建数据库失败: %w", err)
 	}
 	dbDSN := p.buildDSN(true)
 	db, err = gorm.Open(mysql.Open(dbDSN), dbConfig)
 	if err != nil {
-		return nil, fmt.Errorf("连接到数据库失败: %v", err)
+		return nil, fmt.Errorf("连接到数据库失败: %w", err)
 	}
 	return db, nil
 }
@@ -178,7 +181,11 @@ func (p *LarkPlugin) buildDSN(includeDB bool) string {
 	)
 }
 
-func (p *LarkPlugin) Start(ctx context.Context, config config.PluginConfig, eventBus *eventbus.EventBus) error {
+func (p *LarkPlugin) Start(
+	ctx context.Context,
+	config config.PluginConfig,
+	eventBus *eventbus.EventBus,
+) error {
 	err := p.loadConfig(config.Settings)
 	if err != nil {
 		return err
@@ -186,12 +193,17 @@ func (p *LarkPlugin) Start(ctx context.Context, config config.PluginConfig, even
 	if *p.larkConfig.EnabledWhitelist {
 		var db *gorm.DB
 		if db, err = p.initDB(); err != nil {
-			return fmt.Errorf("初始化数据库失败: %v", err)
+			return fmt.Errorf("初始化数据库失败: %w", err)
 		}
 		if err := db.AutoMigrate(&whitelist.Whitelist{}); err != nil {
-			return fmt.Errorf("数据库迁移失败: %v", err)
+			return fmt.Errorf("数据库迁移失败: %w", err)
 		}
-		p.notifier = NewNotifier(p.larkConfig.Webhook, db, time.Duration(p.larkConfig.HostTimeoutHour)*time.Hour, p.larkConfig.Region)
+		p.notifier = NewNotifier(
+			p.larkConfig.Webhook,
+			db,
+			time.Duration(p.larkConfig.HostTimeoutHour)*time.Hour,
+			p.larkConfig.Region,
+		)
 		var count int64
 		db.Model(&whitelist.Whitelist{}).Count(&count)
 		if count == 0 {
@@ -213,7 +225,6 @@ func (p *LarkPlugin) Start(ctx context.Context, config config.PluginConfig, even
 				p.log.Info("Test data inserted successfully")
 			}
 		}
-
 	} else {
 		p.notifier = NewNotifier(p.larkConfig.Webhook, nil, 0, "")
 	}

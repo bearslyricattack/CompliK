@@ -2,6 +2,7 @@ package models
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -30,20 +31,20 @@ type DetectorInfo struct {
 
 func (d *DetectorInfo) SaveToFile(dirPath string) error {
 	if d == nil {
-		return fmt.Errorf("models.IngressAnalysisResult 为空")
+		return errors.New("models.IngressAnalysisResult 为空")
 	}
-	if err := os.MkdirAll(dirPath, 0755); err != nil {
-		return fmt.Errorf("创建目录失败: %v", err)
+	if err := os.MkdirAll(dirPath, 0o755); err != nil {
+		return fmt.Errorf("创建目录失败: %w", err)
 	}
 	timestamp := time.Now().Format("20060102_150405")
 	filename := fmt.Sprintf("analysis_%s.json", timestamp)
 	filePath := filepath.Join(dirPath, filename)
 	data, err := json.MarshalIndent(d, "", "  ")
 	if err != nil {
-		return fmt.Errorf("JSON序列化失败: %v", err)
+		return fmt.Errorf("JSON序列化失败: %w", err)
 	}
-	if err := os.WriteFile(filePath, data, 0644); err != nil {
-		return fmt.Errorf("写入文件失败: %v", err)
+	if err := os.WriteFile(filePath, data, 0o644); err != nil {
+		return fmt.Errorf("写入文件失败: %w", err)
 	}
 	return nil
 }
