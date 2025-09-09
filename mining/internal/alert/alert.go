@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/bearslyricattack/CompliK/mining/internal/types"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"time"
+
+	"github.com/bearslyricattack/CompliK/mining/internal/types"
 )
 
 // Sender 告警发送器
@@ -40,12 +41,12 @@ func (s *Sender) SendAlert(processInfo types.ProcessInfo) error {
 
 	jsonData, err := json.Marshal(alert)
 	if err != nil {
-		return fmt.Errorf("序列化告警数据失败: %v", err)
+		return fmt.Errorf("序列化告警数据失败: %w", err)
 	}
 
 	resp, err := s.httpClient.Post(s.complianceURL, "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
-		return fmt.Errorf("发送告警失败: %v", err)
+		return fmt.Errorf("发送告警失败: %w", err)
 	}
 	defer resp.Body.Close()
 
