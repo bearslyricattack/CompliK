@@ -349,13 +349,13 @@ func (p *DatabasePlugin) saveResults(result *models.DetectorInfo) error {
 		IsIllegal:     result.IsIllegal,
 		Description:   result.Description,
 	}
-	if result.Path != nil && len(result.Path) > 0 {
+	if len(result.Path) > 0 {
 		if pathJSON, err := json.Marshal(result.Path); err == nil {
 			pathStr := string(pathJSON)
 			record.Path = &pathStr
 		}
 	}
-	if result.Keywords != nil && len(result.Keywords) > 0 {
+	if len(result.Keywords) > 0 {
 		if keywordsJSON, err := json.Marshal(result.Keywords); err == nil {
 			keywordsStr := string(keywordsJSON)
 			record.Keywords = &keywordsStr

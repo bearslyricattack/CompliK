@@ -382,7 +382,7 @@ func (p *ServicePlugin) getServiceDiscoveryInfo(
 }
 
 func (p *ServicePlugin) getPodInfo(service *corev1.Service) (int, bool, error) {
-	if service.Spec.Selector == nil || len(service.Spec.Selector) == 0 {
+	if len(service.Spec.Selector) == 0 {
 		return 0, false, nil
 	}
 	selector := metav1.LabelSelector{

@@ -280,7 +280,7 @@ func (f *Notifier) buildWhitelistMessage(
 		})
 	}
 	elements := append(basicInfoElements, whitelistElements...)
-	//nolint:gocritic
+
 	elements = append(elements, detectionElements...)
 
 	elements = append(elements,

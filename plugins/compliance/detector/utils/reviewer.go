@@ -49,7 +49,7 @@ func (r *ContentReviewer) ReviewSiteContent(
 
 	r.log.Debug("Preparing review request", logger.Fields{
 		"host":             content.Host,
-		"has_custom_rules": customRules != nil && len(customRules) > 0,
+		"has_custom_rules": len(customRules) > 0,
 	})
 
 	requestData, err := r.prepareRequestData(content, customRules)

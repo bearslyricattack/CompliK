@@ -800,7 +800,7 @@ func (p *MiningPlugin) getResultFromJob(jobName string) (NodeDetectionResult, er
 	}
 
 	if len(pods.Items) == 0 {
-		return NodeDetectionResult{}, fmt.Errorf("Job %s 没有找到Pod", jobName)
+		return NodeDetectionResult{}, fmt.Errorf("job %s 没有找到Pod", jobName)
 	}
 	pod := pods.Items[0]
 	// 检查Pod状态
