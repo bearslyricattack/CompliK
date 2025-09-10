@@ -314,7 +314,7 @@ func (p *CompletePlugin) deduplicateIngressesByPath(
 		"uniqueIngressCount": len(uniqueIngressMap),
 	})
 
-	var result []networkingv1.Ingress
+	result := make([]networkingv1.Ingress, 0, len(uniqueIngressMap))
 	for _, ingress := range uniqueIngressMap {
 		result = append(result, ingress)
 	}

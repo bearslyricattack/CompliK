@@ -242,7 +242,7 @@ func compareStringSlices(slice1, slice2 []string) bool {
 }
 
 func extractImagesFromStatefulSet(statefulset *appsv1.StatefulSet) []string {
-	var images []string
+	images := make([]string, 0, len(statefulset.Spec.Template.Spec.Containers))
 	for _, container := range statefulset.Spec.Template.Spec.Containers {
 		images = append(images, container.Image)
 	}

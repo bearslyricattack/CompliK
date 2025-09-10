@@ -227,7 +227,7 @@ func (p *DeploymentPlugin) hasDeploymentChanged(
 }
 
 func extractImagesFromDeployment(deployment *appsv1.Deployment) []string {
-	var images []string
+	images := make([]string, 0, len(deployment.Spec.Template.Spec.Containers))
 	for _, container := range deployment.Spec.Template.Spec.Containers {
 		images = append(images, container.Image)
 	}

@@ -175,7 +175,12 @@ func (p *ServicePlugin) startServiceInformerWatch(ctx context.Context) {
 					"object_type": fmt.Sprintf("%T", oldService),
 				})
 			}
-			newService := newObj.(*corev1.Service)
+			newService, ok := newObj.(*corev1.Service)
+			if !ok {
+				p.log.Error("Failed to cast object to Service", logger.Fields{
+					"object_type": fmt.Sprintf("%T", newService),
+				})
+			}
 			if p.shouldProcessService(newService) {
 				hasChanged := p.hasServiceChanged(oldService, newService)
 				if hasChanged {

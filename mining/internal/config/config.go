@@ -2,8 +2,8 @@ package config
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
+	"os"
 
 	"github.com/bearslyricattack/CompliK/mining/internal/types"
 	"github.com/bearslyricattack/CompliK/mining/pkg/utils"
@@ -25,7 +25,7 @@ func NewManager(configPath string) *Manager {
 
 // LoadConfig 加载配置
 func (m *Manager) LoadConfig() error {
-	data, err := ioutil.ReadFile(m.configPath)
+	data, err := os.ReadFile(m.configPath)
 	if err != nil {
 		return fmt.Errorf("读取配置文件失败: %w", err)
 	}

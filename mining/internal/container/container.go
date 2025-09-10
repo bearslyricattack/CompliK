@@ -1,7 +1,6 @@
 package container
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -25,7 +24,7 @@ func NewInfoProvider(procPath string) *InfoProvider {
 // GetContainerInfo 获取容器信息
 func (c *InfoProvider) GetContainerInfo(pid int) (*types.ContainerInfo, error) {
 	cgroupFile := filepath.Join(c.procPath, strconv.Itoa(pid), "cgroup")
-	cgroupData, err := ioutil.ReadFile(cgroupFile)
+	cgroupData, err := os.ReadFile(cgroupFile)
 	if err != nil {
 		return nil, err
 	}

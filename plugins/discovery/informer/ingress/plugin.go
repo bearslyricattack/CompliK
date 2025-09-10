@@ -18,7 +18,6 @@ import (
 	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 )
@@ -151,7 +150,12 @@ func (p *IngressPlugin) startIngressInformerWatch(ctx context.Context) {
 					"object_type": fmt.Sprintf("%T", oldObj),
 				})
 			}
-			newIngress := newObj.(*networkingv1.Ingress)
+			newIngress, ok := newObj.(*networkingv1.Ingress)
+			if !ok {
+				p.log.Error("Failed to get ingress object", logger.Fields{
+					"object_type": fmt.Sprintf("%T", newObj),
+				})
+			}
 			if p.shouldProcessIngress(newIngress) {
 				hasChanged := p.hasIngressChanged(oldIngress, newIngress)
 				if hasChanged {
@@ -169,7 +173,12 @@ func (p *IngressPlugin) startIngressInformerWatch(ctx context.Context) {
 			}
 		},
 		DeleteFunc: func(obj any) {
-			ingress := obj.(*networkingv1.Ingress)
+			ingress, ok := obj.(*networkingv1.Ingress)
+			if !ok {
+				p.log.Error("Failed to get ingress object", logger.Fields{
+					"object_type": fmt.Sprintf("%T", obj),
+				})
+			}
 			if p.shouldProcessIngress(ingress) {
 				discoveryInfos := utils.GenerateDiscoveryInfo(*ingress, false, 0, p.Name())
 				p.handleIngressEvent(discoveryInfos)
@@ -296,42 +305,4 @@ func (p *IngressPlugin) getIngressWithPodInfo(
 	discoveryInfos := utils.GenerateIngressAndPodInfo(*ingress, endpointSlicesMap, p.Name())
 
 	return discoveryInfos, nil
-}
-
-// getPodCountForService 获取服务对应的 Pod 数量
-func (p *IngressPlugin) getPodCountForService(namespace, serviceName string) (bool, int, error) {
-	if serviceName == "" {
-		return false, 0, nil
-	}
-
-	// 获取服务
-	service, err := k8s.ClientSet.CoreV1().
-		Services(namespace).
-		Get(context.TODO(), serviceName, metav1.GetOptions{})
-	if err != nil {
-		return false, 0, fmt.Errorf("获取服务 %s/%s 失败: %w", namespace, serviceName, err)
-	}
-
-	// 使用服务的选择器获取 Pod
-	selector := labels.SelectorFromSet(service.Spec.Selector)
-	pods, err := k8s.ClientSet.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{
-		LabelSelector: selector.String(),
-	})
-	if err != nil {
-		return false, 0, fmt.Errorf("获取命名空间 %s 中的 Pod 列表失败: %w", namespace, err)
-	}
-
-	// 统计就绪的 Pod 数量
-	readyCount := 0
-	for _, pod := range pods.Items {
-		// 检查 Pod 是否就绪
-		for _, condition := range pod.Status.Conditions {
-			if condition.Type == "Ready" && condition.Status == "True" {
-				readyCount++
-				break
-			}
-		}
-	}
-
-	return readyCount > 0, readyCount, nil
 }

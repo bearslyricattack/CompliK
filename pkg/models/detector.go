@@ -43,7 +43,7 @@ func (d *DetectorInfo) SaveToFile(dirPath string) error {
 	if err != nil {
 		return fmt.Errorf("JSON序列化失败: %w", err)
 	}
-	if err := os.WriteFile(filePath, data, 0o644); err != nil {
+	if err := os.WriteFile(filePath, data, 0o600); err != nil {
 		return fmt.Errorf("写入文件失败: %w", err)
 	}
 	return nil

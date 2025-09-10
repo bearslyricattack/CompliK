@@ -134,7 +134,7 @@ func (p *HigressPlugin) Start(
 				})
 
 				// 查询日志
-				result, err := p.queryLogs(ctx, ingress)
+				result, err := p.queryLogs(ingress)
 				if err != nil {
 					p.log.Error("Failed to query Higress logs", logger.Fields{
 						"host":      ingress.Host,
@@ -216,7 +216,6 @@ func (p *HigressPlugin) parseConfig(config config.PluginConfig) error {
 }
 
 func (p *HigressPlugin) queryLogs(
-	ctx context.Context,
 	ingress models.DiscoveryInfo,
 ) ([]LogEntry, error) {
 	p.log.Debug("Starting log query", logger.Fields{

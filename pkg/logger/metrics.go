@@ -3,6 +3,7 @@ package logger
 import (
 	"context"
 	"fmt"
+	"math"
 	"runtime"
 	"sync"
 	"time"
@@ -120,6 +121,11 @@ func (mc *MetricsCollector) updateSystemMetrics() {
 
 	mc.metrics.MemoryUsage = m.Alloc
 	mc.metrics.GoroutineCount = runtime.NumGoroutine()
+	if m.PauseTotalNs > math.MaxInt64 {
+		mc.metrics.GCPauseTime = time.Duration(math.MaxInt64)
+	} else {
+		mc.metrics.GCPauseTime = time.Duration(m.PauseTotalNs)
+	}
 	mc.metrics.GCPauseTime = time.Duration(m.PauseTotalNs)
 	mc.metrics.Uptime = time.Since(mc.metrics.StartTime)
 }

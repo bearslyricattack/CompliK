@@ -2,7 +2,7 @@ package process
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -28,7 +28,7 @@ func NewProcessor(procPath, nodeName string, config types.Config) *Processor {
 }
 
 func (p *Processor) GetAllProcesses() ([]int, error) {
-	procDirs, err := ioutil.ReadDir(p.procPath)
+	procDirs, err := os.ReadDir(p.procPath)
 	if err != nil {
 		return nil, fmt.Errorf("读取 /proc 目录失败: %w", err)
 	}
@@ -48,31 +48,20 @@ func (p *Processor) GetAllProcesses() ([]int, error) {
 
 func (p *Processor) AnalyzeProcess(pid int) (*types.ProcessInfo, error) {
 	procDir := filepath.Join(p.procPath, strconv.Itoa(pid))
-
-	// 读取进程命令行
 	cmdlineFile := filepath.Join(procDir, "cmdline")
-	cmdlineData, err := ioutil.ReadFile(cmdlineFile)
+	cmdlineData, err := os.ReadFile(cmdlineFile)
 	if err != nil {
 		return nil, err
 	}
-
-	// 处理命令行数据（用空格替换null字节）
 	cmdline := strings.ReplaceAll(string(cmdlineData), "\x00", " ")
 	cmdline = strings.TrimSpace(cmdline)
-
 	if cmdline == "" {
 		return nil, nil
 	}
-
-	// 获取进程名
 	processName := p.getProcessName(cmdline)
-
-	// 检查是否为恶意进程
 	if !p.isMaliciousProcess(processName, cmdline) {
 		return nil, nil
 	}
-
-	// 创建进程信息
 	processInfo := &types.ProcessInfo{
 		PID:         pid,
 		ProcessName: processName,

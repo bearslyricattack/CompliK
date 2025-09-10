@@ -79,7 +79,7 @@ func (s *Collector) CollectorAndScreenshot(
 			_ = page.Close()
 		}
 	}()
-	url := s.formatUrl(discovery)
+	url := s.formatURL(discovery)
 	wait := page.EachEvent(func(e *proto.NetworkResponseReceived) {
 		if e.Type == proto.NetworkResourceTypeDocument && (e.Response.URL == url) {
 			if e.Response.Status == 502 || e.Response.Status == 503 || e.Response.Status == 504 ||
@@ -178,7 +178,7 @@ func (s *Collector) CollectorAndScreenshot(
 	}, nil
 }
 
-func (s *Collector) formatUrl(ingress models.DiscoveryInfo) string {
+func (s *Collector) formatURL(ingress models.DiscoveryInfo) string {
 	host := ingress.Host
 	if host == "" {
 		return ""
@@ -230,16 +230,6 @@ func (s *Collector) setupPage(
 		return nil, err
 	}
 	return page, nil
-}
-
-func (s *Collector) isErrorStatusCode(statusCode int64) bool {
-	errorCodes := []int64{502, 503, 504, 404}
-	for _, code := range errorCodes {
-		if statusCode == code {
-			return true
-		}
-	}
-	return false
 }
 
 func (s *Collector) waitForPageLoad(ctx context.Context, page *rod.Page) error {

@@ -279,12 +279,10 @@ func (f *Notifier) buildWhitelistMessage(
 			},
 		})
 	}
-
-	// 合并所有元素
 	elements := append(basicInfoElements, whitelistElements...)
+	//nolint:gocritic
 	elements = append(elements, detectionElements...)
 
-	// 时间信息和状态提示
 	elements = append(elements,
 		map[string]any{
 			"tag": "hr",
@@ -381,6 +379,7 @@ func (f *Notifier) buildAlertMessage(results *models.DetectorInfo) map[string]an
 	basicInfoElements = append(basicInfoElements, map[string]any{
 		"tag": "hr",
 	})
+	//nolint:gocritic
 	elements := append(basicInfoElements)
 	if results.IsIllegal {
 		elements = append(elements, map[string]any{
