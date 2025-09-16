@@ -157,7 +157,9 @@ func (p *DevboxPlugin) Start(
 			select {
 			case <-ticker.C:
 				p.log.Debug("Scheduled task trigger")
-				p.executeTask(ctx, eventBus)
+				taskCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				p.executeTask(taskCtx, eventBus)
+				cancel()
 			case <-ctx.Done():
 				p.log.Info("Context cancelled, stopping DevBox plugin scheduler")
 				return
@@ -175,43 +177,40 @@ func (p *DevboxPlugin) Stop(ctx context.Context) error {
 }
 
 func (p *DevboxPlugin) executeTask(ctx context.Context, eventBus *eventbus.EventBus) {
-	p.log.Debug("Executing DevBox discovery task")
+	select {
+	case <-ctx.Done():
+		p.log.Warn("Context cancelled before task execution")
+		return
+	default:
+	}
 
-	ingressList, err := p.GetIngressList()
+	ingressList, err := p.GetIngressList(ctx)
 	if err != nil {
-		p.log.Error("Failed to get ingress list", logger.Fields{
-			"error": err.Error(),
-		})
+		p.log.Error("Failed to get ingress list", logger.Fields{"error": err.Error()})
 		return
 	}
 
-	p.log.Info("Publishing DevBox discovery events", logger.Fields{
-		"ingressCount": len(ingressList),
-	})
-
 	publishedCount := 0
-	for _, ingress := range ingressList {
-		select {
-		case <-ctx.Done():
-			p.log.Warn("Context cancelled during task execution", logger.Fields{
-				"publishedCount": publishedCount,
-				"totalCount":     len(ingressList),
-			})
-			return
-		default:
-			eventBus.Publish(constants.DiscoveryTopic, eventbus.Event{
-				Payload: ingress,
-			})
-			publishedCount++
+	for i, ingress := range ingressList {
+		if i%100 == 0 {
+			select {
+			case <-ctx.Done():
+				p.log.Warn("Context cancelled during task execution", logger.Fields{
+					"publishedCount": publishedCount,
+					"totalCount":     len(ingressList),
+				})
+				return
+			default:
+			}
 		}
+		eventBus.Publish(constants.DiscoveryTopic, eventbus.Event{
+			Payload: ingress,
+		})
+		publishedCount++
 	}
-
-	p.log.Info("DevBox discovery task completed", logger.Fields{
-		"publishedCount": publishedCount,
-	})
 }
 
-func (p *DevboxPlugin) GetIngressList() ([]models.DiscoveryInfo, error) {
+func (p *DevboxPlugin) GetIngressList(ctx context.Context) ([]models.DiscoveryInfo, error) {
 	p.log.Debug("Getting DevBox ingress list", logger.Fields{
 		"labelSelector": DevboxManagerLabel,
 	})
@@ -219,7 +218,7 @@ func (p *DevboxPlugin) GetIngressList() ([]models.DiscoveryInfo, error) {
 	var ingressList []models.DiscoveryInfo
 	ingresses, err := k8s.ClientSet.NetworkingV1().
 		Ingresses("").
-		List(context.TODO(), metav1.ListOptions{
+		List(ctx, metav1.ListOptions{
 			LabelSelector: DevboxManagerLabel,
 		})
 	if err != nil {
@@ -246,7 +245,7 @@ func (p *DevboxPlugin) GetIngressList() ([]models.DiscoveryInfo, error) {
 	})
 
 	devboxes, err := k8s.DynamicClient.Resource(devboxGVR).
-		List(context.TODO(), metav1.ListOptions{})
+		List(ctx, metav1.ListOptions{})
 	if err != nil {
 		p.log.Error("Failed to list DevBox resources", logger.Fields{
 			"group":    DevboxGroup,

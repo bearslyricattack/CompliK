@@ -135,7 +135,9 @@ func (p *CompletePlugin) Start(
 			"startDelay": p.completeConfig.StartTimeSecond,
 		})
 		time.Sleep(time.Duration(p.completeConfig.StartTimeSecond) * time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 		p.executeTask(ctx, eventBus)
+		cancel()
 	} else {
 		p.log.Debug("Auto-start disabled, waiting for scheduled intervals")
 	}
@@ -152,7 +154,9 @@ func (p *CompletePlugin) Start(
 			select {
 			case <-ticker.C:
 				p.log.Debug("Scheduled task trigger")
+				ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 				p.executeTask(ctx, eventBus)
+				cancel()
 			case <-ctx.Done():
 				p.log.Info("Context cancelled, stopping Complete plugin scheduler")
 				return
@@ -167,7 +171,7 @@ func (p *CompletePlugin) Start(
 func (p *CompletePlugin) executeTask(ctx context.Context, eventBus *eventbus.EventBus) {
 	p.log.Debug("Executing Complete discovery task")
 
-	ingressList, err := p.GetIngressList()
+	ingressList, err := p.GetIngressList(ctx)
 	if err != nil {
 		p.log.Error("Failed to get ingress list", logger.Fields{
 			"error": err.Error(),
@@ -206,7 +210,7 @@ func (p *CompletePlugin) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (p *CompletePlugin) GetIngressList() ([]models.DiscoveryInfo, error) {
+func (p *CompletePlugin) GetIngressList(ctx context.Context) ([]models.DiscoveryInfo, error) {
 	p.log.Debug("Getting complete ingress and endpoint slice lists")
 
 	var (
@@ -223,14 +227,14 @@ func (p *CompletePlugin) GetIngressList() ([]models.DiscoveryInfo, error) {
 		p.log.Debug("Fetching ingresses from all namespaces")
 		ingressItems, ingressErr = k8s.ClientSet.NetworkingV1().
 			Ingresses("").
-			List(context.TODO(), metav1.ListOptions{})
+			List(ctx, metav1.ListOptions{})
 	}()
 	go func() {
 		defer wg.Done()
 		p.log.Debug("Fetching endpoint slices from all namespaces")
 		endpointSlicesList, endpointSlicesErr = k8s.ClientSet.DiscoveryV1().
 			EndpointSlices("").
-			List(context.TODO(), metav1.ListOptions{})
+			List(ctx, metav1.ListOptions{})
 	}()
 	wg.Wait()
 

@@ -98,7 +98,7 @@ func (m *Manager) StartAll() error {
 }
 
 func (m *Manager) StartAllWithTimeout(timeout time.Duration) error {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	startCtx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -115,9 +115,7 @@ func (m *Manager) StartAllWithTimeout(timeout time.Duration) error {
 		go func(name string, instance *PluginInstance) {
 			defer wg.Done()
 			pluginLog := log.WithField("plugin", name)
-			pluginCtx, pluginCancel := context.WithTimeout(ctx, PluginStartTimeout)
-			defer pluginCancel()
-			if err := instance.Plugin.Start(pluginCtx, instance.Config, m.eventBus); err != nil {
+			if err := instance.Plugin.Start(context.Background(), instance.Config, m.eventBus); err != nil {
 				pluginLog.Error("Plugin failed", logger.Fields{"error": err.Error()})
 				errChan <- fmt.Errorf("plugin %s failed to start: %w", name, err)
 			} else {
@@ -141,7 +139,7 @@ func (m *Manager) StartAllWithTimeout(timeout time.Duration) error {
 			return fmt.Errorf("failed to start %d plugins: %v", len(errors), errors)
 		}
 		return nil
-	case <-ctx.Done():
+	case <-startCtx.Done():
 		return fmt.Errorf("plugin startup timeout after %v", timeout)
 	}
 }
