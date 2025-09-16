@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	PluginsStartTimeout = 60 * time.Second
+	PluginsStartTimeout = 600 * time.Second
 	PluginStartTimeout  = 20 * time.Second
 )
 
