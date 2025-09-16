@@ -23,7 +23,6 @@ func main() {
 	debug.SetTraceback("all")
 	os.Setenv("GOTRACEBACK", "all")
 
-	// 初始化日志系统
 	logger.Init()
 	log := logger.GetLogger()
 

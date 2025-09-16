@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	PluginsStartTimeout = 30 * time.Second
-	PluginStartTimeout  = 30 * time.Second
+	PluginsStartTimeout = 60 * time.Second
+	PluginStartTimeout  = 20 * time.Second
 )
 
 var PluginFactories = make(map[string]func() Plugin)
