@@ -55,7 +55,7 @@ type BrowserConfig struct {
 
 func (p *BrowserPlugin) getDefaultBrowserConfig() BrowserConfig {
 	return BrowserConfig{
-		CollectorTimeoutSecond: 100,
+		CollectorTimeoutSecond: 200,
 		MaxWorkers:             20,
 		BrowserNumber:          20,
 		BrowserTimeoutMinute:   300,
@@ -159,6 +159,7 @@ func (p *BrowserPlugin) Start(
 					ingress,
 					p.browserPool,
 					p.Name(),
+					time.Duration(p.browserConfig.CollectorTimeoutSecond)*time.Second,
 				)
 				if err != nil {
 					if p.shouldSkipError(err) {

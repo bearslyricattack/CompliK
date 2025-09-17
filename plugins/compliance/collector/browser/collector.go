@@ -45,8 +45,9 @@ func (s *Collector) CollectorAndScreenshot(
 	discovery models.DiscoveryInfo,
 	browserPool *utils.BrowserPool,
 	name string,
+	duration time.Duration,
 ) (*models.CollectorInfo, error) {
-	taskCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	taskCtx, cancel := context.WithTimeout(ctx, duration)
 	defer cancel()
 	if discovery.PodCount == 0 {
 		return &models.CollectorInfo{
@@ -62,7 +63,7 @@ func (s *Collector) CollectorAndScreenshot(
 			IsEmpty:       true,
 		}, nil
 	}
-	instance, err := browserPool.Get()
+	instance, err := browserPool.Get(taskCtx)
 	if err != nil {
 		return nil, fmt.Errorf("获取浏览器实例失败: %w", err)
 	}
@@ -150,9 +151,8 @@ func (s *Collector) CollectorAndScreenshot(
 	if err != nil {
 		return nil, err
 	}
-	var duration int64
 	if startTime, ok := taskCtx.Value("start_time").(time.Time); ok {
-		duration = time.Since(startTime).Milliseconds()
+		duration = time.Duration(time.Since(startTime).Milliseconds())
 	} else {
 		duration = 0
 	}
@@ -274,12 +274,10 @@ func (s *Collector) takeScreenshot(ctx context.Context, page *rod.Page) ([]byte,
 		return nil, ctx.Err()
 	default:
 	}
-	screenshotCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
 	var screenshot []byte
 	var err error
 	if rodErr := rod.Try(func() {
-		screenshot, err = page.Context(screenshotCtx).Screenshot(true, &proto.PageCaptureScreenshot{
+		screenshot, err = page.Context(ctx).Screenshot(true, &proto.PageCaptureScreenshot{
 			Format:  proto.PageCaptureScreenshotFormatJpeg,
 			Quality: &[]int{75}[0],
 		})

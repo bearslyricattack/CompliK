@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -47,14 +48,12 @@ func NewBrowserPool(maxSize int, maxAge time.Duration) *BrowserPool {
 	return pool
 }
 
-func (p *BrowserPool) Get() (*BrowserInstance, error) {
-	// 快速检查可用实例
+func (p *BrowserPool) Get(ctx context.Context) (*BrowserInstance, error) {
 	p.mu.RLock()
 	for _, instance := range p.instances {
 		if !instance.InUse && time.Since(instance.Created) < p.maxAge {
 			p.mu.RUnlock()
 			p.mu.Lock()
-			// 再次检查避免竞态
 			if !instance.InUse {
 				instance.InUse = true
 				p.mu.Unlock()
@@ -65,8 +64,6 @@ func (p *BrowserPool) Get() (*BrowserInstance, error) {
 		}
 	}
 	p.mu.RUnlock()
-
-	// 尝试创建新实例
 	p.mu.Lock()
 	if len(p.instances) < p.maxSize {
 		instance, err := p.createInstance()
@@ -80,20 +77,15 @@ func (p *BrowserPool) Get() (*BrowserInstance, error) {
 		return instance, nil
 	}
 	p.mu.Unlock()
-
-	// 等待可用实例
 	p.log.Debug("Browser pool full, waiting for available instance")
 	waitChan := make(chan *BrowserInstance, 1)
 	select {
 	case p.waitQueue <- waitChan:
-		// 等待超时时间
-		timer := time.NewTimer(30 * time.Second)
-		defer timer.Stop()
 		select {
 		case instance := <-waitChan:
 			p.log.Debug("Got instance from wait queue")
 			return instance, nil
-		case <-timer.C:
+		case <-ctx.Done():
 			p.log.Warn("Timeout waiting for browser instance")
 			return nil, errors.New("等待浏览器实例超时")
 		}
