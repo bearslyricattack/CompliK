@@ -12,8 +12,7 @@ import (
 )
 
 const (
-	PluginsStartTimeout = 600 * time.Second
-	PluginStartTimeout  = 20 * time.Second
+	PluginStopTimeout = 20 * time.Second
 )
 
 var PluginFactories = make(map[string]func() Plugin)
@@ -94,12 +93,10 @@ func getRegisteredFactoryNames() []string {
 }
 
 func (m *Manager) StartAll() error {
-	return m.StartAllWithTimeout(PluginsStartTimeout)
+	return m.StartAllWithTimeout()
 }
 
-func (m *Manager) StartAllWithTimeout(timeout time.Duration) error {
-	startCtx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
+func (m *Manager) StartAllWithTimeout() error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	log := logger.GetLogger()
@@ -139,13 +136,11 @@ func (m *Manager) StartAllWithTimeout(timeout time.Duration) error {
 			return fmt.Errorf("failed to start %d plugins: %v", len(errors), errors)
 		}
 		return nil
-	case <-startCtx.Done():
-		return fmt.Errorf("plugin startup timeout after %v", timeout)
 	}
 }
 
 func (m *Manager) StopAll() error {
-	ctx, cancel := context.WithTimeout(context.Background(), PluginStartTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), PluginStopTimeout)
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	log := logger.GetLogger()
