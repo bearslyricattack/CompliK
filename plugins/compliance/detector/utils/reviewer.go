@@ -292,7 +292,7 @@ func (r *ContentReviewer) callAPI(
 
 	r.log.Debug("Sending HTTP request", logger.Fields{
 		"url":             r.apiURL,
-		"timeout_seconds": 60,
+		"timeout_seconds": 180,
 	})
 
 	resp, err := client.Do(req)

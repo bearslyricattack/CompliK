@@ -45,7 +45,6 @@ func (f *Notifier) SendAnalysisNotification(results *models.DetectorInfo) error 
 	if !results.IsIllegal {
 		return nil
 	}
-	fmt.Println("不合规 尝试发送通知")
 	isWhitelisted := false
 	var whitelistInfo *whitelist.Whitelist
 	if f.WhitelistService != nil {

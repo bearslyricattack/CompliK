@@ -150,7 +150,6 @@ func (p *SafetyPlugin) Start(
 		"worker_pool_size": p.safetyConfig.MaxWorkers,
 	})
 	time.Sleep(30 * time.Second)
-	fmt.Println("发送")
 	eventBus.Publish(constants.DetectorTopic, eventbus.Event{
 		Payload: &models.DetectorInfo{
 			DiscoveryName: "程序启动，飞书通知测试",
