@@ -149,6 +149,23 @@ func (p *SafetyPlugin) Start(
 	p.log.Info("Safety detector started", logger.Fields{
 		"worker_pool_size": p.safetyConfig.MaxWorkers,
 	})
+	time.Sleep(30 * time.Second)
+	fmt.Println("发送")
+	eventBus.Publish(constants.DetectorTopic, eventbus.Event{
+		Payload: &models.DetectorInfo{
+			DiscoveryName: "程序启动，飞书通知测试",
+			CollectorName: "程序启动，飞书通知测试",
+			DetectorName:  p.Name(),
+			Name:          "程序启动，飞书通知测试",
+			Namespace:     "程序启动，飞书通知测试",
+			Host:          "",
+			Path:          nil,
+			URL:           "程序启动，飞书通知测试",
+			IsIllegal:     true,
+			Description:   "飞书消息测试 - 程序已成功启动",
+			Keywords:      []string{"程序启动", "飞书测试", "系统初始化"},
+		},
+	})
 	for {
 		select {
 		case event, ok := <-subscribe:
