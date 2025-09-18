@@ -35,14 +35,17 @@ func NewNotifier(webhookURL string, db *gorm.DB, timeout time.Duration, region s
 
 func (f *Notifier) SendAnalysisNotification(results *models.DetectorInfo) error {
 	if f.WebhookURL == "" {
+		fmt.Println("未设置webhook URL，跳过通知发送")
 		return errors.New("未设置webhook URL，跳过通知发送")
 	}
 	if results == nil {
+		fmt.Println("分析结果为空")
 		return errors.New("分析结果为空")
 	}
 	if !results.IsIllegal {
 		return nil
 	}
+	fmt.Println("不合规 尝试发送通知")
 	isWhitelisted := false
 	var whitelistInfo *whitelist.Whitelist
 	if f.WhitelistService != nil {
