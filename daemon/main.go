@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/bearslyricattack/CompliK/mining/internal/scanner"
+	"github.com/bearslyricattack/CompliK/daemon/internal/scanner"
 )
 
 func main() {

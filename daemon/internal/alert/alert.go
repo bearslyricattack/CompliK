@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/bearslyricattack/CompliK/mining/internal/types"
+	"github.com/bearslyricattack/CompliK/daemon/internal/types"
 )
 
 // Sender 告警发送器

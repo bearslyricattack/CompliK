@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/bearslyricattack/CompliK/mining/internal/types"
+	"github.com/bearslyricattack/CompliK/daemon/internal/types"
 )
 
 // InfoProvider 容器信息提供者

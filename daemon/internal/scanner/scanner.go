@@ -5,11 +5,11 @@ import (
 	"log"
 	"time"
 
-	"github.com/bearslyricattack/CompliK/mining/internal/alert"
-	"github.com/bearslyricattack/CompliK/mining/internal/config"
-	"github.com/bearslyricattack/CompliK/mining/internal/container"
-	"github.com/bearslyricattack/CompliK/mining/internal/process"
-	"github.com/bearslyricattack/CompliK/mining/internal/types"
+	"github.com/bearslyricattack/CompliK/daemon/internal/alert"
+	"github.com/bearslyricattack/CompliK/daemon/internal/config"
+	"github.com/bearslyricattack/CompliK/daemon/internal/container"
+	"github.com/bearslyricattack/CompliK/daemon/internal/process"
+	"github.com/bearslyricattack/CompliK/daemon/internal/types"
 )
 
 // Scanner 扫描器结构
@@ -107,8 +107,7 @@ func (s *Scanner) scanProcesses() error {
 			continue
 		}
 
-		log.Printf("发现恶意进程: PID=%d, 进程名=%s, 命令行=%s",
-			processInfo.PID, processInfo.ProcessName, processInfo.Command)
+		log.Printf("发现恶意进程: PID=%d, 进程名=%s, 命令行=%s", processInfo.PID, processInfo.ProcessName, processInfo.Command)
 		containerInfo, err := s.containerInfo.GetContainerInfo(pid)
 		if err != nil {
 			log.Printf("获取容器信息失败: %v", err)

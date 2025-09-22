@@ -5,8 +5,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/bearslyricattack/CompliK/mining/internal/types"
-	"github.com/bearslyricattack/CompliK/mining/pkg/utils"
+	"github.com/bearslyricattack/CompliK/daemon/internal/types"
+	"github.com/bearslyricattack/CompliK/daemon/pkg/utils"
 	"gopkg.in/yaml.v3"
 )
 
@@ -39,12 +39,10 @@ func (m *Manager) LoadConfig() error {
 	return nil
 }
 
-// GetConfig 获取配置
 func (m *Manager) GetConfig() types.Config {
 	return m.config
 }
 
-// LoadScannerConfig 加载扫描器配置
 func LoadScannerConfig() types.ScannerConfig {
 	return types.ScannerConfig{
 		ComplianceURL: utils.GetEnvOrDefault(
@@ -53,7 +51,7 @@ func LoadScannerConfig() types.ScannerConfig {
 		),
 		NodeName:      utils.GetEnvOrDefault("NODE_NAME", "unknown"),
 		ScanInterval:  utils.GetEnvIntOrDefault("SCAN_INTERVAL", 30),
-		ProcPath:      utils.GetEnvOrDefault("PROC_PATH", "/host/proc"),
+		ProcPath:      utils.GetEnvOrDefault("PROC_PATH", "test/proc"),
 		ConfigMapPath: utils.GetEnvOrDefault("CONFIG_MAP_PATH", "config.yml"),
 	}
 }

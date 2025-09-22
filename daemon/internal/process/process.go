@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bearslyricattack/CompliK/mining/internal/types"
+	"github.com/bearslyricattack/CompliK/daemon/internal/types"
 )
 
 // Processor 进程处理器
