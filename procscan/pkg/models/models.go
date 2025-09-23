@@ -1,4 +1,12 @@
-package types
+package models
+
+type Config struct {
+	Processes          []string `yaml:"processes"`
+	Keywords           []string `yaml:"keywords"`
+	NodeName           string   `yaml:"node_name"`
+	ProcPath           string   `yaml:"proc_path"`
+	ScanIntervalSecond int      `yaml:"scan_interval"`
+}
 
 // ProcessInfo 进程信息结构
 type ProcessInfo struct {
@@ -17,12 +25,6 @@ type ComplianceAlert struct {
 	AlertType string      `json:"alert_type"`
 	Message   string      `json:"message"`
 	Process   ProcessInfo `json:"process"`
-}
-
-// Config 配置结构
-type Config struct {
-	BannedProcesses []string `yaml:"banned_processes"`
-	Keywords        []string `yaml:"keywords"`
 }
 
 // ContainerInfo 容器信息

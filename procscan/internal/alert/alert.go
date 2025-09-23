@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/bearslyricattack/CompliK/procscan/pkg/models"
+	"github.com/bearslyricattack/CompliK/procscan/pkg/utils"
 	"io"
 	"log"
 	"net/http"
 	"time"
-
-	"github.com/bearslyricattack/CompliK/daemon/internal/types"
 )
 
 // Sender 告警发送器
@@ -31,8 +31,8 @@ func NewSender(complianceURL, nodeName string) *Sender {
 }
 
 // SendAlert 发送告警
-func (s *Sender) SendAlert(processInfo types.ProcessInfo) error {
-	alert := types.ComplianceAlert{
+func (s *Sender) SendAlert(processInfo models.ProcessInfo) error {
+	alert := models.ComplianceAlert{
 		AlertType: "malicious_process_detected",
 		Message: fmt.Sprintf("在节点 %s 上检测到恶意进程: %s (PID: %d)",
 			s.nodeName, processInfo.ProcessName, processInfo.PID),
@@ -56,16 +56,5 @@ func (s *Sender) SendAlert(processInfo types.ProcessInfo) error {
 	}
 
 	log.Printf("告警发送成功: %s", alert.Message)
-	return nil
-}
-
-// SendBatchAlerts 批量发送告警
-func (s *Sender) SendBatchAlerts(processInfos []types.ProcessInfo) error {
-	for _, processInfo := range processInfos {
-		if err := s.SendAlert(processInfo); err != nil {
-			log.Printf("发送告警失败: %v", err)
-			continue
-		}
-	}
 	return nil
 }

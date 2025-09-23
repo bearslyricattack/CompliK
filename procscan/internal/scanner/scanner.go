@@ -2,20 +2,18 @@ package scanner
 
 import (
 	"context"
+	"github.com/bearslyricattack/CompliK/procscan/pkg/models"
 	"log"
 	"time"
 
-	"github.com/bearslyricattack/CompliK/daemon/internal/alert"
-	"github.com/bearslyricattack/CompliK/daemon/internal/config"
-	"github.com/bearslyricattack/CompliK/daemon/internal/container"
-	"github.com/bearslyricattack/CompliK/daemon/internal/process"
-	"github.com/bearslyricattack/CompliK/daemon/internal/types"
+	"github.com/bearslyricattack/CompliK/procscan/internal/alert"
+	"github.com/bearslyricattack/CompliK/procscan/internal/container"
+	"github.com/bearslyricattack/CompliK/procscan/internal/process"
 )
 
 // Scanner 扫描器结构
 type Scanner struct {
-	config        types.ScannerConfig
-	configManager *config.Manager
+	config        *models.Config
 	processor     *process.Processor
 	containerInfo *container.InfoProvider
 	alertSender   *alert.Sender
@@ -23,21 +21,13 @@ type Scanner struct {
 }
 
 // NewScanner 创建新的扫描器
-func NewScanner() *Scanner {
-	// 加载扫描器配置
-	scannerConfig := config.LoadScannerConfig()
-	// 创建配置管理器
-	configManager := config.NewManager(scannerConfig.ConfigMapPath)
-	// 创建告警发送器
-	alertSender := alert.NewSender(scannerConfig.ComplianceURL, scannerConfig.NodeName)
-	// 创建容器信息提供者
-	containerInfoProvider := container.NewInfoProvider(scannerConfig.ProcPath)
+func NewScanner(config *models.Config) *Scanner {
 	return &Scanner{
-		config:        scannerConfig,
-		configManager: configManager,
-		containerInfo: containerInfoProvider,
-		alertSender:   alertSender,
-		scanInterval:  time.Duration(scannerConfig.ScanInterval) * time.Second,
+		config:        config,
+		processor:     nil, // 在Start方法中初始化
+		containerInfo: container.NewInfoProvider(),
+		alertSender:   alert.NewSender(),
+		scanInterval:  time.Duration(config.ScanIntervalSecond) * time.Second,
 	}
 }
 
@@ -46,30 +36,27 @@ func (s *Scanner) Start(ctx context.Context) error {
 	log.Printf("启动进程扫描器，节点: %s, 扫描间隔: %v",
 		s.config.NodeName, s.scanInterval)
 
-	// 加载初始配置
-	if err := s.configManager.LoadConfig(); err != nil {
-		return err
-	}
-
 	// 创建进程处理器
 	s.processor = process.NewProcessor(
-		s.config.ProcPath,
-		s.config.NodeName,
-		s.configManager.GetConfig(),
+		s.config,
 	)
 
 	// 启动定时任务
 	return s.runScanLoop(ctx)
 }
 
+func (s *Scanner) UpdateConfig(config *models.Config) {
+	s.config = config
+	s.scanInterval = time.Duration(config.ScanIntervalSecond) * time.Second
+	if s.processor != nil {
+		s.processor.UpdateConfig(config)
+	}
+}
+
 // runScanLoop 运行扫描循环
 func (s *Scanner) runScanLoop(ctx context.Context) error {
 	ticker := time.NewTicker(s.scanInterval)
 	defer ticker.Stop()
-
-	// 配置重新加载定时器（每5分钟重新加载一次配置）
-	configTicker := time.NewTicker(5 * time.Minute)
-	defer configTicker.Stop()
 
 	for {
 		select {
@@ -81,11 +68,6 @@ func (s *Scanner) runScanLoop(ctx context.Context) error {
 			if err := s.scanProcesses(); err != nil {
 				log.Printf("扫描进程失败: %v", err)
 			}
-
-		case <-configTicker.C:
-			if err := s.reloadConfig(); err != nil {
-				log.Printf("重新加载配置失败: %v", err)
-			}
 		}
 	}
 }
@@ -96,7 +78,9 @@ func (s *Scanner) scanProcesses() error {
 	if err != nil {
 		return err
 	}
-	maliciousProcesses := make([]types.ProcessInfo, 0, len(pids))
+
+	maliciousProcesses := make([]models.ProcessInfo, 0)
+
 	for _, pid := range pids {
 		processInfo, err := s.processor.AnalyzeProcess(pid)
 		if err != nil {
@@ -107,7 +91,10 @@ func (s *Scanner) scanProcesses() error {
 			continue
 		}
 
-		log.Printf("发现恶意进程: PID=%d, 进程名=%s, 命令行=%s", processInfo.PID, processInfo.ProcessName, processInfo.Command)
+		log.Printf("发现恶意进程: PID=%d, 进程名=%s, 命令行=%s",
+			processInfo.PID, processInfo.ProcessName, processInfo.Command)
+
+		// 获取容器信息
 		containerInfo, err := s.containerInfo.GetContainerInfo(pid)
 		if err != nil {
 			log.Printf("获取容器信息失败: %v", err)
@@ -116,18 +103,13 @@ func (s *Scanner) scanProcesses() error {
 			processInfo.PodName = containerInfo.PodName
 			processInfo.Namespace = containerInfo.Namespace
 		}
+
 		maliciousProcesses = append(maliciousProcesses, *processInfo)
 	}
+
 	if len(maliciousProcesses) > 0 {
 		return s.alertSender.SendBatchAlerts(maliciousProcesses)
 	}
-	return nil
-}
 
-func (s *Scanner) reloadConfig() error {
-	if err := s.configManager.LoadConfig(); err != nil {
-		return err
-	}
-	s.processor.UpdateConfig(s.configManager.GetConfig())
 	return nil
 }

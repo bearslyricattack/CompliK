@@ -1,12 +1,12 @@
 package container
 
 import (
+	"github.com/bearslyricattack/CompliK/procscan/pkg/models"
+	"github.com/bearslyricattack/CompliK/procscan/pkg/utils"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
-
-	"github.com/bearslyricattack/CompliK/daemon/internal/types"
 )
 
 // InfoProvider 容器信息提供者
@@ -22,7 +22,7 @@ func NewInfoProvider(procPath string) *InfoProvider {
 }
 
 // GetContainerInfo 获取容器信息
-func (c *InfoProvider) GetContainerInfo(pid int) (*types.ContainerInfo, error) {
+func (c *InfoProvider) GetContainerInfo(pid int) (*models.ContainerInfo, error) {
 	cgroupFile := filepath.Join(c.procPath, strconv.Itoa(pid), "cgroup")
 	cgroupData, err := os.ReadFile(cgroupFile)
 	if err != nil {
@@ -34,7 +34,7 @@ func (c *InfoProvider) GetContainerInfo(pid int) (*types.ContainerInfo, error) {
 	// 提取容器ID
 	containerID := c.extractContainerID(cgroupContent)
 	if containerID == "" {
-		return &types.ContainerInfo{
+		return &models.ContainerInfo{
 			ContainerID: "unknown",
 			PodName:     "unknown",
 			Namespace:   "unknown",
@@ -44,14 +44,14 @@ func (c *InfoProvider) GetContainerInfo(pid int) (*types.ContainerInfo, error) {
 	// 通过crictl或其他方式获取容器信息
 	podInfo, err := c.getPodInfoFromContainer()
 	if err != nil {
-		return &types.ContainerInfo{
+		return &models.ContainerInfo{
 			ContainerID: containerID,
 			PodName:     "unknown",
 			Namespace:   "unknown",
 		}, nil
 	}
 
-	return &types.ContainerInfo{
+	return &models.ContainerInfo{
 		ContainerID: containerID,
 		PodName:     podInfo.PodName,
 		Namespace:   podInfo.Namespace,
@@ -72,7 +72,7 @@ func (c *InfoProvider) extractContainerID(cgroupContent string) string {
 }
 
 // getPodInfoFromContainer 通过容器ID获取Pod信息
-func (c *InfoProvider) getPodInfoFromContainer() (*types.PodInfo, error) {
+func (c *InfoProvider) getPodInfoFromContainer() (*models.PodInfo, error) {
 	// 这里简化处理，实际环境中需要调用crictl或者kubernetes API
 	// 由于在容器中运行，这里使用环境变量或者其他方式获取
 
@@ -87,7 +87,7 @@ func (c *InfoProvider) getPodInfoFromContainer() (*types.PodInfo, error) {
 		namespace = "default"
 	}
 
-	return &types.PodInfo{
+	return &models.PodInfo{
 		PodName:   podName,
 		Namespace: namespace,
 	}, nil
