@@ -5,7 +5,6 @@ import (
 	"github.com/bearslyricattack/CompliK/procscan/pkg/models"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -89,16 +88,10 @@ func (p *Processor) isMaliciousProcess(processName, cmdline string) (bool, strin
 	// 检查进程名和命令行中的禁用进程
 	for _, banned := range p.Processes {
 		lowerBanned := strings.ToLower(banned)
-
-		// 进程名精确匹配或作为单词匹配
-		if lowerProcessName == lowerBanned || strings.Contains(lowerProcessName, lowerBanned) {
+		if strings.Contains(lowerProcessName, lowerBanned) {
 			return true, fmt.Sprintf("进程名匹配禁用进程: %s", banned)
 		}
-
-		// 命令行中作为独立单词匹配
-		pattern := `\b` + regexp.QuoteMeta(lowerBanned) + `\b`
-		matched, _ := regexp.MatchString(pattern, lowerCmdline)
-		if matched {
+		if strings.Contains(lowerCmdline, lowerBanned) {
 			return true, fmt.Sprintf("命令行匹配禁用进程: %s", banned)
 		}
 	}
@@ -106,9 +99,7 @@ func (p *Processor) isMaliciousProcess(processName, cmdline string) (bool, strin
 	// 检查命令行中的关键词
 	for _, keyword := range p.Keywords {
 		lowerKeyword := strings.ToLower(keyword)
-		pattern := `\b` + regexp.QuoteMeta(lowerKeyword) + `\b`
-		matched, _ := regexp.MatchString(pattern, lowerCmdline)
-		if matched {
+		if strings.Contains(lowerCmdline, lowerKeyword) {
 			return true, fmt.Sprintf("命令行匹配关键词: %s", keyword)
 		}
 	}
