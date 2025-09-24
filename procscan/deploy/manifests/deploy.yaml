@@ -44,7 +44,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: process-scanner
-    namespace: security
+    namespace: sealos
 
 ---
 # ConfigMap
@@ -94,7 +94,7 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: proc-scan
-  namespace: security
+  namespace: sealos
   labels:
     app: proc-scan
     version: v1.0.0
