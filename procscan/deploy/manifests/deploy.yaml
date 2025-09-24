@@ -54,7 +54,7 @@ data:
     node_name: "security-monitor-node"
     proc_path: "/host/proc"
     scan_interval: 100
-    lark: "https://open.feishu.cn/open-apis/bot/v2/hook/57e00497-a1da-41cd-9342-2e645f95e6ec",
+    lark: "https://open.feishu.cn/open-apis/bot/v2/hook/57e00497-a1da-41cd-9342-2e645f95e6ec"
     processes:
       - "miner"
       - "agsb"
