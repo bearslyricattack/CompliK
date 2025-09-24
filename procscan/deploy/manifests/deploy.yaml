@@ -53,12 +53,11 @@ data:
   config.yaml: |
     proc_path: "/host/proc"
     scan_interval: 100
-    lark: "https://open.feishu.cn/open-apis/bot/v2/hook/de0df867-9457-49be-a747-e01274a319cc"
+    lark: ""
     processes:
       - "miner"
       - "agsb"
       - "cloudflar"
-      - "top"
     keywords:
 ---
 # DaemonSet
