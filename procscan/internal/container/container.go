@@ -51,6 +51,8 @@ func GetContainerInfo(containerID string) (string, string, error) {
 	if response == nil {
 		return "", "", fmt.Errorf("响应为空")
 	}
+	fmt.Println("container")
+	fmt.Println(response.Containers)
 
 	if len(response.Containers) == 0 {
 		fmt.Println("未找到任何容器")
@@ -58,6 +60,7 @@ func GetContainerInfo(containerID string) (string, string, error) {
 	}
 	container := response.Containers[0]
 	if container.PodSandboxId != "" {
+		fmt.Println("sandboxID")
 		fmt.Printf("Pod Sandbox ID: %s\n", container.PodSandboxId)
 		client := runtimeapi.NewRuntimeServiceClient(conn)
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
