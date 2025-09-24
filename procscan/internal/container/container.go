@@ -51,14 +51,20 @@ func GetContainerInfo(containerID string) (string, string, error) {
 	if response == nil {
 		return "", "", fmt.Errorf("响应为空")
 	}
-	fmt.Println("container")
-	fmt.Println(response.Containers)
-
 	if len(response.Containers) == 0 {
 		fmt.Println("未找到任何容器")
 		return "", "", nil
 	}
 	container := response.Containers[0]
+	fmt.Println("容器数")
+	fmt.Println(len(response.Containers))
+	for i, conta := range response.Containers {
+		fmt.Println(i)
+		fmt.Println(conta.PodSandboxId)
+		fmt.Println(conta.Id)
+		fmt.Println(conta.Metadata)
+	}
+
 	if container.PodSandboxId != "" {
 		fmt.Println("sandboxID")
 		fmt.Printf("Pod Sandbox ID: %s\n", container.PodSandboxId)
