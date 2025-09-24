@@ -5,6 +5,7 @@ import (
 	"github.com/bearslyricattack/CompliK/procscan/internal/alert"
 	"github.com/bearslyricattack/CompliK/procscan/pkg/models"
 	"log"
+	"os"
 	"time"
 
 	"github.com/bearslyricattack/CompliK/procscan/internal/container"
@@ -26,7 +27,7 @@ func NewScanner(config *models.Config) *Scanner {
 }
 
 func (s *Scanner) Start(ctx context.Context) error {
-	log.Printf("启动进程扫描器，节点: %s, 扫描间隔: %v", s.config.NodeName, s.scanInterval)
+	log.Printf("启动进程扫描器，节点: %s, 扫描间隔: %v", os.Getenv("NODE_NAME"), s.scanInterval)
 	s.processor = process.NewProcessor(s.config)
 	return s.runScanLoop(ctx)
 }
@@ -69,7 +70,10 @@ func (s *Scanner) scanProcesses() error {
 			processInfo.Namespace = namespace
 		}
 		log.Printf("发现恶意进程: PID=%d, 进程名=%s, 命令行=%s,containerid=%s,PodName=%s,Namespace=%s,原因=%s", processInfo.PID, processInfo.ProcessName, processInfo.Command, processInfo.ContainerID, processInfo.PodName, processInfo.Namespace, processInfo.Message)
-		alert.SendProcessAlert(processInfo, s.config.Lark)
+		err = alert.SendProcessAlert(processInfo, s.config.Lark)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

@@ -12,7 +12,6 @@ import (
 
 type Processor struct {
 	ProcPath  string
-	NodeName  string
 	Processes []string
 	Keywords  []string
 }
@@ -20,7 +19,6 @@ type Processor struct {
 func NewProcessor(config *models.Config) *Processor {
 	return &Processor{
 		ProcPath:  config.ProcPath,
-		NodeName:  config.NodeName,
 		Processes: config.Processes,
 		Keywords:  config.Keywords,
 	}
@@ -67,7 +65,6 @@ func (p *Processor) AnalyzeProcess(pid int) (*models.ProcessInfo, error) {
 		PID:         pid,
 		ProcessName: processName,
 		Command:     cmdline,
-		NodeName:    p.NodeName,
 		Timestamp:   time.Now().Format(time.RFC3339),
 		ContainerID: containerID,
 		Message:     msg,

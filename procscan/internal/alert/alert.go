@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/bearslyricattack/CompliK/procscan/pkg/models"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -36,7 +37,7 @@ func SendProcessAlert(processInfo *models.ProcessInfo, webhookURL string) error 
 			{
 				"tag": "div",
 				"text": map[string]any{
-					"content": fmt.Sprintf("**🖥️ 节点名称:** %s", processInfo.NodeName),
+					"content": fmt.Sprintf("**🖥️ 节点名称:** %s", os.Getenv("NODE_NAME")),
 					"tag":     "lark_md",
 				},
 			},
