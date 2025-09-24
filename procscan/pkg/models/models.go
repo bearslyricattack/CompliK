@@ -27,7 +27,6 @@ type ComplianceAlert struct {
 	Process   ProcessInfo `json:"process"`
 }
 
-// ContainerInfo 容器信息
 type ContainerInfo struct {
 	ContainerID string
 	PodName     string

@@ -1,5 +1,8 @@
-# 禁用进程列表
-banned_processes:
+node_name: "security-monitor-node"
+proc_path: "proc"
+scan_interval: 10
+
+processes:
   - "nc"
   - "netcat"
   - "ncat"
@@ -17,7 +20,6 @@ banned_processes:
   - "sh"
   - "zsh"
 
-# 关键词列表
 keywords:
   - "reverse_shell"
   - "backdoor"

@@ -30,7 +30,7 @@ func NewProcessor(config *models.Config) *Processor {
 func (p *Processor) GetAllProcesses() ([]int, error) {
 	procDirs, err := os.ReadDir(p.ProcPath)
 	if err != nil {
-		return nil, fmt.Errorf("读取 %s 目录失败: %w", p.procPath, err)
+		return nil, fmt.Errorf("读取 %s 目录失败: %w", p.ProcPath, err)
 	}
 	pids := make([]int, 0, len(procDirs))
 	for _, dir := range procDirs {

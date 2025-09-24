@@ -3,8 +3,7 @@ package main
 import (
 	"context"
 	"flag"
-	"github.com/bearslyricattack/CompliK/internal/app"
-	"github.com/bearslyricattack/CompliK/pkg/logger"
+	"github.com/bearslyricattack/CompliK/procscan/pkg/config"
 	"log"
 	"os"
 	"os/signal"
@@ -14,24 +13,16 @@ import (
 )
 
 func main() {
-
 	configPath := flag.String("config", "", "path to configuration file")
 	flag.Parse()
-
-	log.Info("Starting CompliK", logger.Fields{
-		"version": "1.0.0",
-		"config":  *configPath,
-	})
-
-	if err := app.Run(*configPath); err != nil {
-		log.Fatal("Application failed", logger.Fields{
-			"error": err.Error(),
-		})
+	cfg, err := config.LoadConfig(*configPath)
+	if err != nil {
+		log.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go handleSignals(cancel)
-	s := scanner.NewScanner()
+	s := scanner.NewScanner(cfg)
 	if err := s.Start(ctx); err != nil {
 		log.Printf("扫描器启动失败: %v", err)
 		return

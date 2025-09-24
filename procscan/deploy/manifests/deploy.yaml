@@ -1,8 +1,104 @@
+---
+# ServiceAccount
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: process-scanner
+  namespace: security
+automountServiceAccountToken: true
+
+---
+# ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: process-scanner
+rules:
+  # 读取 Pod 信息
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  # 读取节点信息
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list"]
+  # 创建事件
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+  # 读取命名空间信息
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list"]
+
+---
+# ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: process-scanner
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: process-scanner
+subjects:
+  - kind: ServiceAccount
+    name: process-scanner
+    namespace: security
+
+---
+# ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: scanner-config
+  namespace: security
+data:
+  config.yaml: |
+    node_name: "security-monitor-node"
+    proc_path: "proc"
+    scan_interval: 10
+
+    processes:
+      - "nc"
+      - "netcat"
+      - "ncat"
+      - "socat"
+      - "telnet"
+      - "ssh"
+      - "scp"
+      - "rsync"
+      - "wget"
+      - "curl"
+      - "python"
+      - "perl"
+      - "ruby"
+      - "bash"
+      - "sh"
+      - "zsh"
+
+    keywords:
+      - "reverse_shell"
+      - "backdoor"
+      - "malware"
+      - "exploit"
+      - "payload"
+      - "/tmp/"
+      - "/dev/shm/"
+      - "base64"
+      - "encode"
+      - "decode"
+
+---
+# DaemonSet
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: process-scanner
   namespace: security
+  labels:
+    app: process-scanner
+    version: v1.0.0
 spec:
   selector:
     matchLabels:
@@ -11,37 +107,31 @@ spec:
     metadata:
       labels:
         app: process-scanner
+        version: v1.0.0
     spec:
       hostNetwork: true
       hostPID: true
+      serviceAccountName: process-scanner
       containers:
         - name: scanner
           image: process-scanner:latest
+          imagePullPolicy: Always
+          command: [ "/manager" ]
+          args:
+            - --config=/config/config.yml
           securityContext:
             privileged: true
-          env:
-            - name: NODE_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: spec.nodeName
-            - name: POD_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
-            - name: POD_NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
-            - name: COMPLIANCE_URL
-              value: "http://compliance-service:8080/alert"
-            - name: SCAN_INTERVAL
-              value: "30"
+            runAsUser: 0
           volumeMounts:
             - name: proc
               mountPath: /host/proc
               readOnly: true
             - name: config
               mountPath: /config
+              readOnly: true
+            - name: containerd-sock
+              mountPath: /var/run/containerd/containerd.sock
+              readOnly: false
           resources:
             limits:
               memory: 128Mi
@@ -53,6 +143,12 @@ spec:
         - name: proc
           hostPath:
             path: /proc
+            type: Directory
         - name: config
           configMap:
             name: scanner-config
+            defaultMode: 0644
+        - name: containerd-sock
+          hostPath:
+            path: /var/run/containerd/containerd.sock
+            type: Socket

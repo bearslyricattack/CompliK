@@ -11,7 +11,6 @@ import (
 	"github.com/bearslyricattack/CompliK/procscan/internal/process"
 )
 
-// Scanner 扫描器结构
 type Scanner struct {
 	config        *models.Config
 	processor     *process.Processor
@@ -20,50 +19,30 @@ type Scanner struct {
 	scanInterval  time.Duration
 }
 
-// NewScanner 创建新的扫描器
 func NewScanner(config *models.Config) *Scanner {
 	return &Scanner{
 		config:        config,
-		processor:     nil, // 在Start方法中初始化
+		processor:     nil,
 		containerInfo: container.NewInfoProvider(),
-		alertSender:   alert.NewSender(),
+		alertSender:   alert.NewSender("", config.NodeName),
 		scanInterval:  time.Duration(config.ScanIntervalSecond) * time.Second,
 	}
 }
 
-// Start 启动扫描器
 func (s *Scanner) Start(ctx context.Context) error {
-	log.Printf("启动进程扫描器，节点: %s, 扫描间隔: %v",
-		s.config.NodeName, s.scanInterval)
-
-	// 创建进程处理器
-	s.processor = process.NewProcessor(
-		s.config,
-	)
-
-	// 启动定时任务
+	log.Printf("启动进程扫描器，节点: %s, 扫描间隔: %v", s.config.NodeName, s.scanInterval)
+	s.processor = process.NewProcessor(s.config)
 	return s.runScanLoop(ctx)
 }
 
-func (s *Scanner) UpdateConfig(config *models.Config) {
-	s.config = config
-	s.scanInterval = time.Duration(config.ScanIntervalSecond) * time.Second
-	if s.processor != nil {
-		s.processor.UpdateConfig(config)
-	}
-}
-
-// runScanLoop 运行扫描循环
 func (s *Scanner) runScanLoop(ctx context.Context) error {
 	ticker := time.NewTicker(s.scanInterval)
 	defer ticker.Stop()
-
 	for {
 		select {
 		case <-ctx.Done():
 			log.Println("扫描器停止")
 			return ctx.Err()
-
 		case <-ticker.C:
 			if err := s.scanProcesses(); err != nil {
 				log.Printf("扫描进程失败: %v", err)
@@ -72,15 +51,12 @@ func (s *Scanner) runScanLoop(ctx context.Context) error {
 	}
 }
 
-// scanProcesses 扫描进程
 func (s *Scanner) scanProcesses() error {
 	pids, err := s.processor.GetAllProcesses()
 	if err != nil {
 		return err
 	}
-
 	maliciousProcesses := make([]models.ProcessInfo, 0)
-
 	for _, pid := range pids {
 		processInfo, err := s.processor.AnalyzeProcess(pid)
 		if err != nil {
@@ -90,11 +66,8 @@ func (s *Scanner) scanProcesses() error {
 		if processInfo == nil {
 			continue
 		}
-
 		log.Printf("发现恶意进程: PID=%d, 进程名=%s, 命令行=%s",
 			processInfo.PID, processInfo.ProcessName, processInfo.Command)
-
-		// 获取容器信息
 		containerInfo, err := s.containerInfo.GetContainerInfo(pid)
 		if err != nil {
 			log.Printf("获取容器信息失败: %v", err)
@@ -103,13 +76,15 @@ func (s *Scanner) scanProcesses() error {
 			processInfo.PodName = containerInfo.PodName
 			processInfo.Namespace = containerInfo.Namespace
 		}
-
 		maliciousProcesses = append(maliciousProcesses, *processInfo)
 	}
-
-	if len(maliciousProcesses) > 0 {
-		return s.alertSender.SendBatchAlerts(maliciousProcesses)
-	}
-
 	return nil
+}
+
+func (s *Scanner) UpdateConfig(config *models.Config) {
+	s.config = config
+	s.scanInterval = time.Duration(config.ScanIntervalSecond) * time.Second
+	if s.processor != nil {
+		s.processor.UpdateConfig(config)
+	}
 }
