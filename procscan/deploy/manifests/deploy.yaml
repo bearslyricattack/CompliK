@@ -59,7 +59,7 @@ data:
       - "miner"
       - "agsb"
       - "cloudflar"
-      - "ssh"
+      - "top"
     keywords:
 ---
 # DaemonSet
@@ -103,7 +103,7 @@ spec:
               readOnly: true
             - name: containerd-sock
               mountPath: /var/run/containerd/containerd.sock
-              readOnly: false
+              readOnly: true
           resources:
             limits:
               memory: 128Mi
