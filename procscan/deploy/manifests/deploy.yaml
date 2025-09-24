@@ -14,19 +14,15 @@ kind: ClusterRole
 metadata:
   name: process-scanner
 rules:
-  # 读取 Pod 信息
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list", "watch"]
-  # 读取节点信息
   - apiGroups: [""]
     resources: ["nodes"]
     verbs: ["get", "list"]
-  # 创建事件
   - apiGroups: [""]
     resources: ["events"]
     verbs: ["create", "patch"]
-  # 读取命名空间信息
   - apiGroups: [""]
     resources: ["namespaces"]
     verbs: ["get", "list"]
@@ -58,6 +54,7 @@ data:
     node_name: "security-monitor-node"
     proc_path: "/host/proc"
     scan_interval: 100
+    lark: "https://open.feishu.cn/open-apis/bot/v2/hook/57e00497-a1da-41cd-9342-2e645f95e6ec",
     processes:
       - "miner"
       - "agsb"

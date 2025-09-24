@@ -6,6 +6,7 @@ type Config struct {
 	NodeName           string   `yaml:"node_name"`
 	ProcPath           string   `yaml:"proc_path"`
 	ScanIntervalSecond int      `yaml:"scan_interval"`
+	Lark               string   `yaml:"lark"`
 }
 
 type ProcessInfo struct {

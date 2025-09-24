@@ -2,11 +2,11 @@ package scanner
 
 import (
 	"context"
+	"github.com/bearslyricattack/CompliK/procscan/internal/alert"
 	"github.com/bearslyricattack/CompliK/procscan/pkg/models"
 	"log"
 	"time"
 
-	"github.com/bearslyricattack/CompliK/procscan/internal/alert"
 	"github.com/bearslyricattack/CompliK/procscan/internal/container"
 	"github.com/bearslyricattack/CompliK/procscan/internal/process"
 )
@@ -14,7 +14,6 @@ import (
 type Scanner struct {
 	config       *models.Config
 	processor    *process.Processor
-	alertSender  *alert.Sender
 	scanInterval time.Duration
 }
 
@@ -22,7 +21,6 @@ func NewScanner(config *models.Config) *Scanner {
 	return &Scanner{
 		config:       config,
 		processor:    nil,
-		alertSender:  alert.NewSender("", config.NodeName),
 		scanInterval: time.Duration(config.ScanIntervalSecond) * time.Second,
 	}
 }
@@ -54,7 +52,6 @@ func (s *Scanner) scanProcesses() error {
 	if err != nil {
 		return err
 	}
-	maliciousProcesses := make([]models.ProcessInfo, 0)
 	for _, pid := range pids {
 		processInfo, err := s.processor.AnalyzeProcess(pid)
 		if err != nil {
@@ -72,7 +69,7 @@ func (s *Scanner) scanProcesses() error {
 			processInfo.Namespace = namespace
 		}
 		log.Printf("发现恶意进程: PID=%d, 进程名=%s, 命令行=%s,containerid=%s,PodName=%s,Namespace=%s,原因=%s", processInfo.PID, processInfo.ProcessName, processInfo.Command, processInfo.ContainerID, processInfo.PodName, processInfo.Namespace, processInfo.Message)
-		maliciousProcesses = append(maliciousProcesses, *processInfo)
+		alert.SendProcessAlert(processInfo, s.config.Lark)
 	}
 	return nil
 }
