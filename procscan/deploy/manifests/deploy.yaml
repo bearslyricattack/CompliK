@@ -103,7 +103,7 @@ spec:
               readOnly: true
             - name: containerd-sock
               mountPath: /var/run/containerd/containerd.sock
-              readOnly: true
+              readOnly: false
           resources:
             limits:
               memory: 128Mi
