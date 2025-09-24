@@ -56,10 +56,6 @@ func GetContainerInfo(containerID string) (string, string, error) {
 		fmt.Println("未找到任何容器")
 		return "", "", nil
 	}
-	if len(response.Containers) > 1 {
-		fmt.Println("查询发生错误")
-		return "", "", nil
-	}
 	container := response.Containers[0]
 	if container.PodSandboxId != "" {
 		fmt.Printf("Pod Sandbox ID: %s\n", container.PodSandboxId)
