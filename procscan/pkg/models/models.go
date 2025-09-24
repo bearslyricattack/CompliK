@@ -17,4 +17,5 @@ type ProcessInfo struct {
 	ContainerID string `json:"container_id"`
 	NodeName    string `json:"node_name"`
 	Timestamp   string `json:"timestamp"`
+	Message     string `json:"message"`
 }

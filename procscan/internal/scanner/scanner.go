@@ -71,7 +71,7 @@ func (s *Scanner) scanProcesses() error {
 			processInfo.PodName = podName
 			processInfo.Namespace = namespace
 		}
-		log.Printf("发现恶意进程: PID=%d, 进程名=%s, 命令行=%s,containerid=%s,PodName=%s,Namespace=%s", processInfo.PID, processInfo.ProcessName, processInfo.Command, processInfo.ContainerID, processInfo.PodName, processInfo.Namespace)
+		log.Printf("发现恶意进程: PID=%d, 进程名=%s, 命令行=%s,containerid=%s,PodName=%s,Namespace=%s,原因=%s", processInfo.PID, processInfo.ProcessName, processInfo.Command, processInfo.ContainerID, processInfo.PodName, processInfo.Namespace, processInfo.Message)
 		maliciousProcesses = append(maliciousProcesses, *processInfo)
 	}
 	return nil

@@ -58,7 +58,8 @@ func (p *Processor) AnalyzeProcess(pid int) (*models.ProcessInfo, error) {
 		return nil, nil
 	}
 	processName := p.getProcessName(cmdline)
-	if !p.isMaliciousProcess(processName, cmdline) {
+	flag, msg := p.isMaliciousProcess(processName, cmdline)
+	if !flag {
 		return nil, nil
 	}
 	containerID := p.getContainerIDFromPID(pid)
@@ -69,6 +70,7 @@ func (p *Processor) AnalyzeProcess(pid int) (*models.ProcessInfo, error) {
 		NodeName:    p.NodeName,
 		Timestamp:   time.Now().Format(time.RFC3339),
 		ContainerID: containerID,
+		Message:     msg,
 	}
 	return processInfo, nil
 }
@@ -82,21 +84,30 @@ func (p *Processor) getProcessName(cmdline string) string {
 	return filepath.Base(execPath)
 }
 
-func (p *Processor) isMaliciousProcess(processName, cmdline string) bool {
+func (p *Processor) isMaliciousProcess(processName, cmdline string) (bool, string) {
 	lowerProcessName := strings.ToLower(processName)
 	lowerCmdline := strings.ToLower(cmdline)
+
+	// 检查进程名和命令行中的禁用进程
 	for _, banned := range p.Processes {
-		if strings.Contains(lowerProcessName, strings.ToLower(banned)) ||
-			strings.Contains(lowerCmdline, strings.ToLower(banned)) {
-			return true
+		lowerBanned := strings.ToLower(banned)
+		if strings.Contains(lowerProcessName, lowerBanned) {
+			return true, fmt.Sprintf("进程名匹配禁用进程: %s", banned)
+		}
+		if strings.Contains(lowerCmdline, lowerBanned) {
+			return true, fmt.Sprintf("命令行匹配禁用进程: %s", banned)
 		}
 	}
+
+	// 检查命令行中的关键词
 	for _, keyword := range p.Keywords {
-		if strings.Contains(lowerCmdline, strings.ToLower(keyword)) {
-			return true
+		lowerKeyword := strings.ToLower(keyword)
+		if strings.Contains(lowerCmdline, lowerKeyword) {
+			return true, fmt.Sprintf("命令行匹配关键词: %s", keyword)
 		}
 	}
-	return false
+
+	return false, ""
 }
 
 func (p *Processor) getContainerIDFromPID(pid int) string {
