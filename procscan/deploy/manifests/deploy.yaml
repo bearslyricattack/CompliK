@@ -114,7 +114,7 @@ spec:
       serviceAccountName: process-scanner
       containers:
         - name: scanner
-          image: process-scanner:latest
+          image: bearslyricattack/sealos-complik-procscan:latest
           imagePullPolicy: Always
           command: [ "/manager" ]
           args:
