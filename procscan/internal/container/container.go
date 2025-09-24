@@ -21,7 +21,7 @@ func NewInfoProvider() *InfoProvider {
 func (c *InfoProvider) GetContainerInfo(pid string) (*models.ContainerInfo, error) {
 	// 调用 inspect pod 功能
 	if err := inspectPod(pid); err != nil {
-		log.Fatalf("检查 Pod 失败: %v", err)
+		log.Printf("检查 Pod 失败: %v", err)
 	}
 	return &models.ContainerInfo{
 		ContainerID: "",
