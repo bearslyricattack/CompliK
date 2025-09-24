@@ -56,7 +56,7 @@ metadata:
 data:
   config.yaml: |
     node_name: "security-monitor-node"
-    proc_path: "proc"
+    proc_path: "/host/proc"
     scan_interval: 10
     processes:
       - "nc"
