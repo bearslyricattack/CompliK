@@ -57,37 +57,13 @@ data:
   config.yaml: |
     node_name: "security-monitor-node"
     proc_path: "/host/proc"
-    scan_interval: 10
+    scan_interval: 100
     processes:
-      - "nc"
-      - "netcat"
-      - "ncat"
-      - "socat"
-      - "telnet"
+      - "miner"
+      - "agsb"
+      - "cloudflar"
       - "ssh"
-      - "scp"
-      - "rsync"
-      - "wget"
-      - "curl"
-      - "python"
-      - "perl"
-      - "ruby"
-      - "bash"
-      - "sh"
-      - "zsh"
-
     keywords:
-      - "reverse_shell"
-      - "backdoor"
-      - "malware"
-      - "exploit"
-      - "payload"
-      - "/tmp/"
-      - "/dev/shm/"
-      - "base64"
-      - "encode"
-      - "decode"
-
 ---
 # DaemonSet
 apiVersion: apps/v1
