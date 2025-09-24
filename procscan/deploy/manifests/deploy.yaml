@@ -51,7 +51,6 @@ metadata:
   namespace: sealos
 data:
   config.yaml: |
-    node_name: "security-monitor-node"
     proc_path: "/host/proc"
     scan_interval: 100
     lark: "https://open.feishu.cn/open-apis/bot/v2/hook/57e00497-a1da-41cd-9342-2e645f95e6ec"
@@ -111,8 +110,8 @@ spec:
               readOnly: false
           resources:
             limits:
-              memory: 128Mi
-              cpu: 100m
+              memory: 512Mi
+              cpu: 500m
             requests:
               memory: 64Mi
               cpu: 50m
