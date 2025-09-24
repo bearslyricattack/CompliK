@@ -18,6 +18,27 @@ func NewInfoProvider() *InfoProvider {
 	return &InfoProvider{}
 }
 
+/*
+容器信息获取工作流程:
+
+PID(进程ID)
+    ↓
+读取 /proc/{PID}/cgroup
+    ↓
+解析提取 Container ID (64位十六进制)
+    ↓
+连接 containerd.sock (gRPC)
+    ↓
+调用 ContainerStatus(Container ID)
+    ↓
+获取 PodSandboxId
+    ↓
+调用 PodSandboxStatus(PodSandboxId)
+    ↓
+返回 Pod 信息 (Name, Namespace)
+PID → Container ID → Pod Sandbox ID → Pod Info
+*/
+
 func (c *InfoProvider) GetContainerInfo(pid string) (*models.ContainerInfo, error) {
 	// 调用 inspect pod 功能
 	if err := inspectPod(pid); err != nil {
@@ -31,28 +52,22 @@ func (c *InfoProvider) GetContainerInfo(pid string) (*models.ContainerInfo, erro
 }
 
 // inspectPod 检查指定 Pod 的详细信息
-func inspectPod(podID string) error {
+func inspectPod(containerID string) error {
 	// 1. 创建 gRPC 连接
 	conn, err := createGRPCConnection()
 	if err != nil {
 		return fmt.Errorf("创建连接失败: %v", err)
 	}
 	defer conn.Close()
-
-	// 2. 创建 RuntimeService 客户端
 	client := runtimeapi.NewRuntimeServiceClient(conn)
-
-	// 3. 创建上下文
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-
-	// 4. 调用 PodSandboxStatus 方法获取 Pod 详细信息
-	request := &runtimeapi.PodSandboxStatusRequest{
-		PodSandboxId: podID,
-		Verbose:      true, // 获取详细信息
+	request := &runtimeapi.ListContainersRequest{
+		Filter: &runtimeapi.ContainerFilter{
+			Id: containerID,
+		},
 	}
-
-	response, err := client.PodSandboxStatus(ctx, request)
+	response, err := client.ListContainers(ctx, request)
 	if err != nil {
 		return fmt.Errorf("获取 Pod 状态失败: %v", err)
 	}
@@ -89,57 +104,98 @@ func createGRPCConnection() (*grpc.ClientConn, error) {
 	return conn, nil
 }
 
-// displayPodInfo 显示 Pod 信息
-func displayPodInfo(response *runtimeapi.PodSandboxStatusResponse) error {
-	if response.Status == nil {
-		return fmt.Errorf("未找到 Pod 信息")
+// displayPodInfo 显示容器和Pod信息
+func displayPodInfo(response *runtimeapi.ListContainersResponse) error {
+	if response == nil {
+		return fmt.Errorf("响应为空")
 	}
 
-	status := response.Status
+	if len(response.Containers) == 0 {
+		fmt.Println("未找到任何容器")
+		return nil
+	}
 
-	// 基本信息
-	fmt.Println("=== Pod 基本信息 ===")
-	fmt.Printf("ID: %s\n", status.Id)
-	fmt.Printf("名称: %s\n", status.Metadata.Name)
+	fmt.Printf("=== 找到 %d 个容器 ===\n", len(response.Containers))
+
+	for i, container := range response.Containers {
+		fmt.Printf("\n--- 容器 %d ---\n", i+1)
+
+		// 容器基本信息
+		fmt.Printf("容器ID: %s\n", container.Id)
+		fmt.Printf("Pod Sandbox ID: %s\n", container.PodSandboxId)
+		fmt.Printf("状态: %s\n", container.State.String())
+
+		// 容器元数据
+		if container.Metadata != nil {
+			fmt.Printf("容器名称: %s\n", container.Metadata.Name)
+		}
+
+		// 🔥 获取并显示Pod信息
+		if container.PodSandboxId != "" {
+			fmt.Println("\n=== Pod 信息 ===")
+			err := displayPodDetails(container.PodSandboxId)
+			if err != nil {
+				fmt.Printf("获取Pod信息失败: %v\n", err)
+			}
+		}
+
+		fmt.Println("----------------------------------------")
+	}
+
+	return nil
+}
+
+// displayPodDetails 根据Pod Sandbox ID显示Pod详细信息
+func displayPodDetails(podSandboxID string) error {
+	// 创建gRPC连接
+	conn, err := createGRPCConnection()
+	if err != nil {
+		return fmt.Errorf("创建连接失败: %v", err)
+	}
+	defer conn.Close()
+
+	client := runtimeapi.NewRuntimeServiceClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// 🔥 调用PodSandboxStatus获取Pod信息
+	podReq := &runtimeapi.PodSandboxStatusRequest{
+		PodSandboxId: podSandboxID,
+		Verbose:      true,
+	}
+
+	podResp, err := client.PodSandboxStatus(ctx, podReq)
+	if err != nil {
+		return fmt.Errorf("获取Pod状态失败: %v", err)
+	}
+
+	if podResp.Status == nil {
+		return fmt.Errorf("Pod状态为空")
+	}
+
+	// 显示Pod信息
+	status := podResp.Status
+	fmt.Printf("Pod名称: %s\n", status.Metadata.Name)
 	fmt.Printf("命名空间: %s\n", status.Metadata.Namespace)
-	fmt.Printf("状态: %s\n", status.State.String())
-	fmt.Printf("创建时间: %s\n", time.Unix(0, status.CreatedAt).Format("2006-01-02 15:04:05"))
+	fmt.Printf("Pod UID: %s\n", status.Metadata.Uid)
+	fmt.Printf("Pod状态: %s\n", status.State.String())
+
+	if status.CreatedAt > 0 {
+		createdTime := time.Unix(0, status.CreatedAt)
+		fmt.Printf("Pod创建时间: %s\n", createdTime.Format("2006-01-02 15:04:05"))
+	}
+
+	// Pod标签
+	if len(status.Labels) > 0 {
+		fmt.Println("Pod标签:")
+		for key, value := range status.Labels {
+			fmt.Printf("  %s: %s\n", key, value)
+		}
+	}
 
 	// 网络信息
 	if status.Network != nil {
-		fmt.Println("\n=== 网络信息 ===")
-		fmt.Printf("IP 地址: %s\n", status.Network.Ip)
-
-		if len(status.Network.AdditionalIps) > 0 {
-			fmt.Println("附加 IP 地址:")
-			for _, ip := range status.Network.AdditionalIps {
-				fmt.Printf("  - %s\n", ip.Ip)
-			}
-		}
-	}
-
-	// 标签信息
-	if len(status.Labels) > 0 {
-		fmt.Println("\n=== 标签 ===")
-		for key, value := range status.Labels {
-			fmt.Printf("%s: %s\n", key, value)
-		}
-	}
-
-	// 注解信息
-	if len(status.Annotations) > 0 {
-		fmt.Println("\n=== 注解 ===")
-		for key, value := range status.Annotations {
-			fmt.Printf("%s: %s\n", key, value)
-		}
-	}
-
-	// 详细信息 (如果有)
-	if response.Info != nil && len(response.Info) > 0 {
-		fmt.Println("\n=== 详细信息 ===")
-		for key, value := range response.Info {
-			fmt.Printf("%s: %s\n", key, value)
-		}
+		fmt.Printf("Pod IP: %s\n", status.Network.Ip)
 	}
 
 	return nil

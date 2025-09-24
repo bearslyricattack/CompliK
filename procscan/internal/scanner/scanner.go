@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/bearslyricattack/CompliK/procscan/pkg/models"
 	"log"
-	"strconv"
 	"time"
 
 	"github.com/bearslyricattack/CompliK/procscan/internal/alert"
@@ -67,9 +66,9 @@ func (s *Scanner) scanProcesses() error {
 		if processInfo == nil {
 			continue
 		}
-		log.Printf("发现恶意进程: PID=%d, 进程名=%s, 命令行=%s",
-			processInfo.PID, processInfo.ProcessName, processInfo.Command)
-		containerInfo, err := s.containerInfo.GetContainerInfo(strconv.Itoa(pid))
+		log.Printf("发现恶意进程: PID=%d, 进程名=%s, 命令行=%s,containerid=%s",
+			processInfo.PID, processInfo.ProcessName, processInfo.Command, processInfo.ContainerID)
+		containerInfo, err := s.containerInfo.GetContainerInfo(processInfo.ContainerID)
 		if err != nil {
 			log.Printf("获取容器信息失败: %v", err)
 		} else {
