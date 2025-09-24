@@ -117,7 +117,7 @@ spec:
           imagePullPolicy: Always
           command: [ "/manager" ]
           args:
-            - --config=/config/config.yml
+            - --config=/config.yml
           securityContext:
             privileged: true
             runAsUser: 0
