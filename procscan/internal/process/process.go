@@ -10,7 +10,6 @@ import (
 	"time"
 )
 
-// Processor 进程处理器
 type Processor struct {
 	ProcPath  string
 	NodeName  string
@@ -62,9 +61,7 @@ func (p *Processor) AnalyzeProcess(pid int) (*models.ProcessInfo, error) {
 	if !p.isMaliciousProcess(processName, cmdline) {
 		return nil, nil
 	}
-	// 🔥 新增：获取容器ID
 	containerID := p.getContainerIDFromPID(pid)
-
 	processInfo := &models.ProcessInfo{
 		PID:         pid,
 		ProcessName: processName,
@@ -86,18 +83,14 @@ func (p *Processor) getProcessName(cmdline string) string {
 }
 
 func (p *Processor) isMaliciousProcess(processName, cmdline string) bool {
-	// 转换为小写进行比较
 	lowerProcessName := strings.ToLower(processName)
 	lowerCmdline := strings.ToLower(cmdline)
-
-	// 检查禁用进程列表
 	for _, banned := range p.Processes {
 		if strings.Contains(lowerProcessName, strings.ToLower(banned)) ||
 			strings.Contains(lowerCmdline, strings.ToLower(banned)) {
 			return true
 		}
 	}
-	// 检查关键词
 	for _, keyword := range p.Keywords {
 		if strings.Contains(lowerCmdline, strings.ToLower(keyword)) {
 			return true
@@ -106,7 +99,6 @@ func (p *Processor) isMaliciousProcess(processName, cmdline string) bool {
 	return false
 }
 
-// 🔥 新增辅助方法：从PID获取容器ID
 func (p *Processor) getContainerIDFromPID(pid int) string {
 	cgroupPath := fmt.Sprintf("/proc/%d/cgroup", pid)
 	content, err := os.ReadFile(cgroupPath)
@@ -128,7 +120,6 @@ func (p *Processor) getContainerIDFromPID(pid int) string {
 	return ""
 }
 
-// 🔥 辅助函数：检查是否为十六进制字符串
 func isHexString(s string) bool {
 	for _, r := range s {
 		if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')) {

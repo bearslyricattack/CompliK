@@ -12,20 +12,18 @@ import (
 )
 
 type Scanner struct {
-	config        *models.Config
-	processor     *process.Processor
-	containerInfo *container.InfoProvider
-	alertSender   *alert.Sender
-	scanInterval  time.Duration
+	config       *models.Config
+	processor    *process.Processor
+	alertSender  *alert.Sender
+	scanInterval time.Duration
 }
 
 func NewScanner(config *models.Config) *Scanner {
 	return &Scanner{
-		config:        config,
-		processor:     nil,
-		containerInfo: container.NewInfoProvider(),
-		alertSender:   alert.NewSender("", config.NodeName),
-		scanInterval:  time.Duration(config.ScanIntervalSecond) * time.Second,
+		config:       config,
+		processor:    nil,
+		alertSender:  alert.NewSender("", config.NodeName),
+		scanInterval: time.Duration(config.ScanIntervalSecond) * time.Second,
 	}
 }
 
@@ -66,25 +64,15 @@ func (s *Scanner) scanProcesses() error {
 		if processInfo == nil {
 			continue
 		}
-		log.Printf("发现恶意进程: PID=%d, 进程名=%s, 命令行=%s,containerid=%s",
-			processInfo.PID, processInfo.ProcessName, processInfo.Command, processInfo.ContainerID)
-		containerInfo, err := s.containerInfo.GetContainerInfo(processInfo.ContainerID)
+		podName, namespace, err := container.GetContainerInfo(processInfo.ContainerID)
 		if err != nil {
 			log.Printf("获取容器信息失败: %v", err)
 		} else {
-			processInfo.ContainerID = containerInfo.ContainerID
-			processInfo.PodName = containerInfo.PodName
-			processInfo.Namespace = containerInfo.Namespace
+			processInfo.PodName = podName
+			processInfo.Namespace = namespace
 		}
+		log.Printf("发现恶意进程: PID=%d, 进程名=%s, 命令行=%s,containerid=%s,PodName=%s,Namespace=%s", processInfo.PID, processInfo.ProcessName, processInfo.Command, processInfo.ContainerID, processInfo.PodName, processInfo.Namespace)
 		maliciousProcesses = append(maliciousProcesses, *processInfo)
 	}
 	return nil
-}
-
-func (s *Scanner) UpdateConfig(config *models.Config) {
-	s.config = config
-	s.scanInterval = time.Duration(config.ScanIntervalSecond) * time.Second
-	if s.processor != nil {
-		s.processor.UpdateConfig(config)
-	}
 }
