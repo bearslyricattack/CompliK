@@ -1,4 +1,4 @@
-FROM golang:1.24-alpine AS builder
+FROM golang:1.19-alpine AS builder
 
 ARG TARGETARCH
 COPY bin/service-procscan-$TARGETARCH /manager
