@@ -1,7 +1,7 @@
 FROM golang:1.24-alpine AS builder
 
 ARG TARGETARCH
-COPY bin/service-complik-$TARGETARCH /manager
+COPY bin/service-procscan-$TARGETARCH /manager
 
 # 创建非 root 用户（ID 65532 对应 nonroot 用户）
 RUN groupadd -g 65532 nonroot && \
