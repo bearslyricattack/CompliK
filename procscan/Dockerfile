@@ -1,4 +1,4 @@
-FROM golang:1.244-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 ARG TARGETARCH
 COPY bin/service-complik-$TARGETARCH /manager
