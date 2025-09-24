@@ -4,7 +4,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: process-scanner
-  namespace: security
+  namespace: sealos
 automountServiceAccountToken: true
 
 ---
@@ -51,14 +51,13 @@ subjects:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: scanner-config
-  namespace: security
+  name: proc-scan-config
+  namespace: sealos
 data:
   config.yaml: |
     node_name: "security-monitor-node"
     proc_path: "proc"
     scan_interval: 10
-
     processes:
       - "nc"
       - "netcat"
@@ -94,10 +93,10 @@ data:
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: process-scanner
+  name: proc-scan
   namespace: security
   labels:
-    app: process-scanner
+    app: proc-scan
     version: v1.0.0
 spec:
   selector:
@@ -146,7 +145,7 @@ spec:
             type: Directory
         - name: config
           configMap:
-            name: scanner-config
+            name: proc-scan-config
             defaultMode: 0644
         - name: containerd-sock
           hostPath:
