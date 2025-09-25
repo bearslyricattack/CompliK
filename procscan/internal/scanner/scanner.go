@@ -62,8 +62,6 @@ func (s *Scanner) scanProcesses() error {
 		if processInfo == nil {
 			continue
 		}
-		log.Println("进程id")
-		log.Println(processInfo.PID)
 		podName, namespace, err := container.GetContainerInfo(processInfo.ContainerID)
 		if err != nil {
 			log.Printf("获取容器信息失败: %v", err)

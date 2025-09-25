@@ -55,16 +55,62 @@ func GetContainerInfo(containerID string) (string, string, error) {
 		fmt.Println("未找到任何容器")
 		return "", "", nil
 	}
-	container := response.Containers[0]
-	fmt.Println("容器数")
-	fmt.Println(len(response.Containers))
-	for i, conta := range response.Containers {
-		fmt.Println(i)
-		fmt.Println(conta.PodSandboxId)
-		fmt.Println(conta.Id)
-		fmt.Println(conta.Metadata)
+	var container *runtimeapi.Container
+	for _, targetContainer := range response.Containers {
+		if targetContainer.Id == containerID {
+			container = targetContainer
+			break
+		}
 	}
+	if container != nil {
+		fmt.Printf("=== Container 详细信息 ===\n")
 
+		// 基本信息
+		fmt.Printf("ID: %s\n", container.Id)
+		fmt.Printf("Pod沙箱ID: %s\n", container.PodSandboxId)
+		fmt.Printf("容器状态: %s\n", container.State.String())
+
+		// 元数据信息
+		if container.Metadata != nil {
+			fmt.Printf("容器名称: %s\n", container.Metadata.Name)
+			fmt.Printf("尝试次数: %d\n", container.Metadata.Attempt)
+		}
+
+		// 镜像信息
+		if container.Image != nil {
+			fmt.Printf("镜像: %s\n", container.Image.Image)
+		}
+		if container.ImageRef != "" {
+			fmt.Printf("镜像引用: %s\n", container.ImageRef)
+		}
+
+		// 时间信息
+		fmt.Printf("创建时间: %d (纳秒时间戳)\n", container.CreatedAt)
+		if container.CreatedAt > 0 {
+			createdTime := time.Unix(0, container.CreatedAt)
+			fmt.Printf("创建时间(可读): %s\n", createdTime.Format("2006-01-02 15:04:05"))
+		}
+
+		// 标签信息
+		if len(container.Labels) > 0 {
+			fmt.Printf("标签:\n")
+			for key, value := range container.Labels {
+				fmt.Printf("  %s: %s\n", key, value)
+			}
+		}
+
+		// 注解信息
+		if len(container.Annotations) > 0 {
+			fmt.Printf("注解:\n")
+			for key, value := range container.Annotations {
+				fmt.Printf("  %s: %s\n", key, value)
+			}
+		}
+
+		fmt.Printf("========================\n")
+	} else {
+		fmt.Printf("未找到容器ID为 %s 的容器\n", containerID)
+	}
 	if container.PodSandboxId != "" {
 		fmt.Println("sandboxID")
 		fmt.Printf("Pod Sandbox ID: %s\n", container.PodSandboxId)
