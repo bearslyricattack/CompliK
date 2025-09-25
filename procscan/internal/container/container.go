@@ -59,8 +59,8 @@ func GetContainerInfo(containerID string) (string, string, error) {
 	}
 	var container *runtimeapi.Container
 	for _, targetContainer := range response.Containers {
-		fmt.Printf("ID: %s\n", container.Id)
-		fmt.Printf("容器名称: %s\n", container.Metadata.Name)
+		fmt.Printf("ID: %s\n", targetContainer.Id)
+		fmt.Printf("容器名称: %s\n", targetContainer.Metadata.Name)
 		if targetContainer.Id == containerID {
 			container = targetContainer
 			break
