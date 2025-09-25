@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"context"
+	"fmt"
 	"github.com/bearslyricattack/CompliK/procscan/internal/alert"
 	"github.com/bearslyricattack/CompliK/procscan/pkg/models"
 	"log"
@@ -62,6 +63,8 @@ func (s *Scanner) scanProcesses() error {
 		if processInfo == nil {
 			continue
 		}
+		fmt.Printf("获取获取到contianerid")
+		fmt.Printf("ID: %s\n", processInfo.ContainerID)
 		podName, namespace, err := container.GetContainerInfo(processInfo.ContainerID)
 		if err != nil {
 			log.Printf("获取容器信息失败: %v", err)
