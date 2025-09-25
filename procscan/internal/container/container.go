@@ -44,6 +44,8 @@ func GetContainerInfo(containerID string) (string, string, error) {
 			Id: containerID,
 		},
 	}
+	fmt.Printf("当前containerid")
+	fmt.Printf(containerID)
 	response, err := client.ListContainers(ctx, request)
 	if err != nil {
 		return "", "", fmt.Errorf("获取 Pod 状态失败: %v", err)
@@ -57,6 +59,8 @@ func GetContainerInfo(containerID string) (string, string, error) {
 	}
 	var container *runtimeapi.Container
 	for _, targetContainer := range response.Containers {
+		fmt.Printf("ID: %s\n", container.Id)
+		fmt.Printf("容器名称: %s\n", container.Metadata.Name)
 		if targetContainer.Id == containerID {
 			container = targetContainer
 			break
