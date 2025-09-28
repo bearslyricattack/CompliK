@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: {{ .Values.app.name }}
+  name: {{ .Values.app.name }}-deployment
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.app.name }}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.app.name }}
+    spec:
+      {{- if .Values.kubeconfig.useServiceAccount }}
+      serviceAccountName: {{ .Values.rbac.serviceAccount.name }}
+      {{- end }}
+      containers:
+        - args:
+            - --config=/config/config.yml
+            {{- if not .Values.kubeconfig.useServiceAccount }}
+            - --kubeconfig=/kubeconfig/{{ .Values.kubeconfig.configMapKey }}
+            {{- end }}
+          command:
+            - /manager
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          name: {{ .Values.app.name }}
+          ports:
+            - containerPort: {{ .Values.containerPort }}
+              protocol: TCP
+          env:
+            - name: USE_SERVICE_ACCOUNT
+              value: {{ .Values.kubeconfig.useServiceAccount | quote }}
+            {{- if not .Values.kubeconfig.useServiceAccount }}
+            - name: KUBECONFIG_PATH
+              value: "/kubeconfig/{{ .Values.kubeconfig.configMapKey }}"
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+            - mountPath: /config
+              name: config-vol
+            {{- if not .Values.kubeconfig.useServiceAccount }}
+            - mountPath: /kubeconfig
+              name: kubeconfig-vol
+              readOnly: true
+            {{- end }}
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      volumes:
+        - configMap:
+            defaultMode: 420
+            name: {{ .Values.app.name }}-config
+          name: config-vol
+        {{- if not .Values.kubeconfig.useServiceAccount }}
+        - configMap:
+            defaultMode: 420
+            name: {{ .Values.kubeconfig.configMapName }}
+          name: kubeconfig-vol
+        {{- end }}

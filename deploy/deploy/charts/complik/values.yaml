@@ -1,0 +1,99 @@
+replicaCount: 1
+
+image:
+  repository: bearslyricattack/sealos-complik-service
+  tag: "latest"
+  pullPolicy: Always
+
+app:
+  name: service-complik
+
+namespace: complik
+
+resources:
+  limits:
+    cpu: 4000m
+    memory: 8Gi
+  requests:
+    cpu: 1000m
+    memory: 1Gi
+
+containerPort: 8428
+
+database:
+  create: true
+
+external:
+
+  region: "hzh"
+  ai:
+    apiKey: ""
+    apiBase: "https://aiproxy.usw.sealos.io/v1"
+    apiPath: "/chat/completions"
+    model: "gpt-5"
+
+  database:
+    host: ""
+    port: "3306"
+    username: "root"
+    password: ""
+
+  lark:
+    webhook: ""
+
+plugins:
+  complete:
+    enabled: true
+    intervalMinute: 10080
+    autoStart: false
+    startTimeSecond: 30
+
+  devbox:
+    enabled: true
+    intervalMinute: 3000
+    autoStart: true
+    startTimeSecond: 30
+
+  endpointslice:
+    enabled: false
+
+  deployment:
+    enabled: true
+    resyncTimeSecond: 5
+    ageThresholdSecond: 300
+
+  statefulset:
+    enabled: true
+    resyncTimeSecond: 5
+    ageThresholdSecond: 300
+
+  browser:
+    enabled: true
+    timeout: 100
+    maxWorkers: 20
+
+  safety:
+    enabled: true
+
+  custom:
+    enabled: false
+    databaseName: "custom"
+    tickerMinute: 800
+    maxWorkers: 20
+    tableName: "CustomKeywordRule"
+
+  postgres:
+    enabled: true
+
+  lark:
+    enabled: true
+
+config:
+  logging:
+    level: "info"
+
+  kubeconfig: ""
+
+kubeconfig:
+  useServiceAccount: true
+

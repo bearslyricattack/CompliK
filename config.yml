@@ -1,13 +1,23 @@
 plugins:
   - name: "Complete"
     type: "Discovery"
-    enabled: true
-    settings: '{}'
+    enabled: false
+    settings: |
+      {
+        "intervalMinute": 10080,
+        "autoStart": true,
+        "startTimeSecond": 30
+      }
 
   - name: "Devbox"
     type: "Discovery"
-    enabled: true
-    settings: '{}'
+    enabled: false
+    settings: |
+      {
+        "intervalMinute": 3000,
+        "autoStart": false,
+        "startTimeSecond": 30
+      }
 
   - name: "Endpointslice"
     type: "Discovery"
@@ -16,40 +26,88 @@ plugins:
 
   - name: "Deployment"
     type: "Discovery"
-    enabled: true
-    settings: '{}'
+    enabled: false
+    settings: |
+      {
+        "resyncTimeSecond": 5,
+        "ageThresholdSecond": 300
+      }
 
   - name: "StatefulSet"
     type: "Discovery"
-    enabled: true
-    settings: '{}'
+    enabled: false
+    settings: |
+      {
+        "resyncTimeSecond": 5,
+        "ageThresholdSecond": 300
+      }
 
   - name: "Browser"
     type: "Compliance"
     enabled: true
-    settings: '{}'
+    settings: |
+      {
+        "maxWorkers": 20
+      }
 
   - name: "Safety"
     type: "Compliance"
     enabled: true
-    settings: '{}'
+    settings: |
+      {
+        "apiKey": "sk-1sxAT9tTxxUCiBobRJSOaYC4BFPKLdyhypXg7o9eJsmaDFhU",
+        "apiBase": "https://aiproxy.usw.sealos.io/v1",
+        "apiPath": "/chat/completions",
+        "model": "gpt-5"
+      }
 
   - name: "Custom"
     type: "Compliance"
-    enabled: true
-    settings: '{}'
+    enabled: false
+    settings: |
+      {
+        "databaseName": "custom",
+        "tickerMinute": 800,
+        "maxWorkers": 20,
+        "host": "dbconn.sealoshzh.site",
+        "port": "33144",
+        "username": "root",
+        "password": "l6754g75",
+        "tableName": "CustomKeywordRule",
+        "apiKey": "sk-1sxAT9tTxxUCiBobRJSOaYC4BFPKLdyhypXg7o9eJsmaDFhU",
+        "apiBase": "https://aiproxy.usw.sealos.io/v1",
+        "apiPath": "/chat/completions",
+        "model": "gpt-5"
+      }
 
   - name: "Postgres"
     type: "Handle"
     enabled: true
-    settings: '{}'
+    settings: |
+      {
+        "region": "bja",
+        "host": "dbconn.sealoshzh.site",
+        "port": "33144",
+        "username": "root",
+        "password": "l6754g75"
+      }
 
   - name: "Lark"
     type: "Handle"
     enabled: true
-    settings: '{}'
+    settings: |
+      {
+        "region": "bja",
+        "webhook": "https://open.feishu.cn/open-apis/bot/v2/hook/57e00497-a1da-41cd-9342-2e645f95e6ec",
+        "enabled_whitelist": true,
+        "host": "dbconn.sealoshzh.site",
+        "port": "33144",
+        "username": "root",
+        "password": "l6754g75",
+        "host_timeout_hour": 168
+      }
 
 logging:
   level: "info"
 
-kubeconfig: "hzh.yml"
+kubeconfig: "bja.yml"
