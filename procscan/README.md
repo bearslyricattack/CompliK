@@ -61,6 +61,7 @@ gen
 scanner:
   proc_path: "/host/proc"
   scan_interval: "100s" # 支持 s, m, h 等时间单位
+  log_level: "info"     # 支持 debug, info, warn, error
 
 # 自动化动作配置
 actions:
