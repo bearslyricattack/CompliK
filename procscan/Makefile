@@ -1,4 +1,4 @@
-IMG ?= bearslyricattack/sealos-complik-procscan:latest
+IMG ?= layzer/sealos-procscan:latest
 TARGETARCH ?= $(shell go env GOARCH)
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -11,7 +11,7 @@ endif
 PLATFORMS ?= linux_arm64 linux_amd64
 GOOS=linux
 CGO_ENABLED=0
-GOARCH=$(shell go env GOARCH)
+GOARCH = ${TARGETARCH}
 
 GO_BUILD_FLAGS=-trimpath -ldflags "-s -w"
 
@@ -48,7 +48,7 @@ build: clean ## Build service-hub binary.
 .PHONY: docker-build
 docker-build: build
 	mv bin/manager bin/service-procscan-${TARGETARCH}
-	docker build -t $(IMG) .
+	docker build --build-arg TARGETARCH=${TARGETARCH} -t $(IMG) .
 
 .PHONY: docker-push
 docker-push:

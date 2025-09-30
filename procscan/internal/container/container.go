@@ -3,33 +3,58 @@ package container
 import (
 	"context"
 	"fmt"
+	log "github.com/bearslyricattack/CompliK/procscan/pkg/log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 	"time"
 )
 
-/*
-容器信息获取工作流程:
+// BuildContainerCache 预先获取节点上所有容器的信息，并构建出一个高效的内存缓存。
+func BuildContainerCache() (map[string]string, map[string]string, error) {
+	conn, err := createGRPCConnection()
+	if err != nil {
+		return nil, nil, fmt.Errorf("创建gRPC连接失败: %v", err)
+	}
+	defer conn.Close()
 
-PID(进程ID)
-    ↓
-读取 /proc/{PID}/cgroup
-    ↓
-解析提取 Container ID (64位十六进制)
-    ↓
-连接 containerd.sock (gRPC)
-    ↓
-调用 ContainerStatus(Container ID)
-    ↓
-获取 PodSandboxId
-    ↓
-调用 PodSandboxStatus(PodSandboxId)
-    ↓
-返回 Pod 信息 (Name, Namespace)
-PID → Container ID → Pod Sandbox ID → Pod Info
-*/
+	client := runtimeapi.NewRuntimeServiceClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
 
+	// 步骤 1: 获取所有 PodSandbox
+	sandboxCache := make(map[string]*runtimeapi.PodSandboxMetadata)
+	sandboxReq := &runtimeapi.ListPodSandboxRequest{}
+	sandboxResp, err := client.ListPodSandbox(ctx, sandboxReq)
+	if err != nil {
+		return nil, nil, fmt.Errorf("获取PodSandbox列表失败: %w", err)
+	}
+	for _, s := range sandboxResp.Items {
+		sandboxCache[s.Id] = s.Metadata
+	}
+
+	// 步骤 2: 获取所有容器
+	listReq := &runtimeapi.ListContainersRequest{}
+	listResp, err := client.ListContainers(ctx, listReq)
+	if err != nil {
+		return nil, nil, fmt.Errorf("获取容器列表失败: %w", err)
+	}
+
+	// 步骤 3: 构建最终缓存
+	podNameCache := make(map[string]string)
+	namespaceCache := make(map[string]string)
+
+	for _, c := range listResp.Containers {
+		if sandboxMeta, ok := sandboxCache[c.PodSandboxId]; ok {
+			podNameCache[c.Id] = sandboxMeta.Name
+			namespaceCache[c.Id] = sandboxMeta.Namespace
+		}
+	}
+
+	return podNameCache, namespaceCache, nil
+}
+
+// GetContainerInfo 根据给定的 ContainerID 获取其所属的 Pod 名称和命名空间（按需查询）。
 func GetContainerInfo(containerID string) (string, string, error) {
 	conn, err := createGRPCConnection()
 	if err != nil {
@@ -39,126 +64,49 @@ func GetContainerInfo(containerID string) (string, string, error) {
 	client := runtimeapi.NewRuntimeServiceClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	request := &runtimeapi.ListContainersRequest{
-		Filter: &runtimeapi.ContainerFilter{
-			Id: containerID,
-		},
-	}
-	fmt.Printf("当前containerid")
-	fmt.Printf(containerID)
-	response, err := client.ListContainers(ctx, request)
+
+	statusReq := &runtimeapi.ContainerStatusRequest{ContainerId: containerID}
+	statusResp, err := client.ContainerStatus(ctx, statusReq)
 	if err != nil {
-		return "", "", fmt.Errorf("获取 Pod 状态失败: %v", err)
+		return "", "", fmt.Errorf("获取容器状态失败: %v", err)
 	}
-	if response == nil {
-		return "", "", fmt.Errorf("响应为空")
+	if statusResp.Status == nil {
+		return "", "", fmt.Errorf("容器状态为空")
 	}
-	if len(response.Containers) == 0 {
-		fmt.Println("未找到任何容器")
-		return "", "", nil
+
+	podSandboxId := statusResp.Status.GetLabels()["io.kubernetes.pod.uid"]
+	if podSandboxId == "" {
+		return "", "", fmt.Errorf("无法从容器标签中找到 PodSandboxId (io.kubernetes.pod.uid)")
 	}
-	var container *runtimeapi.Container
-	for _, targetContainer := range response.Containers {
-		fmt.Printf("ID: %s\n", targetContainer.Id)
-		fmt.Printf("容器名称: %s\n", targetContainer.Metadata.Name)
-		if targetContainer.Id == containerID {
-			container = targetContainer
-			break
-		}
+
+	podReq := &runtimeapi.PodSandboxStatusRequest{PodSandboxId: podSandboxId}
+	podResp, err := client.PodSandboxStatus(ctx, podReq)
+	if err != nil {
+		return "", "", fmt.Errorf("获取Pod状态失败: %v", err)
 	}
-	if container != nil {
-		fmt.Printf("=== Container 详细信息 ===\n")
-
-		// 基本信息
-		fmt.Printf("ID: %s\n", container.Id)
-		fmt.Printf("Pod沙箱ID: %s\n", container.PodSandboxId)
-		fmt.Printf("容器状态: %s\n", container.State.String())
-
-		// 元数据信息
-		if container.Metadata != nil {
-			fmt.Printf("容器名称: %s\n", container.Metadata.Name)
-			fmt.Printf("尝试次数: %d\n", container.Metadata.Attempt)
-		}
-
-		// 镜像信息
-		if container.Image != nil {
-			fmt.Printf("镜像: %s\n", container.Image.Image)
-		}
-		if container.ImageRef != "" {
-			fmt.Printf("镜像引用: %s\n", container.ImageRef)
-		}
-
-		// 时间信息
-		fmt.Printf("创建时间: %d (纳秒时间戳)\n", container.CreatedAt)
-		if container.CreatedAt > 0 {
-			createdTime := time.Unix(0, container.CreatedAt)
-			fmt.Printf("创建时间(可读): %s\n", createdTime.Format("2006-01-02 15:04:05"))
-		}
-
-		// 标签信息
-		if len(container.Labels) > 0 {
-			fmt.Printf("标签:\n")
-			for key, value := range container.Labels {
-				fmt.Printf("  %s: %s\n", key, value)
-			}
-		}
-
-		// 注解信息
-		if len(container.Annotations) > 0 {
-			fmt.Printf("注解:\n")
-			for key, value := range container.Annotations {
-				fmt.Printf("  %s: %s\n", key, value)
-			}
-		}
-
-		fmt.Printf("========================\n")
-	} else {
-		fmt.Printf("未找到容器ID为 %s 的容器\n", containerID)
+	if podResp.Status == nil {
+		return "", "", fmt.Errorf("pod状态为空")
 	}
-	if container.PodSandboxId != "" {
-		fmt.Println("sandboxID")
-		fmt.Printf("Pod Sandbox ID: %s\n", container.PodSandboxId)
-		client := runtimeapi.NewRuntimeServiceClient(conn)
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		podReq := &runtimeapi.PodSandboxStatusRequest{
-			PodSandboxId: container.PodSandboxId,
-			Verbose:      true,
-		}
-		podResp, err := client.PodSandboxStatus(ctx, podReq)
-		if err != nil {
-			return "", "", fmt.Errorf("获取Pod状态失败: %v", err)
-		}
-		if podResp.Status == nil {
-			return "", "", fmt.Errorf("pod状态为空")
-		}
-		fmt.Printf("Pod名称: %s\n", podResp.Status.Metadata.Name)
-		fmt.Printf("命名空间: %s\n", podResp.Status.Metadata.Namespace)
-		return podResp.Status.Metadata.Name, podResp.Status.Metadata.Namespace, nil
-	}
-	return "", "", fmt.Errorf("pod sandbox id为空")
+
+	return podResp.Status.Metadata.Name, podResp.Status.Metadata.Namespace, nil
 }
 
+// createGRPCConnection 建立到容器运行时的 gRPC 连接。
 func createGRPCConnection() (*grpc.ClientConn, error) {
 	endpoints := []string{
 		"unix:///var/run/containerd/containerd.sock",
+		"unix:///run/containerd/containerd.sock",
+		"unix:///var/run/crio/crio.sock",
+		"unix:///var/run/dockershim.sock",
 	}
-	var conn *grpc.ClientConn
-	var err error
+	var lastErr error
 	for _, endpoint := range endpoints {
-		conn, err = grpc.Dial(
-			endpoint,
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithBlock(),
-			grpc.WithTimeout(5*time.Second),
-		)
+		conn, err := grpc.Dial(endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock(), grpc.WithTimeout(5*time.Second))
 		if err == nil {
-			fmt.Printf("成功连接到: %s\n", endpoint)
-			break
+			log.L.WithField("endpoint", endpoint).Info("成功连接到容器运行时")
+			return conn, nil
 		}
+		lastErr = err
 	}
-	if err != nil {
-		return nil, fmt.Errorf("无法连接到任何容器运行时: %v", err)
-	}
-	return conn, nil
+	return nil, fmt.Errorf("无法连接到任何容器运行时: %v", lastErr)
 }
