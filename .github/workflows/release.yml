@@ -21,6 +21,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+          cache: true
+
+      # 构建二进制文件
+      - name: Build binaries
+        run: |
+          mkdir -p bin
+          
+          # 构建 amd64
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 \
+            go build -trimpath -ldflags="-s -w" \
+            -o bin/service-complik-amd64 ./cmd/complik
+          
+          # 构建 arm64
+          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 \
+            go build -trimpath -ldflags="-s -w" \
+            -o bin/service-complik-arm64 ./cmd/complik
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -76,6 +97,28 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+          cache: true
+
+      # 构建二进制文件
+      - name: Build binaries
+        run: |
+          cd procscan
+          mkdir -p bin
+          
+          # 构建 amd64
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 \
+            go build -trimpath -ldflags="-s -w" \
+            -o bin/service-procscan-amd64 ./cmd/procscan
+          
+          # 构建 arm64
+          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 \
+            go build -trimpath -ldflags="-s -w" \
+            -o bin/service-procscan-arm64 ./cmd/procscan
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
