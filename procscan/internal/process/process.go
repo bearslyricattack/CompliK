@@ -111,19 +111,19 @@ func (p *Processor) AnalyzeProcess(pid int, podNameCache, namespaceCache map[str
 
 	isBlacklisted, message := p.isBlacklisted(processName, cmdline)
 	if !isBlacklisted {
-		procLogger.Debug("未命中黑名单，跳过。 সন")
+		procLogger.Debug("未命中黑名单，跳过。")
 		return nil, nil
 	}
-	procLogger.WithField("reason", message).Debug("命中黑名单。 সন")
+	procLogger.WithField("reason", message).Debug("命中黑名单")
 
 	if p.isProcessWhitelisted(processName, cmdline) {
-		procLogger.Info("进程在白名单中，已忽略 সন")
+		procLogger.Info("进程在白名单中，已忽略")
 		return nil, nil
 	}
 
 	containerID := p.getContainerIDFromPID(pid)
 	if containerID == "" {
-		procLogger.Debug("无法确定容器ID，跳过 সন")
+		procLogger.Debug("无法确定容器ID，跳过")
 		return nil, nil
 	}
 
@@ -140,16 +140,14 @@ func (p *Processor) AnalyzeProcess(pid int, podNameCache, namespaceCache map[str
 	}
 
 	if p.isInfraWhitelisted(namespace, podName) {
-		procLogger.WithFields(logrus.Fields{"namespace": namespace, "pod": podName}).Info("进程所在的基础设施(ns/pod)在白名单中，已忽略 সন")
+		procLogger.WithFields(logrus.Fields{"namespace": namespace, "pod": podName}).Info("进程所在的基础设施(ns/pod)在白名单中，已忽略")
 		return nil, nil
 	}
 
 	if !strings.HasPrefix(namespace, "ns-") {
-		procLogger.WithField("namespace", namespace).Debug("命名空间不符合 ns- 前缀，跳过 সন")
+		procLogger.WithField("namespace", namespace).Debug("命名空间不符合 ns- 前缀，跳过")
 		return nil, nil
 	}
-
-	procLogger.Info("最终确认为可疑进程 সন")
 	return &models.ProcessInfo{
 		PID:         pid,
 		ProcessName: processName,
@@ -186,7 +184,6 @@ func (p *Processor) isInfraWhitelisted(namespace, podName string) bool {
 	return matchAnyBool(namespace, p.rules.whitelistNamespaces) || matchAnyBool(podName, p.rules.whitelistPodNames)
 }
 
-// matchAnyBool 是 matchAny 的简化版，只返回布尔值。
 func matchAnyBool(text string, regexps []*regexp.Regexp) bool {
 	for _, re := range regexps {
 		if re.MatchString(text) {
@@ -231,8 +228,8 @@ func (p *Processor) getContainerIDFromPID(pid int) string {
 func isHexString(s string) bool {
 	for _, r := range s {
 		if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')) {
-				return false
-			}
+			return false
+		}
 	}
 	return true
 }

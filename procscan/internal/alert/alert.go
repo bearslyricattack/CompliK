@@ -27,7 +27,6 @@ type NamespaceScanResult struct {
 	DeletionResult   string
 }
 
-// SendGlobalBatchAlert 构建并发送最终版的、使用 Markdown 的聚合告警。
 func SendGlobalBatchAlert(results []*NamespaceScanResult, webhookURL string) error {
 	if webhookURL == "" {
 		return fmt.Errorf("webhook URL 不能为空")
@@ -35,8 +34,6 @@ func SendGlobalBatchAlert(results []*NamespaceScanResult, webhookURL string) err
 	if len(results) == 0 {
 		return nil // 没有发现任何问题，不发送告警
 	}
-
-	// --- 构建卡片内容 ---
 
 	// 1. 构建总体摘要
 	namespaceList := make([]string, 0, len(results))
