@@ -1,0 +1,14 @@
+version: 2
+updates:
+  # GitHub Actions 依赖更新
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # Go 模块依赖更新
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5

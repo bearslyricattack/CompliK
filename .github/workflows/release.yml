@@ -1,0 +1,293 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - "**"
+    tags:
+      - "v*.*.*"
+    paths-ignore:
+      - "**/*.md"
+      - "**/*.yaml"
+      - "**/*.yml"
+  pull_request:
+    branches:
+      - "**"
+    paths-ignore:
+      - "**/*.md"
+      - "**/*.yaml"
+      - "**/*.yml"
+
+env:
+  DOCKERHUB_REPO: ${{ secrets.DOCKERHUB_REPO != '' && secrets.DOCKERHUB_REPO || secrets.DOCKERHUB_USERNAME != '' && format('{0}/{1}', secrets.DOCKERHUB_USERNAME, 'complik') || '' }}
+  GHCR_REPO: ghcr.io/${{ github.repository }}
+  ALIYUN_REGISTRY: ${{ secrets.ALIYUN_REGISTRY }}
+  ALIYUN_REPO: ${{ secrets.ALIYUN_REPO != '' && secrets.ALIYUN_REPO || secrets.ALIYUN_USERNAME != '' && format('{0}/{1}/{2}', secrets.ALIYUN_REGISTRY, secrets.ALIYUN_USERNAME, 'complik') || '' }}
+
+jobs:
+  release:
+    name: Release Complik
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        targets:
+          - GOOS: linux
+            GOARCH: arm64
+          - GOOS: linux
+            GOARCH: amd64
+          - GOOS: darwin
+            GOARCH: arm64
+          - GOOS: darwin
+            GOARCH: amd64
+          - GOOS: windows
+            GOARCH: amd64
+            EXT: .exe
+          - GOOS: windows
+            GOARCH: arm64
+            EXT: .exe
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+          cache: true
+
+      - name: Get dependencies
+        run: |
+          go mod download
+          go mod verify
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.targets.GOOS }}
+          GOARCH: ${{ matrix.targets.GOARCH }}
+        run: |
+          # 获取版本信息
+          VERSION=${GITHUB_REF_NAME}
+          COMMIT=$(git rev-parse --short HEAD)
+          BUILD_TIME=$(date -u '+%Y-%m-%d_%H:%M:%S')
+          
+          # 设置 ldflags（根据你的项目调整包路径）
+          LDFLAGS="-s -w"
+          LDFLAGS="$LDFLAGS -X 'main.Version=${VERSION}'"
+          LDFLAGS="$LDFLAGS -X 'main.Commit=${COMMIT}'"
+          LDFLAGS="$LDFLAGS -X 'main.BuildTime=${BUILD_TIME}'"
+          
+          # 构建
+          OUTPUT_NAME="complik-${{ matrix.targets.GOOS }}-${{ matrix.targets.GOARCH }}${{ matrix.targets.EXT }}"
+          go build -trimpath -ldflags "${LDFLAGS}" -o ${OUTPUT_NAME}
+          
+          # 生成校验和
+          sha256sum ${OUTPUT_NAME} > ${OUTPUT_NAME}.sha256
+
+      - name: Get release metadata
+        id: release_meta
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          version=${GITHUB_REF/refs\/tags\/v/}
+          echo "version=${version}"
+          
+          # 判断是否为预发布版本
+          prerelease=$(echo ${version} | grep -E 'rc|beta|alpha|pre|dev|snapshot|nightly' || true)
+          release_name="Version ${version}"
+          
+          if [ -n "${prerelease}" ]; then
+            prerelease=true
+            release_name="${release_name} (Prerelease)"
+          else
+            prerelease=false
+          fi
+          
+          tag_name="v${version}"
+          echo "prerelease=${prerelease}"
+          echo "tag_name=${tag_name}"
+          echo "release_name=${release_name}"
+
+          echo "PRERELEASE=${prerelease}" >> $GITHUB_OUTPUT
+          echo "RELEASE_NAME=${release_name}" >> $GITHUB_OUTPUT
+          echo "TAG_NAME=${tag_name}" >> $GITHUB_OUTPUT
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: complik-${{ matrix.targets.GOOS }}-${{ matrix.targets.GOARCH }}
+          path: |
+            complik-${{ matrix.targets.GOOS }}-${{ matrix.targets.GOARCH }}${{ matrix.targets.EXT }}
+            complik-${{ matrix.targets.GOOS }}-${{ matrix.targets.GOARCH }}${{ matrix.targets.EXT }}.sha256
+          retention-days: 7
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          draft: false
+          prerelease: ${{ steps.release_meta.outputs.PRERELEASE }}
+          name: ${{ steps.release_meta.outputs.RELEASE_NAME }}
+          tag_name: ${{ steps.release_meta.outputs.TAG_NAME }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            complik-${{ matrix.targets.GOOS }}-${{ matrix.targets.GOARCH }}${{ matrix.targets.EXT }}
+            complik-${{ matrix.targets.GOOS }}-${{ matrix.targets.GOARCH }}${{ matrix.targets.EXT }}.sha256
+
+  build-docker-images:
+    name: Build Docker Images
+    permissions:
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        if: github.event_name != 'pull_request' && github.actor != 'dependabot[bot]'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to DockerHub
+        if: github.event_name != 'pull_request' && github.actor != 'dependabot[bot]' && env.DOCKERHUB_REPO != ''
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Login to Aliyun Registry
+        if: github.event_name != 'pull_request' && github.actor != 'dependabot[bot]' && env.ALIYUN_REGISTRY != ''
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.ALIYUN_REGISTRY }}
+          username: ${{ secrets.ALIYUN_USERNAME }}
+          password: ${{ secrets.ALIYUN_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.DOCKERHUB_REPO }}
+            ${{ env.GHCR_REPO }}
+            ${{ env.ALIYUN_REPO }}
+
+      - name: Build for ${{ matrix.arch }}
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/${{ matrix.arch }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
+          outputs: type=image,"name=${{ env.GHCR_REPO }}${{ env.DOCKERHUB_REPO && format(',{0}', env.DOCKERHUB_REPO) || '' }}${{ env.ALIYUN_REPO && format(',{0}', env.ALIYUN_REPO) || '' }}",name-canonical=true,push-by-digest=${{ github.event_name != 'pull_request' && github.actor != 'dependabot[bot]' }},push=${{ github.event_name != 'pull_request' && github.actor != 'dependabot[bot]' }}
+
+      - name: Export digest
+        if: github.event_name != 'pull_request' && github.actor != 'dependabot[bot]'
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        if: github.event_name != 'pull_request' && github.actor != 'dependabot[bot]'
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  release-docker-images:
+    name: Push Docker Images
+    permissions:
+      packages: write
+    needs: build-docker-images
+    runs-on: ubuntu-24.04
+    if: github.event_name != 'pull_request' && github.actor != 'dependabot[bot]'
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v5
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to DockerHub
+        if: env.DOCKERHUB_REPO != ''
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Login to Aliyun Registry
+        if: env.ALIYUN_REGISTRY != ''
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.ALIYUN_REGISTRY }}
+          username: ${{ secrets.ALIYUN_USERNAME }}
+          password: ${{ secrets.ALIYUN_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.DOCKERHUB_REPO }}
+            ${{ env.GHCR_REPO }}
+            ${{ env.ALIYUN_REPO }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Create manifest list and push
+        working-directory: /tmp/digests
+        run: |
+          # 为所有标签创建 manifest
+          for TAG in $(echo "$DOCKER_METADATA_OUTPUT_TAGS"); do
+            echo "Creating manifest for: $TAG"
+            docker buildx imagetools create -t $TAG \
+              $(printf '${{ env.GHCR_REPO }}@sha256:%s ' *)
+          done
+
+      - name: Inspect image
+        run: |
+          docker buildx imagetools inspect ${{ env.GHCR_REPO }}:${{ steps.meta.outputs.version }}

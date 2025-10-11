@@ -33,41 +33,10 @@ wait_for_secret() {
   info "Secret $secret_name exists, proceeding with the next steps."
 }
 
-wait_for_cluster_ready() {
-  local cluster_name=$1
-  local namespace=${2:-complik}
-
-  info "Waiting for cluster $cluster_name to be ready..."
-
-  while true; do
-    status=$(kubectl get cluster "$cluster_name" -n "$namespace" -o jsonpath='{.status.phase}' 2>/dev/null)
-    if [ "$status" = "Running" ]; then
-      info "Cluster $cluster_name is running"
-      break
-    fi
-    warn "Cluster $cluster_name status: ${status:-Unknown}, retrying in 10 seconds..."
-    sleep 10
-  done
-}
-
-# 加载Sealos环境配置
-if [ -f "/root/.sealos/cloud/sealos.env" ]; then
-    info "Loading configuration from sealos.env"
-    source /root/.sealos/cloud/sealos.env
-fi
-
-#===========================================================================
 NAMESPACE=${NAMESPACE:-"complik"}
 HELM_OPTS=${HELM_OPTS:-""}
 
-# 获取Sealos云配置
-CloudDomain=$(kubectl get configmap sealos-config -n sealos-system -o jsonpath='{.data.cloudDomain}' 2>/dev/null || echo "cloud.sealos.io")
-CloudPort=$(kubectl get configmap sealos-config -n sealos-system -o jsonpath='{.data.cloudPort}' 2>/dev/null || echo "443")
 
-info "CloudDomain: $CloudDomain"
-info "CloudPort: $CloudPort"
-
-# 清理旧资源
 print "Cleaning up old resources..."
 kubectl delete deployment service-complik -n ${NAMESPACE} --ignore-not-found
 kubectl delete service service-complik -n ${NAMESPACE} --ignore-not-found
@@ -80,8 +49,6 @@ kubectl delete clusterrolebinding service-complik-binding --ignore-not-found
 print "Deploying database cluster..."
 helm upgrade -i complik-db -n ${NAMESPACE} charts/complik-database ${HELM_OPTS} --wait --create-namespace
 
-# 第二阶段：等待集群就绪
-wait_for_cluster_ready "complik-db" "${NAMESPACE}"
 
 # 第三阶段：等待Secret创建
 wait_for_secret "complik-db-conn-credential" "${NAMESPACE}"
@@ -93,7 +60,6 @@ DB_PORT=$(kubectl get secret -n ${NAMESPACE} complik-db-conn-credential -o jsonp
 DB_USERNAME=$(kubectl get secret -n ${NAMESPACE} complik-db-conn-credential -o jsonpath='{.data.username}' | base64 -d 2>/dev/null)
 DB_PASSWORD=$(kubectl get secret -n ${NAMESPACE} complik-db-conn-credential -o jsonpath='{.data.password}' | base64 -d 2>/dev/null)
 
-# 使用默认值如果获取失败
 if [ -z "$DB_HOST" ]; then
     DB_HOST="complik-db-mysql.${NAMESPACE}.svc.cluster.local"
     warn "Using default DB_HOST: $DB_HOST"
