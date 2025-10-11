@@ -106,7 +106,7 @@ fi
 
 
 print "Deploying complik service..."
-helm upgrade -i complik-service -n ${NAMESPACE} charts/complik-service ${HELM_OPTS} \
+helm upgrade -i complik-service -n ${NAMESPACE} charts/complik ${HELM_OPTS} \
   --set external.region=${REGION:-"hzh"} \
   --set external.database.host="${DB_HOST}" \
   --set external.database.port="${DB_PORT}" \
