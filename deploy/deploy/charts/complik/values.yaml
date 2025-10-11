@@ -25,9 +25,9 @@ database:
 
 rbac:
   create: true
+  name: complik-sa
 
 external:
-
   region: "hzh"
   ai:
     apiKey: ""
@@ -99,4 +99,5 @@ config:
 
 kubeconfig:
   useServiceAccount: true
+  configMapName: ""
 

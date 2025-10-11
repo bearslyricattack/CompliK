@@ -18,13 +18,13 @@ spec:
         app: {{ .Values.app.name }}
     spec:
       {{- if .Values.kubeconfig.useServiceAccount }}
-      serviceAccountName: {{ .Values.rbac.serviceAccount.name }}
+      serviceAccountName: {{ .Values.rbac.name }}
       {{- end }}
       containers:
         - args:
             - --config=/config/config.yml
             {{- if not .Values.kubeconfig.useServiceAccount }}
-            - --kubeconfig=/kubeconfig/{{ .Values.kubeconfig.configMapKey }}
+            - --kubeconfig=/kubeconfig/{{ .Values.kubeconfig.configMapName }}
             {{- end }}
           command:
             - /manager
@@ -39,7 +39,7 @@ spec:
               value: {{ .Values.kubeconfig.useServiceAccount | quote }}
             {{- if not .Values.kubeconfig.useServiceAccount }}
             - name: KUBECONFIG_PATH
-              value: "/kubeconfig/{{ .Values.kubeconfig.configMapKey }}"
+              value: "/kubeconfig/{{ .Values.kubeconfig.configMapName }}"
             {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
