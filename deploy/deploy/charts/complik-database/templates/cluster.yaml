@@ -1,14 +1,10 @@
 apiVersion: apps.kubeblocks.io/v1alpha1
 kind: Cluster
 metadata:
-  finalizers:
-    - cluster.kubeblocks.io/finalizer
   labels:
     clusterdefinition.kubeblocks.io/name: apecloud-mysql
-    clusterversion.kubeblocks.io/name: ac-mysql-8.0.31
-    sealos-db-provider-cr: {{ .Values.database.name }}
-  annotations: {}
-  name: {{ .Values.database.name }}
+    clusterversion.kubeblocks.io/name: ac-mysql-8.0.30-1
+  name:  {{ .Values.database.name }}
   namespace: {{ .Values.database.namespace }}
 spec:
   affinity:
@@ -18,21 +14,21 @@ spec:
     topologyKeys:
       - kubernetes.io/hostname
   clusterDefinitionRef: apecloud-mysql
-  clusterVersionRef: ac-mysql-8.0.31
+  clusterVersionRef: ac-mysql-8.0.30-1
   componentSpecs:
     - componentDefRef: mysql
       monitor: true
       name: mysql
       noCreatePDB: false
-      replicas: 3
+      replicas: 1
       resources:
         limits:
-          cpu: 2000m
-          memory: 4096Mi
+          cpu: 1000m
+          memory: 1024Mi
         requests:
-          cpu: 200m
-          memory: 409Mi
-      serviceAccountName: {{ .Values.database.name }}
+          cpu: 100m
+          memory: 102Mi
+      serviceAccountName: test-db
       switchPolicy:
         type: Noop
       volumeClaimTemplates:
@@ -42,7 +38,7 @@ spec:
               - ReadWriteOnce
             resources:
               requests:
-                storage: 3Gi
+                storage: 10Gi
             storageClassName: openebs-backup
   terminationPolicy: Delete
   tolerations: []
