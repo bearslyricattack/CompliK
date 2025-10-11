@@ -23,6 +23,9 @@ containerPort: 8428
 database:
   create: true
 
+rbac:
+  create: true
+
 external:
 
   region: "hzh"
