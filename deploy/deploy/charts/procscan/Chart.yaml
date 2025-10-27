@@ -1,0 +1,13 @@
+apiVersion: v2
+name: procscan
+description: A Kubernetes DaemonSet for scanning and detecting suspicious processes
+type: application
+version: 1.0.0
+appVersion: "v0.0.2-alpha-6"
+keywords:
+  - security
+  - monitoring
+  - process-scanner
+home: https://github.com/bearslyricattack/CompliK
+sources:
+  - https://github.com/bearslyricattack/CompliK

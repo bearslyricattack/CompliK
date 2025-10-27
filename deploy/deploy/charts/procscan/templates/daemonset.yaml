@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "procscan.fullname" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "procscan.labels" . | nindent 4 }}
+    {{- with .Values.daemonset.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "procscan.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "procscan.selectorLabels" . | nindent 8 }}
+        {{- with .Values.daemonset.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      hostNetwork: {{ .Values.daemonset.hostNetwork }}
+      hostPID: {{ .Values.daemonset.hostPID }}
+      serviceAccountName: {{ include "procscan.serviceAccountName" . }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: scanner
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/manager"]
+          args:
+            - "--config={{ .Values.volumes.config.mountPath }}/config.yaml"
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          securityContext:
+            {{- toYaml .Values.daemonset.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: proc
+              mountPath: {{ .Values.volumes.proc.mountPath }}
+              readOnly: true
+            - name: config
+              mountPath: {{ .Values.volumes.config.mountPath }}
+              readOnly: true
+            - name: containerd-sock
+              mountPath: {{ .Values.volumes.containerdSock.mountPath }}
+              readOnly: false
+          resources:
+            {{- toYaml .Values.daemonset.resources | nindent 12 }}
+      volumes:
+        - name: proc
+          hostPath:
+            path: {{ .Values.volumes.proc.hostPath }}
+            type: Directory
+        - name: config
+          configMap:
+            name: {{ include "procscan.fullname" . }}-config
+            defaultMode: 0644
+        - name: containerd-sock
+          hostPath:
+            path: {{ .Values.volumes.containerdSock.hostPath }}
+            type: Socket
