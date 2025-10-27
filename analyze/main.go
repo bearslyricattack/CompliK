@@ -390,7 +390,7 @@ func (ka *KeywordAnalyzer) Run(topN int, savePath string) error {
 
 func main() {
 	// 数据库连接配置
-	dsn := "root:l6754g75@tcp(dbconn.sealoshzh.site:33144)/complik?charset=utf8mb4&parseTime=True&timeout=10s"
+	dsn := "root:@tcp(/complik?charset=utf8mb4&parseTime=True&timeout=10s"
 
 	// 创建分析器
 	analyzer, err := NewKeywordAnalyzer(dsn)
