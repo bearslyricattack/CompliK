@@ -25,7 +25,7 @@ spec:
       serviceAccountName: block-procscan
       containers:
         - name: scanner
-          image: layzer/block-procscan:v1.0.0-alpha
+          image: docker.io/bearslyricattack/sealos-procscan
           imagePullPolicy: Always
           command: ["/manager"]
           args:
