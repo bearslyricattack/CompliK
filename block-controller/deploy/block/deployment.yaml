@@ -1,0 +1,157 @@
+# Block Controller v0.1.2 - 优化版本的 Deployment 配置
+# 支持超大规模 namespace (10万+) 的内存高效事件驱动架构
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: block-controller
+  namespace: block-system
+  labels:
+    app.kubernetes.io/name: block-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: block-controller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: block-controller
+    spec:
+      # 安全配置 - 优化版本
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      # 服务账户
+      serviceAccountName: controller-manager
+      # 容器配置 - 优化版本
+      containers:
+      - name: manager
+        image: layzer/block-controller:v0.1.5
+        imagePullPolicy: IfNotPresent
+        # 启动命令和参数 - 基于性能测试的优化配置
+        command:
+        - /manager
+        args:
+        # 基础配置
+        - --leader-elect=false
+        - --health-probe-bind-address=:8081
+        - --metrics-bind-address=:8443
+        - --metrics-secure=true
+        # 日志配置 - 生产环境级别
+        - --zap-devel=false
+        - --zap-log-level=info
+        # 内存优化配置 - 基于我们的性能测试结果
+        - --max-memory-mb=1024
+        - --max-concurrent-reconciles=20
+        - --worker-count=10
+        # 扫描间隔优化 - 减少不必要的轮询
+        - --fast-scan-interval=5m
+        - --slow-scan-interval=1h
+        - --scan-batch-size=1000
+        # 锁定时间配置
+        - --lock-duration=168h
+        # Webhook 配置
+        - --web-hook-enable=true
+        # 环境变量 - 优化版本
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: GOMAXPROCS
+          value: "2"
+        - name: GOGC
+          value: "100"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: LOG_DEVEL
+          value: "false"
+        # 端口配置
+        ports:
+        - name: healthz
+          containerPort: 8081
+          protocol: TCP
+        - name: metrics
+          containerPort: 8443
+          protocol: TCP
+        # 健康检查 - 优化配置
+        startupProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 12
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        # 资源配置 - 基于性能测试结果
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+        # 安全配置
+        securityContext:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - "ALL"
+        # 卷挂载
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: var-run
+          mountPath: /var/run
+      # 卷配置
+      volumes:
+      - name: tmp
+        emptyDir:
+          sizeLimit: 100Mi
+      - name: var-run
+        emptyDir:
+          sizeLimit: 50Mi
+      # 容忍配置 - 支持在控制平面运行
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+      - key: CriticalAddonsOnly
+        operator: Exists
+        effect: NoSchedule
+      # 优雅关闭配置
+      terminationGracePeriodSeconds: 30
+      restartPolicy: Always

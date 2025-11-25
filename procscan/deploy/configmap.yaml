@@ -1,0 +1,125 @@
+# ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: block-procscan-config
+  namespace: block-system
+data:
+  config.yaml: |
+    # =============================================================================
+    # 🛡️ ProcScan 安全扫描器配置文件
+    # =============================================================================
+
+    # =============================================================================
+    # 🔍 扫描器核心配置 (Scanner)
+    # =============================================================================
+    scanner:
+      # 进程文件系统路径 (容器中需要挂载宿主机的 /proc)
+      proc_path: "/host/proc"
+
+      # 扫描间隔时间
+      scan_interval: "30s"
+
+      # 日志级别
+      log_level: "info"
+
+    # =============================================================================
+    # ⚡ 自动化响应配置 (Actions)
+    # =============================================================================
+    actions:
+      # 命名空间标签功能
+      label:
+        enabled: true
+        data:
+          # 安全状态标签 (主要标识)
+          clawcloud.run/status: "locked"
+
+    # =============================================================================
+    # 📢 通知渠道配置 (Notifications)
+    # =============================================================================
+    notifications:
+      # 飞书通知配置
+      lark:
+        webhook: "https://open.feishu.cn/open-apis/bot/v2/hook/de0df867-9457-49be-a747-e01274a319cc"
+        timeout: "30s"
+        retry_count: 3
+
+    # =============================================================================
+    # 📊 Prometheus 指标配置 (Metrics)
+    # =============================================================================
+    metrics:
+      # 启用指标服务器
+      enabled: true
+
+      # 指标服务器端口
+      port: 8080
+
+      # 指标暴露路径
+      path: "/metrics"
+
+      # HTTP 读取超时
+      read_timeout: "10s"
+
+      # HTTP 写入超时
+      write_timeout: "10s"
+
+      # 启动失败最大重试次数
+      max_retries: 3
+
+      # 重试间隔
+      retry_interval: "5s"
+
+    # =============================================================================
+    # 🔎 检测规则配置 (Detection Rules)
+    # =============================================================================
+    detectionRules:
+      # 黑名单规则
+      blacklist:
+        processes:
+          - "miner"
+          - "xmrig"
+          - "crypto-miner"
+          - "kinsing"
+          - "kdevtmpfsi"
+          - "ccminer"
+          - "cpuminer"
+        keywords:
+          - "stratum+tcp"
+          - "pool."
+          - "monero"
+          - "cryptonight"
+          - "wallet"
+        commands: []
+        namespaces: []
+        podNames: []
+
+      # 白名单规则
+      whitelist:
+        processes:
+          - "sh"
+          - "bash"
+          - "python"
+          - "java"
+          - "node"
+          - "npm"
+          - "go"
+          - "kubelet"
+          - "kube-proxy"
+          - "containerd"
+          - "dockerd"
+        commands:
+          - "kubectl"
+          - "git"
+          - "make"
+          - "go build"
+        namespaces:
+          - "kube-system"
+          - "kube-public"
+          - "kube-node-lease"
+          - "block-system"
+        podNames:
+          - "coredns-.*"
+          - "etcd-.*"
+          - "kube-apiserver-.*"
+          - "kube-controller-manager-.*"
+          - "kube-scheduler-.*"

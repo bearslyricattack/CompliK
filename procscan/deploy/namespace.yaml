@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: block-system
+  labels:
+    app: block-procscan
+    component: security-scanner
+    managed-by: block-procscan
+  annotations:
+    description: "Block-ProcScan security scanning system namespace"

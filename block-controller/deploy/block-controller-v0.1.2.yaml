@@ -1,0 +1,427 @@
+# Block Controller v0.1.2 - 优化版本部署配置
+# 支持超大规模 namespace (10万+) 的内存高效事件驱动架构
+
+---
+# 命名空间
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: block-controller-system
+  labels:
+    name: block-controller-system
+    app.kubernetes.io/name: block-controller
+    app.kubernetes.io/version: v0.1.2
+
+---
+# ServiceAccount
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: block-controller
+  namespace: block-controller-system
+  labels:
+    app.kubernetes.io/name: block-controller
+    app.kubernetes.io/version: v0.1.2
+
+---
+# ClusterRole - 扩展权限以支持优化架构
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: block-controller-manager-role
+  labels:
+    app.kubernetes.io/name: block-controller
+    app.kubernetes.io/version: v0.1.2
+rules:
+# 命名空间权限
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get", "list", "patch", "update", "watch"]
+# BlockRequest 权限
+- apiGroups: ["core.clawcloud.run"]
+  resources: ["blockrequests", "blockrequests/status", "blockrequests/finalizers"]
+  verbs: ["get", "list", "patch", "update", "watch", "create", "delete"]
+# 工作负载权限（缩容/恢复）
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets", "statefulsets"]
+  verbs: ["get", "list", "patch", "update", "watch"]
+# CronJob 权限（暂停/恢复）
+- apiGroups: ["batch"]
+  resources: ["cronjobs"]
+  verbs: ["get", "list", "patch", "update", "watch"]
+# Pod 权限（清理独立 Pod）
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "delete", "watch"]
+# ResourceQuota 权限（创建/删除限制）
+- apiGroups: [""]
+  resources: ["resourcequotas"]
+  verbs: ["create", "delete", "get", "list", "update", "patch"]
+# 事件权限
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+# 最终izers权限
+- apiGroups: [""]
+  resources: ["namespaces/finalizers"]
+  verbs: ["update"]
+# 节点权限（健康检查）
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get", "list"]
+
+---
+# ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: block-controller-manager-rolebinding
+  labels:
+    app.kubernetes.io/name: block-controller
+    app.kubernetes.io/version: v0.1.2
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: block-controller-manager-role
+subjects:
+- kind: ServiceAccount
+  name: block-controller
+  namespace: block-controller-system
+
+---
+# Deployment - 优化版本
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: block-controller
+  namespace: block-controller-system
+  labels:
+    control-plane: controller-manager
+    app.kubernetes.io/name: block-controller
+    app.kubernetes.io/version: v0.1.2
+    app.kubernetes.io/component: controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      control-plane: controller-manager
+      app.kubernetes.io/name: block-controller
+      app.kubernetes.io/component: controller
+  template:
+    metadata:
+      labels:
+        control-plane: controller-manager
+        app.kubernetes.io/name: block-controller
+        app.kubernetes.io/version: v0.1.2
+        app.kubernetes.io/component: controller
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8443"
+        prometheus.io/path: "/metrics"
+    spec:
+      # 安全配置
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+
+      # 架构亲和性 - 限制在 amd64
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values: ["amd64"]
+              - key: kubernetes.io/os
+                operator: In
+                values: ["linux"]
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values: ["block-controller"]
+              topologyKey: kubernetes.io/hostname
+
+      # 服务账户
+      serviceAccountName: block-controller
+
+      # 容器配置
+      containers:
+      - name: block-controller
+        image: layzer/block-controller:v0.1.2
+        imagePullPolicy: IfNotPresent
+
+        # 启动命令和参数 - 优化配置
+        command:
+        - /manager
+        args:
+        # 基础配置
+        - --leader-elect=false
+        - --health-probe-bind-address=:8081
+        - --metrics-bind-address=:8443
+        - --metrics-secure=true
+
+        # 内存优化配置
+        - --max-memory-mb=1024
+        - --max-concurrent-reconciles=20
+        - --worker-count=10
+
+        # 扫描间隔优化
+        - --fast-scan-interval=5m
+        - --slow-scan-interval=1h
+        - --scan-batch-size=1000
+
+        # Webhook 配置
+        - --web-hook-enable=true
+
+        # 环境变量
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: GOMAXPROCS
+          value: "2"
+        - name: GOGC
+          value: "100"
+
+        # 端口配置
+        ports:
+        - name: healthz
+          containerPort: 8081
+          protocol: TCP
+        - name: metrics
+          containerPort: 8443
+          protocol: TCP
+
+        # 健康检查 - 优化配置
+        startupProbe:
+          httpGet:
+            path: /healthz
+            port: healthz
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 12
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: healthz
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: healthz
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+
+        # 资源配置 - 基于性能测试结果
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+
+        # 安全配置
+        securityContext:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+
+        # 卷挂载
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: var-run
+          mountPath: /var/run
+
+      # 卷配置
+      volumes:
+      - name: tmp
+        emptyDir:
+          sizeLimit: 100Mi
+      - name: var-run
+        emptyDir:
+          sizeLimit: 50Mi
+
+      # 调度配置
+      nodeSelector:
+        kubernetes.io/arch: amd64
+        kubernetes.io/os: linux
+
+      # 容忍配置
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+
+      # 优雅关闭
+      terminationGracePeriodSeconds: 30
+      restartPolicy: Always
+
+---
+# Service - 健康检查和指标
+apiVersion: v1
+kind: Service
+metadata:
+  name: block-controller
+  namespace: block-controller-system
+  labels:
+    app.kubernetes.io/name: block-controller
+    app.kubernetes.io/version: v0.1.2
+    control-plane: controller-manager
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8443"
+    prometheus.io/path: "/metrics"
+spec:
+  selector:
+    app.kubernetes.io/name: block-controller
+    control-plane: controller-manager
+  ports:
+  - name: healthz
+    port: 8081
+    targetPort: 8081
+    protocol: TCP
+  - name: metrics
+    port: 8443
+    targetPort: 8443
+    protocol: TCP
+  type: ClusterIP
+
+---
+# ServiceMonitor (可选 - 需要 Prometheus Operator)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: block-controller
+  namespace: block-controller-system
+  labels:
+    app.kubernetes.io/name: block-controller
+    app.kubernetes.io/version: v0.1.2
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: block-controller
+  endpoints:
+  - name: metrics
+    port: metrics
+    path: /metrics
+    interval: 30s
+    scrapeTimeout: 10s
+    honorLabels: true
+
+---
+# NetworkPolicy (可选 - 安全配置)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: block-controller
+  namespace: block-controller-system
+  labels:
+    app.kubernetes.io/name: block-controller
+    app.kubernetes.io/version: v0.1.2
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: block-controller
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: block-controller-system
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+  egress:
+  - to:
+    - namespaceSelector: {}
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443  # Kubernetes API
+    - protocol: TCP
+      port: 53   # DNS
+    - protocol: UDP
+      port: 53   # DNS
+
+---
+# HorizontalPodAutoscaler (可选)
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: block-controller
+  namespace: block-controller-system
+  labels:
+    app.kubernetes.io/name: block-controller
+    app.kubernetes.io/version: v0.1.2
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: block-controller
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 25
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 30
+      - type: Pods
+        value: 2
+        periodSeconds: 30
+      selectPolicy: Max

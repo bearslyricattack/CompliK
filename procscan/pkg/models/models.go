@@ -1,6 +1,8 @@
 package models
 
-import "time"
+import (
+	"time"
+)
 
 // --- 新的、按领域分组的配置结构 ---
 
@@ -11,21 +13,15 @@ type ScannerConfig struct {
 	LogLevel     string        `yaml:"log_level"`
 }
 
-// AnnotationActionConfig 包含了注解动作相关的配置
-type AnnotationActionConfig struct {
+// LabelActionConfig 包含了标签动作相关的配置
+type LabelActionConfig struct {
 	Enabled bool              `yaml:"enabled"`
 	Data    map[string]string `yaml:"data"`
 }
 
-// ForceDeleteActionConfig 包含了强制删除动作相关的配置
-type ForceDeleteActionConfig struct {
-	Enabled bool `yaml:"enabled"`
-}
-
 // ActionsConfig 聚合了所有可用的自动化动作
 type ActionsConfig struct {
-	Annotation  AnnotationActionConfig  `yaml:"annotation"`
-	ForceDelete ForceDeleteActionConfig `yaml:"forceDelete"`
+	Label LabelActionConfig `yaml:"label"`
 }
 
 // LarkNotificationConfig 包含了飞书通知渠道的配置
@@ -36,6 +32,17 @@ type LarkNotificationConfig struct {
 // NotificationsConfig 聚合了所有通知渠道
 type NotificationsConfig struct {
 	Lark LarkNotificationConfig `yaml:"lark"`
+}
+
+// MetricsConfig 包含了 Prometheus 指标相关的配置
+type MetricsConfig struct {
+	Enabled       bool          `yaml:"enabled"`
+	Port          int           `yaml:"port"`
+	Path          string        `yaml:"path"`
+	ReadTimeout   time.Duration `yaml:"read_timeout"`
+	WriteTimeout  time.Duration `yaml:"write_timeout"`
+	MaxRetries    int           `yaml:"max_retries"`
+	RetryInterval time.Duration `yaml:"retry_interval"`
 }
 
 // RuleSet 定义了一套匹配规则，所有规则都将被解析为正则表达式
@@ -58,6 +65,7 @@ type Config struct {
 	Scanner        ScannerConfig       `yaml:"scanner"`
 	Actions        ActionsConfig       `yaml:"actions"`
 	Notifications  NotificationsConfig `yaml:"notifications"`
+	Metrics        MetricsConfig       `yaml:"metrics"`
 	DetectionRules DetectionRules      `yaml:"detectionRules"`
 }
 
