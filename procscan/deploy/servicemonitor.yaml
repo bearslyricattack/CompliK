@@ -1,0 +1,149 @@
+# Service for ProcScan metrics
+apiVersion: v1
+kind: Service
+metadata:
+  name: block-procscan-metrics
+  namespace: block-system
+  labels:
+    app: block-procscan
+    component: security-scanner
+    managed-by: block-procscan
+spec:
+  selector:
+    app: block-procscan
+    component: security-scanner
+  ports:
+    - name: metrics
+      port: 8080
+      targetPort: metrics
+      protocol: TCP
+  type: ClusterIP
+
+---
+# ServiceMonitor for Prometheus
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: block-procscan-metrics
+  namespace: block-system
+  labels:
+    app: block-procscan
+    component: security-scanner
+    managed-by: block-procscan
+spec:
+  selector:
+    matchLabels:
+      app: block-procscan
+      component: security-scanner
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      honorLabels: true
+  namespaceSelector:
+    matchNames:
+      - block-system
+
+---
+# PrometheusRule for alerting on ProcScan metrics
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: block-procscan-alerts
+  namespace: block-system
+  labels:
+    app: block-procscan
+    component: security-scanner
+    managed-by: block-procscan
+spec:
+  groups:
+    - name: procscan.rules
+      rules:
+        # Alert when scanner is not running
+        - alert: ProcScanScannerDown
+          expr: procscan_scanner_running == 0
+          for: 1m
+          labels:
+            severity: critical
+            service: procscan
+          annotations:
+            summary: "ProcScan scanner is down on {{ $labels.instance }}"
+            description: "ProcScan scanner has been down for more than 1 minute on {{ $labels.instance }}"
+
+        # Alert when scan errors are high
+        - alert: ProcScanHighErrorRate
+          expr: rate(procscan_scan_errors_total[5m]) > 0.1
+          for: 2m
+          labels:
+            severity: warning
+            service: procscan
+          annotations:
+            summary: "ProcScan scan error rate is high on {{ $labels.instance }}"
+            description: "ProcScan scan error rate is {{ $value }} errors per second on {{ $labels.instance }}"
+
+        # Alert when scan duration is high
+        - alert: ProcScanSlowScans
+          expr: histogram_quantile(0.95, rate(procscan_scan_duration_seconds_bucket[5m])) > 60
+          for: 3m
+          labels:
+            severity: warning
+            service: procscan
+          annotations:
+            summary: "ProcScan scans are taking too long on {{ $labels.instance }}"
+            description: "95th percentile scan duration is {{ $value }} seconds on {{ $labels.instance }}"
+
+        # Alert when threats are detected
+        - alert: ProcScanThreatsDetected
+          expr: increase(procscan_threats_detected_total[5m]) > 0
+          for: 0m
+          labels:
+            severity: warning
+            service: procscan
+          annotations:
+            summary: "ProcScan detected threats on {{ $labels.instance }}"
+            description: "ProcScan detected {{ $value }} threats in the last 5 minutes on {{ $labels.instance }}"
+
+        # Alert when suspicious processes are found
+        - alert: ProcScanSuspiciousProcessesFound
+          expr: procscan_suspicious_processes_total > 0
+          for: 1m
+          labels:
+            severity: info
+            service: procscan
+          annotations:
+            summary: "ProcScan found suspicious processes on {{ $labels.instance }}"
+            description: "ProcScan found {{ $value }} suspicious processes on {{ $labels.instance }}"
+
+        # Alert when memory usage is high
+        - alert: ProcScanHighMemoryUsage
+          expr: procscan_memory_usage_bytes / (1024*1024*1024) > 300
+          for: 5m
+          labels:
+            severity: warning
+            service: procscan
+          annotations:
+            summary: "ProcScan memory usage is high on {{ $labels.instance }}"
+            description: "ProcScan memory usage is {{ $value }}MB on {{ $labels.instance }}"
+
+        # Alert when label actions are failing
+        - alert: ProcScanLabelActionFailures
+          expr: rate(procscan_label_actions_total[5m]) - rate(procscan_label_actions_success_total[5m]) > 0.1
+          for: 2m
+          labels:
+            severity: warning
+            service: procscan
+          annotations:
+            summary: "ProcScan label actions are failing on {{ $labels.instance }}"
+            description: "ProcScan label action failure rate is {{ $value }} per second on {{ $labels.instance }}"
+
+        # Alert when notifications are failing
+        - alert: ProcScanNotificationFailures
+          expr: rate(procscan_notifications_failed_total[5m]) > 0.05
+          for: 2m
+          labels:
+            severity: warning
+            service: procscan
+          annotations:
+            summary: "ProcScan notifications are failing on {{ $labels.instance }}"
+            description: "ProcScan notification failure rate is {{ $value }} per second on {{ $labels.instance }}"

@@ -1,0 +1,95 @@
+# 镜像配置
+image:
+  repository: layzer/sealos-procscan
+  pullPolicy: Always
+  tag: "v0.0.2-alpha-6"
+
+# 命名空间
+namespace: sealos
+
+# ServiceAccount 配置
+serviceAccount:
+  create: true
+  name: process-scanner
+  automountServiceAccountToken: true
+
+# RBAC 配置
+rbac:
+  create: true
+  clusterRole:
+    name: process-scanner
+  clusterRoleBinding:
+    name: process-scanner
+
+# DaemonSet 配置
+daemonset:
+  name: proc-scan
+  labels:
+    app: proc-scan
+    version: v1.0.0
+  podLabels:
+    app: process-scanner
+    version: v1.0.0
+
+  # 主机网络和 PID
+  hostNetwork: true
+  hostPID: true
+
+  # 安全上下文
+  securityContext:
+    privileged: true
+    runAsUser: 0
+
+  # 资源限制
+  resources:
+    limits:
+      memory: 512Mi
+      cpu: 500m
+    requests:
+      memory: 64Mi
+      cpu: 50m
+
+# 配置文件
+config:
+  scanner:
+    proc_path: "/host/proc"
+    scan_interval: "100s"
+    log_level: "info"
+
+  actions:
+    annotation:
+      enabled: false
+    forceDelete:
+      enabled: false
+
+  notifications:
+    lark:
+      webhook: ""
+
+  detectionRules:
+    blacklist:
+      processes:
+        - "^miner$"
+        - "agsb"
+        - "xmrig"
+      keywords:
+        - "xmr.pool.gulf.obtc.com"
+    whitelist:
+      processes:
+        - "legit-process"
+      commands:
+        - "/usr/bin/bash -c 'legit-script'"
+      namespaces:
+        - "ns-dev-test"
+      podNames:
+        - "special-debug-pod-"
+
+volumes:
+  proc:
+    hostPath: /proc
+    mountPath: /host/proc
+  containerdSock:
+    hostPath: /var/run/containerd/containerd.sock
+    mountPath: /var/run/containerd/containerd.sock
+  config:
+    mountPath: /config

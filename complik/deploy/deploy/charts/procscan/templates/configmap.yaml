@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "procscan.fullname" . }}-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "procscan.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    scanner:
+      proc_path: {{ .Values.config.scanner.proc_path | quote }}
+      scan_interval: {{ .Values.config.scanner.scan_interval | quote }}
+      log_level: {{ .Values.config.scanner.log_level | quote }}
+
+    actions:
+      annotation:
+        enabled: {{ .Values.config.actions.annotation.enabled }}
+      forceDelete:
+        enabled: {{ .Values.config.actions.forceDelete.enabled }}
+
+    notifications:
+      lark:
+        webhook: {{ .Values.config.notifications.lark.webhook | quote }}
+
+    detectionRules:
+      blacklist:
+        processes:
+          {{- range .Values.config.detectionRules.blacklist.processes }}
+          - {{ . | quote }}
+          {{- end }}
+        keywords:
+          {{- range .Values.config.detectionRules.blacklist.keywords }}
+          - {{ . | quote }}
+          {{- end }}
+      whitelist:
+        processes:
+          {{- range .Values.config.detectionRules.whitelist.processes }}
+          - {{ . | quote }}
+          {{- end }}
+        commands:
+          {{- range .Values.config.detectionRules.whitelist.commands }}
+          - {{ . | quote }}
+          {{- end }}
+        namespaces:
+          {{- range .Values.config.detectionRules.whitelist.namespaces }}
+          - {{ . | quote }}
+          {{- end }}
+        podNames:
+          {{- range .Values.config.detectionRules.whitelist.podNames }}
+          - {{ . | quote }}
+          {{- end }}
