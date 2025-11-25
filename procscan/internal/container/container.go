@@ -32,6 +32,9 @@ func GetContainerInfo(containerID string) (string, string, error) {
 	}
 
 	podSandboxId := statusResp.Status.GetLabels()["io.kubernetes.pod.uid"]
+	podNamespace := statusResp.Status.GetLabels()["io.kubernetes.pod.namespace"]
+	podName := statusResp.Status.GetLabels()["io.kubernetes.pod.name"]
+	fmt.Printf("podNamespace: %s, podName: %s\n", podNamespace, podName)
 	if podSandboxId == "" {
 		return "", "", fmt.Errorf("cannot find PodSandboxId (io.kubernetes.pod.uid) in container labels")
 	}
