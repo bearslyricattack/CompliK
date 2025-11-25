@@ -51,7 +51,7 @@ data:
       lark:
         # 飞书机器人 Webhook URL (获取方式: 飞书群 -> 设置 -> 机器人 -> 自定义机器人)
         # 留空则不发送飞书通知
-        webhook: "https://open.feishu.cn/open-apis/bot/v2/hook/de0df867-9457-49be-a747-e01274a319cc"
+        webhook: ""
         # HTTP 请求超时时间 (推荐: 10s-30s)
         timeout: "30s"
         # 发送失败重试次数 (推荐: 1-3次)
