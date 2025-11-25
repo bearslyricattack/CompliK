@@ -31,7 +31,8 @@ type LarkNotificationConfig struct {
 
 // NotificationsConfig 聚合了所有通知渠道
 type NotificationsConfig struct {
-	Lark LarkNotificationConfig `yaml:"lark"`
+	Lark   LarkNotificationConfig `yaml:"lark"`
+	Region string                 `yaml:"region"`
 }
 
 // MetricsConfig 包含了 Prometheus 指标相关的配置

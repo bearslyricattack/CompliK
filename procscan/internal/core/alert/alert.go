@@ -27,7 +27,7 @@ type NamespaceScanResult struct {
 }
 
 // SendGlobalBatchAlert constructs and sends aggregated alert using Markdown format
-func SendGlobalBatchAlert(results []*NamespaceScanResult, webhookURL string) error {
+func SendGlobalBatchAlert(results []*NamespaceScanResult, webhookURL string, region string) error {
 	if webhookURL == "" {
 		return fmt.Errorf("webhook URL cannot be empty")
 	}
@@ -35,71 +35,85 @@ func SendGlobalBatchAlert(results []*NamespaceScanResult, webhookURL string) err
 		return nil // No issues found, skip alert
 	}
 
-	// Build card content
-	namespaceList := make([]string, 0, len(results))
+	nodeName := os.Getenv("NODE_NAME")
+	if nodeName == "" {
+		nodeName = "未知节点"
+	}
+
+	// 统计信息
 	totalProcesses := 0
 	for _, r := range results {
-		namespaceList = append(namespaceList, fmt.Sprintf("`%s` (%d processes)", r.Namespace, len(r.ProcessInfos)))
 		totalProcesses += len(r.ProcessInfos)
 	}
-	summaryText := fmt.Sprintf("This scan found **%d** suspicious processes in **%d** namespaces.\n**Affected namespaces:**\n%s",
-		totalProcesses, len(results), strings.Join(namespaceList, "\n"))
 
-	allElements := []map[string]any{
-		newMarkdownElement(summaryText),
-	}
+	// 构建卡片内容
+	allElements := []map[string]any{}
 
-	// Build detailed information for each namespace
-	for _, r := range results {
-		allElements = append(allElements, newMarkdownElement(fmt.Sprintf("---\n### **📦 Namespace: `%s`**", r.Namespace)))
+	// 1. 概览信息 - 使用醒目的样式
+	summaryText := fmt.Sprintf("**可用区：** `%s`\n**节点：** `%s`\n**发现异常：** %d 个可疑进程\n**涉及命名空间：** %d 个",
+		region, nodeName, totalProcesses, len(results))
+	allElements = append(allElements, newMarkdownElement(summaryText))
 
-		nodeName := os.Getenv("NODE_NAME")
-		if nodeName == "" {
-			nodeName = "unknown"
+	// 2. 分隔线
+	allElements = append(allElements, newHrElement())
+
+	// 3. 详细信息 - 按命名空间分组
+	for idx, r := range results {
+		if idx > 0 {
+			allElements = append(allElements, newHrElement())
 		}
-		allElements = append(allElements, newMarkdownElement(fmt.Sprintf("Node Name:%s", nodeName)))
 
-		var actionText strings.Builder
+		// 命名空间标题
+		nsTitle := fmt.Sprintf("### 📦 命名空间：`%s` (%d 个异常)", r.Namespace, len(r.ProcessInfos))
+		allElements = append(allElements, newMarkdownElement(nsTitle))
+
+		// 处理状态
 		if r.LabelResult != "" {
-			actionText.WriteString(fmt.Sprintf("**Label Operation:** %s\n", r.LabelResult))
-			actionText.WriteString("**Processing Status:** ⏳ Waiting for external controller")
-		}
-		if actionText.Len() > 0 {
-			allElements = append(allElements, newMarkdownElement(actionText.String()))
+			statusText := fmt.Sprintf("**处理状态：** %s", getStatusText(r.LabelResult))
+			allElements = append(allElements, newMarkdownElement(statusText))
 		}
 
-		// Add details for all suspicious processes in this namespace
-		for i, p := range r.ProcessInfos {
-			if i > 0 {
-				allElements = append(allElements, newMarkdownElement("----------"))
-			}
-			allElements = append(allElements, newMarkdownElement(fmt.Sprintf("Suspicious Process #%d", i+1)))
+		// 可疑进程列表 - 使用表格形式
+		if len(r.ProcessInfos) > 0 {
+			tableHeader := "| Pod | 进程 | 原因 |\n| --- | --- | --- |"
+			allElements = append(allElements, newMarkdownElement(tableHeader))
 
-			processDetails := []string{
-				fmt.Sprintf("Pod Name:%s", p.PodName),
-				fmt.Sprintf("Pod Namespace:%s", p.Namespace),
-				fmt.Sprintf("Process Name:%s", p.ProcessName),
-				fmt.Sprintf("Command:%s", p.Command),
-				fmt.Sprintf("Alert Message:%s", p.Message),
-				fmt.Sprintf("Detection Time:%s", p.Timestamp),
+			for _, p := range r.ProcessInfos {
+				// 简化 Pod 名称（如果太长）
+				podName := p.PodName
+				if len(podName) > 30 {
+					podName = podName[:27] + "..."
+				}
+
+				// 提取关键原因
+				reason := extractReason(p.Message)
+
+				tableRow := fmt.Sprintf("| `%s` | `%s` | %s |",
+					podName,
+					p.ProcessName,
+					reason)
+				allElements = append(allElements, newMarkdownElement(tableRow))
 			}
-			allElements = append(allElements, newMarkdownElement(strings.Join(processDetails, "\n")))
 		}
 	}
 
-	allElements = append(allElements, newMarkdownElement("---"))
-	allElements = append(allElements, newMarkdownElement("**❗ Please handle suspicious processes promptly!**"))
+	// 4. 底部提示
+	allElements = append(allElements, newHrElement())
+	allElements = append(allElements, newMarkdownElement("💡 **建议：** 请及时检查并处理异常进程"))
 
 	cardContent := map[string]any{
 		"config": map[string]any{"wide_screen_mode": true},
 		"header": map[string]any{
 			"template": "red",
-			"title":    map[string]any{"content": "🚨 Node Suspicious Process Scan Report", "tag": "plain_text"},
+			"title": map[string]any{
+				"content": "🚨 可疑进程告警",
+				"tag":     "plain_text",
+			},
 		},
 		"elements": allElements,
 	}
 
-	// Send request
+	// 发送请求
 	message := LarkMessage{
 		MsgType: "interactive",
 		Card:    cardContent,
@@ -133,4 +147,44 @@ func newMarkdownElement(content string) map[string]any {
 			"tag":     "lark_md",
 		},
 	}
+}
+
+// newHrElement creates a horizontal line element
+func newHrElement() map[string]any {
+	return map[string]any{
+		"tag": "hr",
+	}
+}
+
+// getStatusText converts label result to user-friendly status text
+func getStatusText(labelResult string) string {
+	if strings.Contains(labelResult, "disabled") || strings.Contains(labelResult, "Feature disabled") {
+		return "⏸️ 功能未启用"
+	}
+	if strings.Contains(labelResult, "success") || strings.Contains(labelResult, "Success") {
+		return "✅ 已标记处理"
+	}
+	if strings.Contains(labelResult, "error") || strings.Contains(labelResult, "Error") {
+		return "❌ 处理失败"
+	}
+	return "⏳ 等待处理"
+}
+
+// extractReason extracts the key reason from alert message
+func extractReason(message string) string {
+	// 示例: "Process name 'bash' matched blacklist rule '^bash$'"
+	if strings.Contains(message, "matched blacklist") {
+		return "🚫 黑名单进程"
+	}
+	if strings.Contains(message, "suspicious") {
+		return "⚠️ 可疑行为"
+	}
+	if strings.Contains(message, "unauthorized") {
+		return "🔒 未授权访问"
+	}
+	// 默认返回简化的消息
+	if len(message) > 20 {
+		return message[:20] + "..."
+	}
+	return message
 }

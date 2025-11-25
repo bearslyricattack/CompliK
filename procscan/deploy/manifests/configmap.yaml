@@ -17,6 +17,7 @@ data:
           clawcloud.run/status: "locked"
 
     notifications:
+      region: "hzh"
       lark:
         webhook: ""
         timeout: "30s"

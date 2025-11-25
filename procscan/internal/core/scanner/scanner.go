@@ -290,7 +290,7 @@ func (s *Scanner) scanProcesses() error {
 		})
 	}
 
-	if err := alert.SendGlobalBatchAlert(finalResults, currentConfig.Notifications.Lark.Webhook); err != nil {
+	if err := alert.SendGlobalBatchAlert(finalResults, currentConfig.Notifications.Lark.Webhook, currentConfig.Notifications.Region); err != nil {
 		legacy.L.WithError(err).Error("Failed to send global batch Lark alert")
 	}
 
