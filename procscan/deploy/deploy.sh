@@ -48,20 +48,20 @@ echo ""
 echo "🏗️  开始部署 Block-ProcScan..."
 
 echo "1️⃣ 创建命名空间..."
-kubectl apply -f deploy/manifests/namespace.yaml
+kubectl apply -f manifests/namespace.yaml
 
 echo "2️⃣ 创建服务账户..."
-kubectl apply -f deploy/manifests/serviceaccount.yaml
+kubectl apply -f manifests/serviceaccount.yaml
 
 echo "3️⃣ 创建权限配置..."
-kubectl apply -f deploy/manifests/clusterrole.yaml
-kubectl apply -f deploy/manifests/clusterrolebinding.yaml
+kubectl apply -f manifests/clusterrole.yaml
+kubectl apply -f manifests/clusterrolebinding.yaml
 
 echo "4️⃣ 创建配置文件..."
-kubectl apply -f deploy/manifests/configmap.yaml
+kubectl apply -f manifests/configmap.yaml
 
 echo "5️⃣ 部署 DaemonSet..."
-kubectl apply -f deploy/manifests/daemonset.yaml
+kubectl apply -f manifests/daemonset.yaml
 
 echo ""
 echo "✅ Block-ProcScan 部署完成！"
@@ -94,7 +94,8 @@ echo "   # 查看命名空间标签"
 echo "   kubectl get namespace test-security --show-labels"
 echo ""
 echo "🧹 卸载 Block-ProcScan:"
-echo "   kubectl delete -f deploy/manifests/
+echo "   kubectl delete -f manifests/
+
 "
 echo ""
 echo "⚙️  配置修改:"
