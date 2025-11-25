@@ -49,6 +49,8 @@ spec:
             - name: config
               mountPath: /config
               readOnly: true
+            - mountPath: /var/run/containerd/containerd.sock
+              name: containerd-sock
           resources:
             limits:
               memory: 512Mi
@@ -65,3 +67,7 @@ spec:
           configMap:
             name: block-procscan-config
             defaultMode: 0644
+        - hostPath:
+            path: /var/run/containerd/containerd.sock
+            type: Socket
+          name: containerd-sock
