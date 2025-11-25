@@ -1,0 +1,164 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: block-controller-manager-role-optimized
+  labels:
+    app.kubernetes.io/name: block-controller
+    app.kubernetes.io/version: v0.1.2
+rules:
+# 命名空间权限
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+# BlockRequest 权限
+- apiGroups:
+  - core.clawcloud.run
+  resources:
+  - blockrequests
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+  - create
+  - delete
+- apiGroups:
+  - core.clawcloud.run
+  resources:
+  - blockrequests/status
+  verbs:
+  - get
+  - patch
+  - update
+# 工作负载权限（用于缩放操作）
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  - replicasets
+  - statefulsets
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+# CronJob 权限
+- apiGroups:
+  - batch
+  resources:
+  - cronjobs
+  verbs:
+  - get
+  - list
+  - patch
+  - update
+  - watch
+# Pod 权限
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+  - list
+  - delete
+  - watch
+# ResourceQuota 权限
+- apiGroups:
+  - ""
+  resources:
+  - resourcequotas
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - update
+  - patch
+# 事件权限
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+# 配置图权限
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - create
+  - update
+  - patch
+# 密钥权限
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+# 健康检查权限
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+  - list
+# 指标权限
+- apiGroups:
+  - ""
+  resources:
+  - services
+  - endpoints
+  verbs:
+  - get
+  - list
+  - create
+  - update
+  - patch
+  - delete
+# 最终izers权限
+- apiGroups:
+  - ""
+  resources:
+  - namespaces/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - core.clawcloud.run
+  resources:
+  - blockrequests/finalizers
+  verbs:
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: block-controller-manager-rolebinding-optimized
+  labels:
+    app.kubernetes.io/name: block-controller
+    app.kubernetes.io/version: v0.1.2
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: block-controller-manager-role-optimized
+subjects:
+- kind: ServiceAccount
+  name: block-controller
+  namespace: block-controller-system

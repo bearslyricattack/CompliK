@@ -1,0 +1,8 @@
+apiVersion: core.clawcloud.run/v1
+kind: BlockRequest
+metadata:
+  name: blockrequest-sample
+spec:
+  namespaceNames:
+  - default
+  action: "locked"
