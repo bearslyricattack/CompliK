@@ -8,12 +8,13 @@ import (
 	"testing"
 	"time"
 
+	"runtime"
+
 	"github.com/bearslyricattack/CompliK/block-controller/api/v1"
 	"github.com/bearslyricattack/CompliK/block-controller/internal/constants"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
-	"runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"

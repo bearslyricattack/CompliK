@@ -19,7 +19,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/bearslyricattack/CompliK/block-controller/cmd/kubectl-block/cmd"
 	"github.com/spf13/cobra"

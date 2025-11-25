@@ -20,17 +20,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 	"text/tabwriter"
 	"time"
 
+	"github.com/bearslyricattack/CompliK/block-controller/internal/constants"
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/duration"
 	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/util/jsonpath"
-
-	"github.com/bearslyricattack/CompliK/block-controller/internal/constants"
 )
 
 // NamespaceStatus 包含 namespace 状态信息

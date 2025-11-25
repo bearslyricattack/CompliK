@@ -24,15 +24,12 @@ import (
 
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
 
-	blockv1 "github.com/bearslyricattack/CompliK/block-controller/api/v1"
 	corev1 "github.com/bearslyricattack/CompliK/block-controller/api/v1"
 )
 
@@ -202,18 +199,18 @@ func (o *CommandOptions) CreateBlockRequest(name, namespace string, namespaces [
 
 	ctx := context.TODO()
 
-	blockRequest := &blockv1.BlockRequest{
+	blockRequest := &corev1.BlockRequest{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 		},
-		Spec: blockv1.BlockRequestSpec{
+		Spec: corev1.BlockRequestSpec{
 			NamespaceNames: namespaces,
 			Action:         action,
 		},
 	}
 
-	result := &blockv1.BlockRequest{}
+	result := &corev1.BlockRequest{}
 	err := o.blockClient.Post().
 		Namespace(namespace).
 		Resource("blockrequests").

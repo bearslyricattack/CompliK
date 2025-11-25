@@ -28,7 +28,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/bearslyricattack/CompliK/block-controller/api/v1"
 	"github.com/bearslyricattack/CompliK/block-controller/internal/constants"
 )
 
