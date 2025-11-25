@@ -21,7 +21,6 @@ func GetContainerInfo(containerID string) (string, string, error) {
 	client := runtimeapi.NewRuntimeServiceClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-
 	statusReq := &runtimeapi.ContainerStatusRequest{ContainerId: containerID}
 	statusResp, err := client.ContainerStatus(ctx, statusReq)
 	if err != nil {
@@ -30,25 +29,15 @@ func GetContainerInfo(containerID string) (string, string, error) {
 	if statusResp.Status == nil {
 		return "", "", fmt.Errorf("container status is empty")
 	}
-
-	podSandboxId := statusResp.Status.GetLabels()["io.kubernetes.pod.uid"]
 	podNamespace := statusResp.Status.GetLabels()["io.kubernetes.pod.namespace"]
 	podName := statusResp.Status.GetLabels()["io.kubernetes.pod.name"]
-	fmt.Printf("podNamespace: %s, podName: %s\n", podNamespace, podName)
-	if podSandboxId == "" {
-		return "", "", fmt.Errorf("cannot find PodSandboxId (io.kubernetes.pod.uid) in container labels")
+	if podName == "" {
+		return "", "", fmt.Errorf("cannot find pod name (io.kubernetes.pod.name) in container labels")
 	}
-
-	podReq := &runtimeapi.PodSandboxStatusRequest{PodSandboxId: podSandboxId}
-	podResp, err := client.PodSandboxStatus(ctx, podReq)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to get pod status: %v", err)
+	if podNamespace == "" {
+		return "", "", fmt.Errorf("cannot find pod namespace (io.kubernetes.pod.namespace) in container labels")
 	}
-	if podResp.Status == nil {
-		return "", "", fmt.Errorf("pod status is empty")
-	}
-
-	return podResp.Status.Metadata.Name, podResp.Status.Metadata.Namespace, nil
+	return podName, podNamespace, nil
 }
 
 // createGRPCConnection establishes a gRPC connection to the container runtime
