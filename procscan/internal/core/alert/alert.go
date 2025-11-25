@@ -57,7 +57,7 @@ func SendGlobalBatchAlert(results []*NamespaceScanResult, webhookURL string) err
 		if nodeName == "" {
 			nodeName = "unknown"
 		}
-		allElements = append(allElements, newMarkdownElement(fmt.Sprintf("**🖥️ Node Name:** %s", nodeName)))
+		allElements = append(allElements, newMarkdownElement(fmt.Sprintf("Node Name:%s", nodeName)))
 
 		var actionText strings.Builder
 		if r.LabelResult != "" {
@@ -73,16 +73,15 @@ func SendGlobalBatchAlert(results []*NamespaceScanResult, webhookURL string) err
 			if i > 0 {
 				allElements = append(allElements, newMarkdownElement("----------"))
 			}
-			allElements = append(allElements, newMarkdownElement(fmt.Sprintf("**Suspicious Process #%d**", i+1)))
+			allElements = append(allElements, newMarkdownElement(fmt.Sprintf("Suspicious Process #%d", i+1)))
 
 			processDetails := []string{
-				fmt.Sprintf("**🏷️ Pod Name:** %s", p.PodName),
-				fmt.Sprintf("**🔢 Process ID:** %d", p.PID),
-				fmt.Sprintf("**📋 Process Name:** `%s`", p.ProcessName),
-				fmt.Sprintf("**💻 Command:** `%s`", p.Command),
-				fmt.Sprintf("**📦 Container ID:** %s", p.ContainerID),
-				fmt.Sprintf("**📝 Alert Message:** %s", p.Message),
-				fmt.Sprintf("**⏰ Detection Time:** %s", p.Timestamp),
+				fmt.Sprintf("Pod Name:%s", p.PodName),
+				fmt.Sprintf("Pod Namespace:%s", p.Namespace),
+				fmt.Sprintf("Process Name:%s", p.ProcessName),
+				fmt.Sprintf("Command:%s", p.Command),
+				fmt.Sprintf("Alert Message:%s", p.Message),
+				fmt.Sprintf("Detection Time:%s", p.Timestamp),
 			}
 			allElements = append(allElements, newMarkdownElement(strings.Join(processDetails, "\n")))
 		}

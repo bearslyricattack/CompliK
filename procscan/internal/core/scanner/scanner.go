@@ -11,7 +11,6 @@ import (
 	"github.com/bearslyricattack/CompliK/procscan/internal/core/alert"
 	k8sClient "github.com/bearslyricattack/CompliK/procscan/internal/core/k8s"
 	"github.com/bearslyricattack/CompliK/procscan/internal/core/processor"
-	"github.com/bearslyricattack/CompliK/procscan/internal/notification/lark"
 	legacy "github.com/bearslyricattack/CompliK/procscan/pkg/logger/legacy"
 	"github.com/bearslyricattack/CompliK/procscan/pkg/metrics"
 	"github.com/bearslyricattack/CompliK/procscan/pkg/models"
@@ -62,44 +61,6 @@ func (a *K8sClientAdapter) LabelNamespace(namespaceName string, labels map[strin
 	return k8sClient.LabelNamespace(a.clientset, namespaceName, labels)
 }
 
-// LarkNotifierAdapter adapts Lark notifier to notifierInterface
-type LarkNotifierAdapter struct {
-	notifier *lark.Notifier
-}
-
-func (a *LarkNotifierAdapter) SendThreatAlert(threat ThreatInfo) error {
-	nodeName := os.Getenv("NODE_NAME")
-	if nodeName == "" {
-		nodeName = "unknown"
-	}
-
-	larkThreat := lark.ThreatInfo{
-		TotalAffected: 1,
-		ScanTime:      time.Now().Format("2006-01-02 15:04:05"),
-		NodeName:      nodeName,
-		Threats: []lark.ThreatDetail{
-			{
-				Namespace: threat.Namespace,
-				Processes: []lark.ProcessInfo{
-					{
-						PID:     0,
-						Name:    threat.ProcessName,
-						Command: threat.ProcessCmd,
-						PodName: threat.PodName,
-					},
-				},
-				ActionResult: "Label added",
-			},
-		},
-		Actions: []string{"Add security label"},
-	}
-	return a.notifier.SendThreatAlert(larkThreat)
-}
-
-func (a *LarkNotifierAdapter) SendSimpleNotification(message string) error {
-	return a.notifier.Send(message)
-}
-
 // NewScanner creates a new scanner instance with the provided configuration
 func NewScanner(config *models.Config) *Scanner {
 	// Initialize Kubernetes client
@@ -107,15 +68,6 @@ func NewScanner(config *models.Config) *Scanner {
 	if err != nil {
 		legacy.L.WithError(err).Warn("Failed to create K8s client, labeling feature will be unavailable")
 		k8sClientset = nil
-	}
-
-	// Initialize notifier
-	var notifierAdapter notifierInterface
-	if config.Notifications.Lark.Webhook != "" {
-		larkNotifier := lark.NewNotifier(config.Notifications.Lark.Webhook)
-		notifierAdapter = &LarkNotifierAdapter{notifier: larkNotifier}
-	} else {
-		legacy.L.Info("Lark webhook not configured, notification feature will be unavailable")
 	}
 
 	var k8sAdapter k8sClientInterface
@@ -142,7 +94,6 @@ func NewScanner(config *models.Config) *Scanner {
 		config:     config,
 		processor:  processor.NewProcessor(config),
 		k8sClient:  k8sAdapter,
-		notifier:   notifierAdapter,
 		metrics:    metricsCollector,
 		metricsSrv: metricsServer,
 	}
