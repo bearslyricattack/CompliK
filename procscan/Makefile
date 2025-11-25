@@ -1,4 +1,4 @@
-IMG ?= layzer/sealos-procscan:latest
+IMG ?= bearslyricattack/sealos-procscan:latest
 TARGETARCH ?= $(shell go env GOARCH)
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))

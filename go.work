@@ -3,7 +3,7 @@ go 1.24.5
 use (
 	.
 	./analyze
-	./procscan/deploy/manifests/block-controller
+	./block-controller
 	./complik
 	./procscan
 )
