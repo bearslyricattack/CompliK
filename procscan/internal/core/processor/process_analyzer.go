@@ -40,7 +40,7 @@ func ReadProcessStatus(procPath string, pid int) (*ProcessStatus, error) {
 	}
 
 	status := &ProcessStatus{PID: pid}
-	lines := strings.Split(string(data), "")
+	lines := strings.Split(string(data), "\n")
 
 	for _, line := range lines {
 		fields := strings.Fields(line)

@@ -268,6 +268,7 @@ func (v *ConfigValidator) validateField(field string, value interface{}) *Valida
 
 	for _, rule := range rules {
 		if err := rule.Validate(value); err != nil {
+			err.Field = field
 			return err
 		}
 	}
