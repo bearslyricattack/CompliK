@@ -1,5 +1,5 @@
 /*
-Copyright 2025 gitlayzer.
+Copyright 2025 CompliK Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package cmd implements the kubectl-block subcommands.
 package cmd
 
 import (
@@ -33,7 +34,7 @@ import (
 	corev1 "github.com/bearslyricattack/CompliK/block-controller/api/v1"
 )
 
-// CommandOptions 包含所有命令的通用选项
+// CommandOptions contains common options for all commands
 type CommandOptions struct {
 	kubeConfig  clientcmd.ClientConfig
 	client      kubernetes.Interface
@@ -51,31 +52,31 @@ type CommandOptions struct {
 	verbose   bool
 }
 
-// NewCommandOptions 创建新的命令选项
+// NewCommandOptions creates new command options
 func NewCommandOptions(kubeConfig clientcmd.ClientConfig) *CommandOptions {
 	return &CommandOptions{
 		kubeConfig: kubeConfig,
-		duration:   24 * time.Hour, // 默认 24 小时
+		duration:   24 * time.Hour, // Default 24 hours
 		reason:     "Manual operation via kubectl-block",
 		output:     "table",
 	}
 }
 
-// Init 初始化命令选项
+// Init initializes command options
 func (o *CommandOptions) Init() error {
-	// 获取 kubeconfig
+	// Get kubeconfig
 	config, err := o.kubeConfig.ClientConfig()
 	if err != nil {
 		return fmt.Errorf("failed to get kubeconfig: %v", err)
 	}
 
-	// 创建 Kubernetes 客户端
+	// Create Kubernetes client
 	o.client, err = kubernetes.NewForConfig(config)
 	if err != nil {
 		return fmt.Errorf("failed to create kubernetes client: %v", err)
 	}
 
-	// 创建 block controller 客户端
+	// Create block controller client
 	config.GroupVersion = &corev1.SchemeGroupVersion
 	config.APIPath = "/apis"
 	config.NegotiatedSerializer = corev1.Codecs
@@ -85,7 +86,7 @@ func (o *CommandOptions) Init() error {
 		return fmt.Errorf("failed to create block client: %v", err)
 	}
 
-	// 获取默认 namespace
+	// Get default namespace
 	if o.namespace == "" {
 		ns, _, err := o.kubeConfig.Namespace()
 		if err != nil {
@@ -98,19 +99,19 @@ func (o *CommandOptions) Init() error {
 	return nil
 }
 
-// LogVerbose 记录详细日志
+// LogVerbose logs verbose messages
 func (o *CommandOptions) LogVerbose(format string, args ...interface{}) {
 	if o.verbose {
 		klog.V(2).Infof(format, args...)
 	}
 }
 
-// LogError 记录错误
+// LogError logs errors
 func (o *CommandOptions) LogError(err error, format string, args ...interface{}) {
 	klog.Errorf(format+": %v", append(args, err)...)
 }
 
-// ValidateNamespace 验证 namespace 名称
+// ValidateNamespace validates namespace name
 func (o *CommandOptions) ValidateNamespace(namespace string) error {
 	if namespace == "" {
 		return fmt.Errorf("namespace name cannot be empty")
@@ -121,7 +122,7 @@ func (o *CommandOptions) ValidateNamespace(namespace string) error {
 	return nil
 }
 
-// GetNamespace 获取 namespace
+// GetNamespace gets a namespace
 func (o *CommandOptions) GetNamespace(namespace string) (*corev1.Namespace, error) {
 	ctx := context.TODO()
 	ns, err := o.client.CoreV1().Namespaces().Get(ctx, namespace, metav1.GetOptions{})
@@ -131,7 +132,7 @@ func (o *CommandOptions) GetNamespace(namespace string) (*corev1.Namespace, erro
 	return ns, nil
 }
 
-// UpdateNamespaceLabel 更新 namespace 标签
+// UpdateNamespaceLabel updates namespace label
 func (o *CommandOptions) UpdateNamespaceLabel(namespace string, labelKey, labelValue string) error {
 	if o.dryRun {
 		fmt.Printf("[DRY-RUN] Would update namespace %s: %s=%s\n", namespace, labelKey, labelValue)
@@ -144,15 +145,15 @@ func (o *CommandOptions) UpdateNamespaceLabel(namespace string, labelKey, labelV
 		return err
 	}
 
-	// 初始化 labels
+	// Initialize labels
 	if ns.Labels == nil {
 		ns.Labels = make(map[string]string)
 	}
 
-	// 更新标签
+	// Update label
 	ns.Labels[labelKey] = labelValue
 
-	// 更新 namespace
+	// Update namespace
 	_, err = o.client.CoreV1().Namespaces().Update(ctx, ns, metav1.UpdateOptions{})
 	if err != nil {
 		return err
@@ -162,7 +163,7 @@ func (o *CommandOptions) UpdateNamespaceLabel(namespace string, labelKey, labelV
 	return nil
 }
 
-// RemoveNamespaceLabel 移除 namespace 标签
+// RemoveNamespaceLabel removes namespace label
 func (o *CommandOptions) RemoveNamespaceLabel(namespace, labelKey string) error {
 	if o.dryRun {
 		fmt.Printf("[DRY-RUN] Would remove label %s from namespace %s\n", labelKey, namespace)
@@ -175,10 +176,10 @@ func (o *CommandOptions) RemoveNamespaceLabel(namespace, labelKey string) error 
 		return err
 	}
 
-	// 移除标签
+	// Remove label
 	delete(ns.Labels, labelKey)
 
-	// 更新 namespace
+	// Update namespace
 	_, err = o.client.CoreV1().Namespaces().Update(ctx, ns, metav1.UpdateOptions{})
 	if err != nil {
 		return err
@@ -188,7 +189,7 @@ func (o *CommandOptions) RemoveNamespaceLabel(namespace, labelKey string) error 
 	return nil
 }
 
-// CreateBlockRequest 创建 BlockRequest
+// CreateBlockRequest creates a BlockRequest
 func (o *CommandOptions) CreateBlockRequest(name, namespace string, namespaces []string, action string) error {
 	if o.dryRun {
 		fmt.Printf("[DRY-RUN] Would create BlockRequest %s in namespace %s\n", name, namespace)
@@ -226,7 +227,7 @@ func (o *CommandOptions) CreateBlockRequest(name, namespace string, namespaces [
 	return nil
 }
 
-// GetNamespaceStatus 获取 namespace 状态
+// GetNamespaceStatus gets namespace status
 func (o *CommandOptions) GetNamespaceStatus(namespace string) (string, error) {
 	ns, err := o.GetNamespace(namespace)
 	if err != nil {
@@ -241,7 +242,7 @@ func (o *CommandOptions) GetNamespaceStatus(namespace string) (string, error) {
 	return status, nil
 }
 
-// FormatDuration 格式化时长
+// FormatDuration formats duration
 func FormatDuration(duration time.Duration) string {
 	if duration == 0 {
 		return "permanent"
@@ -256,7 +257,7 @@ func FormatDuration(duration time.Duration) string {
 	return fmt.Sprintf("%dh", hours)
 }
 
-// ParseDuration 解析时长字符串
+// ParseDuration parses duration string
 func ParseDuration(s string) (time.Duration, error) {
 	if s == "permanent" || s == "0" {
 		return 0, nil
@@ -264,7 +265,7 @@ func ParseDuration(s string) (time.Duration, error) {
 	return time.ParseDuration(s)
 }
 
-// AddCommonFlags 添加通用参数
+// AddCommonFlags adds common flags
 func AddCommonFlags(cmd *cobra.Command, opts *CommandOptions) {
 	cmd.Flags().StringVarP(&opts.reason, "reason", "r", opts.reason, "Reason for the operation")
 	cmd.Flags().DurationVarP(&opts.duration, "duration", "d", opts.duration, "Duration for lock (e.g., 24h, 7d, permanent)")
@@ -274,26 +275,26 @@ func AddCommonFlags(cmd *cobra.Command, opts *CommandOptions) {
 	cmd.Flags().BoolVarP(&opts.verbose, "verbose", "v", opts.verbose, "Enable verbose output")
 }
 
-// ParseSelector 解析标签选择器
+// ParseSelector parses label selector
 func ParseSelector(selector string) (map[string]string, error) {
 	if selector == "" {
 		return nil, nil
 	}
 
-	// 简单的 key=value 解析
+	// Simple key=value parsing
 	result := make(map[string]string)
-	// TODO: 实现更复杂的选择器解析逻辑
+	// TODO: Implement more complex selector parsing logic
 	return result, nil
 }
 
-// ReadNamespacesFromFile 从文件读取 namespace 列表
+// ReadNamespacesFromFile reads namespace list from file
 func ReadNamespacesFromFile(filename string) ([]string, error) {
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}
 
-	// 简单的按行分割
+	// Simple line splitting
 	var namespaces []string
 	lines := strings.Split(string(data), "\n")
 	for _, line := range lines {

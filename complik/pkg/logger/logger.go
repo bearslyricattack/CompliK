@@ -1,3 +1,20 @@
+// Copyright 2025 CompliK Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package logger provides a flexible, high-performance logging system with support for
+// structured logging, multiple output formats (text/JSON), log levels, colored output,
+// and contextual information tracking.
 package logger
 
 import (
@@ -13,7 +30,7 @@ import (
 	"time"
 )
 
-// LogLevel 日志级别
+// LogLevel represents the severity level of a log message
 type LogLevel int
 
 const (
@@ -44,10 +61,11 @@ var (
 	resetColor = "\033[0m"
 )
 
-// Fields 日志字段类型
+// Fields represents a map of structured logging fields
 type Fields map[string]any
 
-// Logger 日志接口
+// Logger is the main logging interface providing methods for different log levels
+// and contextual logging capabilities
 type Logger interface {
 	Debug(msg string, fields ...Fields)
 	Info(msg string, fields ...Fields)
@@ -64,7 +82,7 @@ type Logger interface {
 	SetOutput(w io.Writer)
 }
 
-// StandardLogger 标准日志实现
+// StandardLogger is the default implementation of the Logger interface
 type StandardLogger struct {
 	mu         sync.RWMutex
 	level      LogLevel
@@ -76,13 +94,13 @@ type StandardLogger struct {
 	timeFormat string
 }
 
-// globalLogger 全局日志实例
+// globalLogger is the global logger instance
 var (
 	globalLogger *StandardLogger
 	once         sync.Once
 )
 
-// Init 初始化全局日志
+// Init initializes the global logger instance with default settings
 func Init() {
 	once.Do(func() {
 		globalLogger = &StandardLogger{
@@ -95,14 +113,14 @@ func Init() {
 			timeFormat: "2006-01-02 15:04:05.000",
 		}
 
-		// 从环境变量读取配置
+		// Configure from environment variables
 		configureFromEnv()
 	})
 }
 
-// configureFromEnv 从环境变量配置日志
+// configureFromEnv configures the logger from environment variables
 func configureFromEnv() {
-	// 日志级别
+	// Log level
 	if level := os.Getenv("COMPLIK_LOG_LEVEL"); level != "" {
 		switch strings.ToUpper(level) {
 		case "DEBUG":
@@ -118,33 +136,33 @@ func configureFromEnv() {
 		}
 	}
 
-	// 日志格式
+	// Log format
 	if format := os.Getenv("COMPLIK_LOG_FORMAT"); format == "json" {
 		globalLogger.jsonFormat = true
 		globalLogger.colored = false
 	}
 
-	// 是否显示颜色
+	// Enable/disable colored output
 	if colored := os.Getenv("COMPLIK_LOG_COLORED"); colored == "false" {
 		globalLogger.colored = false
 	}
 
-	// 是否显示调用位置
+	// Enable/disable caller information
 	if caller := os.Getenv("COMPLIK_LOG_CALLER"); caller == "false" {
 		globalLogger.showCaller = false
 	}
 
-	// 日志文件
+	// Log file output
 	if logFile := os.Getenv("COMPLIK_LOG_FILE"); logFile != "" {
 		file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o666)
 		if err == nil {
 			globalLogger.SetOutput(file)
-			globalLogger.colored = false // 文件输出不使用颜色
+			globalLogger.colored = false // Disable colors for file output
 		}
 	}
 }
 
-// GetLogger 获取全局日志实例
+// GetLogger returns the global logger instance
 func GetLogger() Logger {
 	if globalLogger == nil {
 		Init()
@@ -152,7 +170,7 @@ func GetLogger() Logger {
 	return globalLogger
 }
 
-// New 创建新的日志实例
+// New creates a new logger instance with default settings
 func New() Logger {
 	return &StandardLogger{
 		level:      InfoLevel,
@@ -165,26 +183,26 @@ func New() Logger {
 	}
 }
 
-// SetLevel 设置日志级别
+// SetLevel sets the minimum log level for this logger
 func (l *StandardLogger) SetLevel(level LogLevel) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.level = level
 }
 
-// SetOutput 设置输出
+// SetOutput sets the output destination for this logger
 func (l *StandardLogger) SetOutput(w io.Writer) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.output = w
 }
 
-// WithField 添加单个字段
+// WithField adds a single field to the logger and returns a new logger instance
 func (l *StandardLogger) WithField(key string, value any) Logger {
 	return l.WithFields(Fields{key: value})
 }
 
-// WithFields 添加多个字段
+// WithFields adds multiple fields to the logger and returns a new logger instance
 func (l *StandardLogger) WithFields(fields Fields) Logger {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
@@ -208,7 +226,7 @@ func (l *StandardLogger) WithFields(fields Fields) Logger {
 	}
 }
 
-// WithContext 添加上下文
+// WithContext adds context information to the logger and returns a new logger instance
 func (l *StandardLogger) WithContext(ctx context.Context) Logger {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
@@ -227,7 +245,7 @@ func (l *StandardLogger) WithContext(ctx context.Context) Logger {
 		newLogger.fields[k] = v
 	}
 
-	// 从上下文提取请求ID等信息
+	// Extract request ID and trace ID from context
 	if ctx != nil {
 		if requestID := ctx.Value("request_id"); requestID != nil {
 			newLogger.fields["request_id"] = requestID
@@ -240,7 +258,7 @@ func (l *StandardLogger) WithContext(ctx context.Context) Logger {
 	return newLogger
 }
 
-// WithError 添加错误
+// WithError adds error information to the logger and returns a new logger instance
 func (l *StandardLogger) WithError(err error) Logger {
 	if err == nil {
 		return l
@@ -248,33 +266,33 @@ func (l *StandardLogger) WithError(err error) Logger {
 	return l.WithField("error", err.Error())
 }
 
-// Debug 输出调试日志
+// Debug logs a message at Debug level
 func (l *StandardLogger) Debug(msg string, fields ...Fields) {
 	l.log(DebugLevel, msg, fields...)
 }
 
-// Info 输出信息日志
+// Info logs a message at Info level
 func (l *StandardLogger) Info(msg string, fields ...Fields) {
 	l.log(InfoLevel, msg, fields...)
 }
 
-// Warn 输出警告日志
+// Warn logs a message at Warn level
 func (l *StandardLogger) Warn(msg string, fields ...Fields) {
 	l.log(WarnLevel, msg, fields...)
 }
 
-// Error 输出错误日志
+// Error logs a message at Error level
 func (l *StandardLogger) Error(msg string, fields ...Fields) {
 	l.log(ErrorLevel, msg, fields...)
 }
 
-// Fatal 输出致命错误日志并退出
+// Fatal logs a message at Fatal level and exits the program
 func (l *StandardLogger) Fatal(msg string, fields ...Fields) {
 	l.log(FatalLevel, msg, fields...)
 	os.Exit(1)
 }
 
-// log 核心日志方法
+// log is the core logging method that handles message formatting and output
 func (l *StandardLogger) log(level LogLevel, msg string, extraFields ...Fields) {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
@@ -283,7 +301,7 @@ func (l *StandardLogger) log(level LogLevel, msg string, extraFields ...Fields) 
 		return
 	}
 
-	// 合并字段
+	// Merge fields
 	fields := make(Fields, len(l.fields))
 	for k, v := range l.fields {
 		fields[k] = v
@@ -294,12 +312,12 @@ func (l *StandardLogger) log(level LogLevel, msg string, extraFields ...Fields) 
 		}
 	}
 
-	// 添加基础字段
+	// Add base fields
 	fields["time"] = time.Now().Format(l.timeFormat)
 	fields["level"] = logLevelNames[level]
 	fields["msg"] = msg
 
-	// 添加调用位置
+	// Add caller information
 	if l.showCaller {
 		if pc, file, line, ok := runtime.Caller(2); ok {
 			funcName := runtime.FuncForPC(pc).Name()
@@ -308,7 +326,7 @@ func (l *StandardLogger) log(level LogLevel, msg string, extraFields ...Fields) 
 		}
 	}
 
-	// 格式化输出
+	// Format output
 	var output string
 	if l.jsonFormat {
 		output = l.formatJSON(fields)
@@ -316,11 +334,11 @@ func (l *StandardLogger) log(level LogLevel, msg string, extraFields ...Fields) 
 		output = l.formatText(level, msg, fields)
 	}
 
-	// 写入输出
+	// Write output
 	fmt.Fprint(l.output, output)
 }
 
-// formatJSON JSON格式化
+// formatJSON formats the log entry as JSON
 func (l *StandardLogger) formatJSON(fields Fields) string {
 	data, err := json.Marshal(fields)
 	if err != nil {
@@ -329,17 +347,17 @@ func (l *StandardLogger) formatJSON(fields Fields) string {
 	return string(data) + "\n"
 }
 
-// formatText 文本格式化
+// formatText formats the log entry as human-readable text
 func (l *StandardLogger) formatText(level LogLevel, msg string, fields Fields) string {
 	var builder strings.Builder
 
-	// 时间
+	// Timestamp
 	if t, ok := fields["time"].(string); ok {
 		builder.WriteString(t)
 		builder.WriteString(" ")
 	}
 
-	// 级别（带颜色）
+	// Level (with color)
 	levelStr := logLevelNames[level]
 	if l.colored {
 		builder.WriteString(logLevelColors[level])
@@ -350,7 +368,7 @@ func (l *StandardLogger) formatText(level LogLevel, msg string, fields Fields) s
 	}
 	builder.WriteString(" ")
 
-	// 调用位置
+	// Caller information
 	if caller, ok := fields["caller"].(string); ok {
 		builder.WriteString("[")
 		builder.WriteString(caller)
@@ -358,10 +376,10 @@ func (l *StandardLogger) formatText(level LogLevel, msg string, fields Fields) s
 		delete(fields, "caller")
 	}
 
-	// 消息
+	// Message
 	builder.WriteString(msg)
 
-	// 其他字段
+	// Additional fields
 	delete(fields, "time")
 	delete(fields, "level")
 	delete(fields, "msg")
@@ -383,7 +401,8 @@ func (l *StandardLogger) formatText(level LogLevel, msg string, fields Fields) s
 	return builder.String()
 }
 
-// 全局便捷方法
+// Global convenience methods for the default logger
+
 func Debug(msg string, fields ...Fields) {
 	GetLogger().Debug(msg, fields...)
 }

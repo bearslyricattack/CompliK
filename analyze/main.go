@@ -1,3 +1,39 @@
+// Copyright 2025 CompliK Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package main implements a keyword frequency analyzer for compliance detection records.
+//
+// This tool connects to a MySQL database containing compliance detection records,
+// extracts keywords from JSON arrays, performs frequency analysis, and generates
+// visual histogram charts showing the most common compliance issues detected.
+//
+// Features:
+//   - Connects to MySQL database with configurable DSN
+//   - Extracts and analyzes keywords from detector_records table
+//   - Generates top-N keyword frequency statistics
+//   - Creates histogram visualizations with Chinese font support
+//   - Cross-platform font detection (Windows, Linux, macOS)
+//
+// Usage:
+//
+//	go run main.go
+//
+// The program will:
+//  1. Connect to the database specified in the DSN
+//  2. Fetch all keywords from detector_records
+//  3. Analyze frequency and display top 50 keywords
+//  4. Generate a histogram chart saved as keywords_histogram.png
 package main
 
 import (
@@ -16,48 +52,50 @@ import (
 	"github.com/wcharczuk/go-chart/v2/drawing"
 )
 
-// KeywordStats 关键词统计结构
+// KeywordStats represents statistical data for a single keyword
 type KeywordStats struct {
-	Keyword string
-	Count   int
+	Keyword string // The keyword text
+	Count   int    // Number of occurrences
 }
 
-// KeywordAnalyzer 关键词分析器
+// KeywordAnalyzer analyzes keyword frequency from database records
 type KeywordAnalyzer struct {
 	db *sql.DB
 }
 
-// NewKeywordAnalyzer 创建新的分析器
+// NewKeywordAnalyzer creates a new keyword analyzer with database connection
+// dsn: MySQL data source name in format: user:password@tcp(host:port)/database?params
 func NewKeywordAnalyzer(dsn string) (*KeywordAnalyzer, error) {
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
-		return nil, fmt.Errorf("数据库连接失败: %v", err)
+		return nil, fmt.Errorf("failed to connect to database: %v", err)
 	}
 
-	// 设置连接池参数
-	db.SetMaxOpenConns(10)
-	db.SetMaxIdleConns(5)
-	db.SetConnMaxLifetime(time.Hour)
+	// Configure connection pool parameters
+	db.SetMaxOpenConns(10)           // Maximum open connections
+	db.SetMaxIdleConns(5)            // Maximum idle connections
+	db.SetConnMaxLifetime(time.Hour) // Connection lifetime
 
-	// 测试连接
+	// Test the connection
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := db.PingContext(ctx); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("数据库ping失败: %v", err)
+		return nil, fmt.Errorf("failed to ping database: %v", err)
 	}
 
-	fmt.Println("✓ 数据库连接成功！")
+	fmt.Println("✓ Database connection established successfully!")
 	return &KeywordAnalyzer{db: db}, nil
 }
 
-// FetchKeywords 从数据库获取所有关键词
+// FetchKeywords retrieves all keywords from the detector_records table
+// Returns a flat list of keywords (with duplicates) extracted from JSON arrays
 func (ka *KeywordAnalyzer) FetchKeywords() ([]string, error) {
 	query := "SELECT keywords FROM detector_records WHERE keywords IS NOT NULL"
 	rows, err := ka.db.Query(query)
 	if err != nil {
-		return nil, fmt.Errorf("查询失败: %v", err)
+		return nil, fmt.Errorf("query failed: %v", err)
 	}
 	defer rows.Close()
 
@@ -67,16 +105,16 @@ func (ka *KeywordAnalyzer) FetchKeywords() ([]string, error) {
 	for rows.Next() {
 		var keywordsJSON string
 		if err := rows.Scan(&keywordsJSON); err != nil {
-			log.Printf("扫描行失败: %v", err)
+			log.Printf("failed to scan row: %v", err)
 			continue
 		}
 
 		recordCount++
 
-		// 解析JSON数组
+		// Parse JSON array containing keywords
 		var keywords []string
 		if err := json.Unmarshal([]byte(keywordsJSON), &keywords); err != nil {
-			log.Printf("JSON解析失败: %v, 数据: %s", err, keywordsJSON)
+			log.Printf("failed to parse JSON: %v, data: %s", err, keywordsJSON)
 			continue
 		}
 
@@ -84,24 +122,26 @@ func (ka *KeywordAnalyzer) FetchKeywords() ([]string, error) {
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("遍历结果集失败: %v", err)
+		return nil, fmt.Errorf("error iterating rows: %v", err)
 	}
 
-	fmt.Printf("共获取到 %d 条记录\n", recordCount)
-	fmt.Printf("共提取到 %d 个关键词（包含重复）\n", len(allKeywords))
+	fmt.Printf("Total records fetched: %d\n", recordCount)
+	fmt.Printf("Total keywords extracted: %d (including duplicates)\n", len(allKeywords))
 
 	return allKeywords, nil
 }
 
-// AnalyzeKeywords 分析关键词频率，返回前N个
+// AnalyzeKeywords analyzes keyword frequency and returns top N results
+// keywords: list of keywords (may contain duplicates)
+// topN: maximum number of results to return (sorted by frequency descending)
 func (ka *KeywordAnalyzer) AnalyzeKeywords(keywords []string, topN int) []KeywordStats {
-	// 统计关键词频率
+	// Count keyword frequency
 	countMap := make(map[string]int)
 	for _, keyword := range keywords {
 		countMap[keyword]++
 	}
 
-	// 转换为切片
+	// Convert map to slice for sorting
 	stats := make([]KeywordStats, 0, len(countMap))
 	for keyword, count := range countMap {
 		stats = append(stats, KeywordStats{
@@ -110,50 +150,45 @@ func (ka *KeywordAnalyzer) AnalyzeKeywords(keywords []string, topN int) []Keywor
 		})
 	}
 
-	// 按频率降序排序
+	// Sort by frequency in descending order
 	sort.Slice(stats, func(i, j int) bool {
 		return stats[i].Count > stats[j].Count
 	})
 
-	// 取前N个
+	// Limit to top N results
 	if len(stats) > topN {
 		stats = stats[:topN]
 	}
 
-	// 打印统计结果
-	fmt.Printf("\n关键词总数: %d\n", len(countMap))
-	fmt.Printf("\n关键词频率统计 (Top %d):\n", len(stats))
-	for i := 0; i < 60; i++ {
-		fmt.Print("-")
-	}
-	fmt.Println()
+	// Print statistics summary
+	fmt.Printf("\nTotal unique keywords: %d\n", len(countMap))
+	fmt.Printf("\nKeyword Frequency Statistics (Top %d):\n", len(stats))
+	fmt.Println("------------------------------------------------------------")
 
 	for i, stat := range stats {
-		fmt.Printf("%2d. %-30s : %6d 次\n", i+1, stat.Keyword, stat.Count)
+		fmt.Printf("%2d. %-30s : %6d occurrences\n", i+1, stat.Keyword, stat.Count)
 	}
 
-	for i := 0; i < 60; i++ {
-		fmt.Print("-")
-	}
-	fmt.Println()
+	fmt.Println("------------------------------------------------------------")
 
 	return stats
 }
 
-// GetChineseFont 获取中文字体（根据操作系统）
+// GetChineseFont attempts to load a Chinese-capable font from common system locations
+// Tries multiple font paths across Windows, Linux, and macOS systems
+// Returns the first successfully loaded font, or an error if none found
 func GetChineseFont() (*truetype.Font, error) {
-	// 尝试不同操作系统的中文字体路径
 	fontPaths := []string{
-		// Windows
-		"C:/Windows/Fonts/simhei.ttf", // 黑体
-		"C:/Windows/Fonts/msyh.ttc",   // 微软雅黑
-		"C:/Windows/Fonts/simsun.ttc", // 宋体
-		// Linux
+		// Windows fonts
+		"C:/Windows/Fonts/simhei.ttf", // SimHei (黑体)
+		"C:/Windows/Fonts/msyh.ttc",   // Microsoft YaHei (微软雅黑)
+		"C:/Windows/Fonts/simsun.ttc", // SimSun (宋体)
+		// Linux fonts
 		"/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
 		"/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
 		"/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
 		"/usr/share/fonts/truetype/arphic/uming.ttc",
-		// macOS
+		// macOS fonts
 		"/System/Library/Fonts/PingFang.ttc",
 		"/Library/Fonts/Arial Unicode.ttf",
 	}
@@ -162,25 +197,27 @@ func GetChineseFont() (*truetype.Font, error) {
 		if fontData, err := os.ReadFile(path); err == nil {
 			font, err := truetype.Parse(fontData)
 			if err == nil {
-				fmt.Printf("✓ 使用字体: %s\n", path)
+				fmt.Printf("✓ Using font: %s\n", path)
 				return font, nil
 			}
 		}
 	}
 
-	return nil, fmt.Errorf("未找到中文字体文件")
+	return nil, fmt.Errorf("no Chinese font file found in system paths")
 }
 
-// PlotHistogram 生成直方图（使用Chart自定义绘制）
+// PlotHistogram generates a histogram chart and saves it as a PNG image
+// stats: keyword statistics to visualize
+// savePath: output file path for the PNG image
 func (ka *KeywordAnalyzer) PlotHistogram(stats []KeywordStats, savePath string) error {
-	// 加载中文字体
+	// Load Chinese font for proper text rendering
 	font, err := GetChineseFont()
 	if err != nil {
-		log.Printf("警告: %v, 将使用默认字体（可能无法显示中文）", err)
+		log.Printf("Warning: %v, will use default font (Chinese characters may not display correctly)", err)
 		font = nil
 	}
 
-	// 准备X轴和Y轴数据
+	// Prepare X-axis and Y-axis data
 	xValues := make([]float64, len(stats))
 	yValues := make([]float64, len(stats))
 	labels := make([]string, len(stats))
@@ -195,7 +232,7 @@ func (ka *KeywordAnalyzer) PlotHistogram(stats []KeywordStats, savePath string) 
 		}
 	}
 
-	// 创建标题样式
+	// Configure title style
 	titleStyle := chart.Style{
 		FontSize: 18,
 	}
@@ -203,7 +240,7 @@ func (ka *KeywordAnalyzer) PlotHistogram(stats []KeywordStats, savePath string) 
 		titleStyle.Font = font
 	}
 
-	// 创建Y轴样式
+	// Configure Y-axis label style
 	yAxisStyle := chart.Style{
 		FontSize: 10,
 	}
@@ -211,7 +248,7 @@ func (ka *KeywordAnalyzer) PlotHistogram(stats []KeywordStats, savePath string) 
 		yAxisStyle.Font = font
 	}
 
-	// 创建Y轴名称样式
+	// Configure Y-axis name style
 	yAxisNameStyle := chart.Style{
 		FontSize: 14,
 	}
@@ -219,9 +256,9 @@ func (ka *KeywordAnalyzer) PlotHistogram(stats []KeywordStats, savePath string) 
 		yAxisNameStyle.Font = font
 	}
 
-	// 创建图表
+	// Create the chart configuration
 	graph := chart.Chart{
-		Title:      fmt.Sprintf("关键词频率分布直方图 (Top %d)", len(stats)),
+		Title:      fmt.Sprintf("Keyword Frequency Distribution Histogram (Top %d)", len(stats)),
 		TitleStyle: titleStyle,
 		Width:      2400,
 		Height:     1000,
@@ -237,7 +274,7 @@ func (ka *KeywordAnalyzer) PlotHistogram(stats []KeywordStats, savePath string) 
 			Ticks: generateTicks(labels, font),
 		},
 		YAxis: chart.YAxis{
-			Name:      "出现次数",
+			Name:      "Occurrences",
 			NameStyle: yAxisNameStyle,
 			Style:     yAxisStyle,
 		},
@@ -253,16 +290,16 @@ func (ka *KeywordAnalyzer) PlotHistogram(stats []KeywordStats, savePath string) 
 		},
 	}
 
-	// 添加柱状图绘制
+	// Add custom bar chart rendering
 	graph.Elements = []chart.Renderable{
 		func(r chart.Renderer, canvasBox chart.Box, defaults chart.Style) {
-			// 计算柱子宽度
+			// Define bar width
 			barWidth := 30.0
 			canvasWidth := float64(canvasBox.Width())
 			canvasHeight := float64(canvasBox.Height())
 
 			for i, stat := range stats {
-				// 计算柱子位置
+				// Calculate bar position
 				xRatio := float64(i) / float64(len(stats)-1)
 				if len(stats) == 1 {
 					xRatio = 0.5
@@ -275,16 +312,16 @@ func (ka *KeywordAnalyzer) PlotHistogram(stats []KeywordStats, savePath string) 
 				barTop := canvasBox.Top + int((1-yRatio)*canvasHeight)
 				barBottom := canvasBox.Bottom
 
-				// 渐变色
+				// Apply gradient color based on position
 				intensity := uint8(80 + (175 * i / len(stats)))
 				barColor := drawing.Color{R: 50, G: 100, B: intensity, A: 255}
 
-				// 绘制柱子
+				// Configure bar rendering
 				r.SetFillColor(barColor)
 				r.SetStrokeColor(drawing.ColorBlack)
 				r.SetStrokeWidth(0.5)
 
-				// 绘制矩形
+				// Draw the bar rectangle
 				r.MoveTo(barLeft, barTop)
 				r.LineTo(barRight, barTop)
 				r.LineTo(barRight, barBottom)
@@ -292,7 +329,7 @@ func (ka *KeywordAnalyzer) PlotHistogram(stats []KeywordStats, savePath string) 
 				r.LineTo(barLeft, barTop)
 				r.FillStroke()
 
-				// 在柱子上方显示数值
+				// Display count value above the bar
 				if font != nil {
 					r.SetFont(font)
 				}
@@ -309,26 +346,26 @@ func (ka *KeywordAnalyzer) PlotHistogram(stats []KeywordStats, savePath string) 
 		},
 	}
 
-	// 保存为PNG文件
+	// Save the chart as PNG file
 	f, err := os.Create(savePath)
 	if err != nil {
-		return fmt.Errorf("创建文件失败: %v", err)
+		return fmt.Errorf("failed to create file: %v", err)
 	}
 	defer f.Close()
 
 	if err := graph.Render(chart.PNG, f); err != nil {
-		return fmt.Errorf("渲染图表失败: %v", err)
+		return fmt.Errorf("failed to render chart: %v", err)
 	}
 
-	fmt.Printf("\n✓ 直方图已保存到: %s\n", savePath)
+	fmt.Printf("\n✓ Histogram saved to: %s\n", savePath)
 	return nil
 }
 
-// generateTicks 生成X轴刻度标签
+// generateTicks creates X-axis tick labels with rotation for better readability
 func generateTicks(labels []string, font *truetype.Font) []chart.Tick {
 	ticks := make([]chart.Tick, len(labels))
 
-	// 创建刻度样式
+	// Configure tick style with 60-degree rotation
 	tickStyle := chart.Style{
 		FontSize:            8,
 		TextRotationDegrees: 60.0,
@@ -347,60 +384,63 @@ func generateTicks(labels []string, font *truetype.Font) []chart.Tick {
 	return ticks
 }
 
-// Close 关闭数据库连接
+// Close closes the database connection and releases resources
 func (ka *KeywordAnalyzer) Close() error {
 	if ka.db != nil {
-		fmt.Println("\n数据库连接已关闭")
+		fmt.Println("\nDatabase connection closed")
 		return ka.db.Close()
 	}
 	return nil
 }
 
-// Run 执行完整的分析流程
+// Run executes the complete keyword analysis workflow
+// topN: number of top keywords to analyze and display
+// savePath: file path where the histogram will be saved
 func (ka *KeywordAnalyzer) Run(topN int, savePath string) error {
 	fmt.Println("============================================================")
-	fmt.Println("                    关键词分析程序启动                    ")
+	fmt.Println("           Keyword Analysis Program Started               ")
 	fmt.Println("============================================================")
 
-	// 获取关键词
+	// Fetch keywords from database
 	keywords, err := ka.FetchKeywords()
 	if err != nil {
 		return err
 	}
 
 	if len(keywords) == 0 {
-		fmt.Println("⚠ 没有找到任何关键词数据！")
+		fmt.Println("⚠ No keyword data found!")
 		return nil
 	}
 
-	// 分析关键词
+	// Analyze keyword frequency
 	stats := ka.AnalyzeKeywords(keywords, topN)
 
-	// 生成直方图
+	// Generate histogram visualization
 	if err := ka.PlotHistogram(stats, savePath); err != nil {
 		return err
 	}
 
 	fmt.Println("============================================================")
-	fmt.Println("                        分析完成！                        ")
+	fmt.Println("              Analysis Completed Successfully!             ")
 	fmt.Println("============================================================")
 
 	return nil
 }
 
 func main() {
-	// 数据库连接配置
-	dsn := "root:@tcp(/complik?charset=utf8mb4&parseTime=True&timeout=10s"
+	// Database connection configuration
+	// Format: user:password@tcp(host:port)/database?params
+	dsn := "root:@tcp(127.0.0.1:3306)/complik?charset=utf8mb4&parseTime=True&timeout=10s"
 
-	// 创建分析器
+	// Create analyzer instance
 	analyzer, err := NewKeywordAnalyzer(dsn)
 	if err != nil {
-		log.Fatalf("❌ 创建分析器失败: %v", err)
+		log.Fatalf("❌ Failed to create analyzer: %v", err)
 	}
 	defer analyzer.Close()
 
-	// 执行分析，显示前50个最常见的关键词
+	// Run analysis: display top 50 most common keywords and generate histogram
 	if err := analyzer.Run(50, "keywords_histogram.png"); err != nil {
-		log.Fatalf("❌ 程序执行出错: %v", err)
+		log.Fatalf("❌ Program execution failed: %v", err)
 	}
 }

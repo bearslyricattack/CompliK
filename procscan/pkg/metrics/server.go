@@ -1,3 +1,17 @@
+// Copyright 2025 CompliK Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package metrics
 
 import (
@@ -11,14 +25,14 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-// Server 管理 Prometheus 指标 HTTP 服务器
+// Server manages the Prometheus metrics HTTP server
 type Server struct {
 	server *http.Server
 	port   int
 	path   string
 }
 
-// NewMetricsServer 创建新的指标服务器
+// NewMetricsServer creates a new metrics server
 func NewMetricsServer(port int, path string) *Server {
 	if path == "" {
 		path = "/metrics"
@@ -41,17 +55,17 @@ func NewMetricsServer(port int, path string) *Server {
 	}
 }
 
-// Start 启动指标服务器
+// Start starts the metrics server
 func (s *Server) Start() error {
 	legacy.L.WithFields(map[string]interface{}{
 		"port": s.port,
 		"path": s.path,
-	}).Info("启动 Prometheus 指标服务器")
+	}).Info("Starting Prometheus metrics server")
 
 	return s.server.ListenAndServe()
 }
 
-// StartWithRetry 带重试的启动指标服务器
+// StartWithRetry starts the metrics server with retry logic
 func (s *Server) StartWithRetry(ctx context.Context, maxRetries int, retryInterval time.Duration) error {
 	for i := 0; i < maxRetries; i++ {
 		select {
@@ -69,7 +83,7 @@ func (s *Server) StartWithRetry(ctx context.Context, maxRetries int, retryInterv
 			"attempt":     i + 1,
 			"max_retries": maxRetries,
 			"error":       err.Error(),
-		}).Warn("指标服务器启动失败，准备重试")
+		}).Warn("Failed to start metrics server, preparing to retry")
 
 		if i < maxRetries-1 {
 			select {
@@ -80,26 +94,26 @@ func (s *Server) StartWithRetry(ctx context.Context, maxRetries int, retryInterv
 		}
 	}
 
-	return fmt.Errorf("指标服务器启动失败，已达到最大重试次数 %d", maxRetries)
+	return fmt.Errorf("failed to start metrics server after reaching maximum retries: %d", maxRetries)
 }
 
-// Stop 停止指标服务器
+// Stop stops the metrics server
 func (s *Server) Stop(ctx context.Context) error {
-	legacy.L.Info("停止 Prometheus 指标服务器")
+	legacy.L.Info("Stopping Prometheus metrics server")
 	return s.server.Shutdown(ctx)
 }
 
-// GetAddr 获取服务器地址
+// GetAddr gets the server address
 func (s *Server) GetAddr() string {
 	return s.server.Addr
 }
 
-// GetMetricsURL 获取指标 URL
+// GetMetricsURL gets the metrics URL
 func (s *Server) GetMetricsURL() string {
 	return fmt.Sprintf("http://localhost:%d%s", s.port, s.path)
 }
 
-// IsHealthy 检查指标服务器是否健康
+// IsHealthy checks if the metrics server is healthy
 func (s *Server) IsHealthy() bool {
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Get(s.GetMetricsURL())
@@ -110,7 +124,7 @@ func (s *Server) IsHealthy() bool {
 	return resp.StatusCode == http.StatusOK
 }
 
-// WaitForHealth 等待指标服务器健康
+// WaitForHealth waits for the metrics server to become healthy
 func (s *Server) WaitForHealth(ctx context.Context, timeout time.Duration) error {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
@@ -123,17 +137,17 @@ func (s *Server) WaitForHealth(ctx context.Context, timeout time.Duration) error
 			return ctx.Err()
 		case <-ticker.C:
 			if time.Now().After(deadline) {
-				return fmt.Errorf("指标服务器健康检查超时")
+				return fmt.Errorf("metrics server health check timeout")
 			}
 			if s.IsHealthy() {
-				legacy.L.Info("指标服务器健康检查通过")
+				legacy.L.Info("Metrics server health check passed")
 				return nil
 			}
 		}
 	}
 }
 
-// MetricsServerConfig 指标服务器配置
+// MetricsServerConfig represents the metrics server configuration
 type MetricsServerConfig struct {
 	Enabled       bool          `yaml:"enabled"`
 	Port          int           `yaml:"port"`
@@ -144,7 +158,7 @@ type MetricsServerConfig struct {
 	RetryInterval time.Duration `yaml:"retry_interval"`
 }
 
-// DefaultMetricsServerConfig 返回默认配置
+// DefaultMetricsServerConfig returns the default configuration
 func DefaultMetricsServerConfig() MetricsServerConfig {
 	return MetricsServerConfig{
 		Enabled:       true,
@@ -157,7 +171,7 @@ func DefaultMetricsServerConfig() MetricsServerConfig {
 	}
 }
 
-// NewMetricsServerFromConfig 从配置创建指标服务器
+// NewMetricsServerFromConfig creates a metrics server from configuration
 func NewMetricsServerFromConfig(config models.MetricsConfig) *Server {
 	server := NewMetricsServer(config.Port, config.Path)
 
@@ -171,30 +185,30 @@ func NewMetricsServerFromConfig(config models.MetricsConfig) *Server {
 	return server
 }
 
-// RunMetricsServer 运行指标服务器（阻塞）
+// RunMetricsServer runs the metrics server (blocking)
 func RunMetricsServer(config models.MetricsConfig) error {
 	if !config.Enabled {
-		legacy.L.Info("指标服务器已禁用")
+		legacy.L.Info("Metrics server is disabled")
 		return nil
 	}
 
 	server := NewMetricsServerFromConfig(config)
 
-	// 启动服务器
+	// Start the server
 	go func() {
 		if err := server.StartWithRetry(context.Background(), config.MaxRetries, config.RetryInterval); err != nil {
-			legacy.L.WithError(err).Error("指标服务器启动失败")
+			legacy.L.WithError(err).Error("Failed to start metrics server")
 		}
 	}()
 
-	// 等待服务器健康
+	// Wait for the server to become healthy
 	if err := server.WaitForHealth(context.Background(), 30*time.Second); err != nil {
 		return err
 	}
 
-	legacy.L.WithField("url", server.GetMetricsURL()).Info("指标服务器启动成功")
+	legacy.L.WithField("url", server.GetMetricsURL()).Info("Metrics server started successfully")
 
-	// 阻塞等待上下文取消
+	// Block until context is cancelled
 	<-context.Background().Done()
 
 	return server.Stop(context.Background())

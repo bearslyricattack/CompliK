@@ -1,7 +1,20 @@
+// Copyright 2025 CompliK Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package logger
 
 import (
-	"context"
 	"fmt"
 	"math"
 	"runtime"
@@ -9,7 +22,7 @@ import (
 	"time"
 )
 
-// MetricsCollector 性能指标收集器
+// MetricsCollector collects and reports performance metrics for the application
 type MetricsCollector struct {
 	mu         sync.RWMutex
 	logger     Logger
@@ -19,7 +32,7 @@ type MetricsCollector struct {
 	operations map[string]*OperationMetrics
 }
 
-// SystemMetrics 系统指标
+// SystemMetrics represents system-level performance metrics
 type SystemMetrics struct {
 	CPUUsage       float64
 	MemoryUsage    uint64
@@ -29,7 +42,7 @@ type SystemMetrics struct {
 	StartTime      time.Time
 }
 
-// OperationMetrics 操作指标
+// OperationMetrics tracks metrics for specific operations
 type OperationMetrics struct {
 	Count       int64
 	TotalTime   time.Duration
@@ -40,7 +53,7 @@ type OperationMetrics struct {
 	SuccessRate float64
 }
 
-// NewMetricsCollector 创建指标收集器
+// NewMetricsCollector creates a new metrics collector
 func NewMetricsCollector(logger Logger, interval time.Duration) *MetricsCollector {
 	return &MetricsCollector{
 		logger:     logger,
@@ -51,18 +64,18 @@ func NewMetricsCollector(logger Logger, interval time.Duration) *MetricsCollecto
 	}
 }
 
-// Start 启动指标收集
+// Start begins collecting and reporting metrics
 func (mc *MetricsCollector) Start() {
 	go mc.collectSystemMetrics()
 	go mc.reportMetrics()
 }
 
-// Stop 停止指标收集
+// Stop stops the metrics collection
 func (mc *MetricsCollector) Stop() {
 	close(mc.stopChan)
 }
 
-// RecordOperation 记录操作指标
+// RecordOperation records metrics for a single operation
 func (mc *MetricsCollector) RecordOperation(name string, duration time.Duration, err error) {
 	mc.mu.Lock()
 	defer mc.mu.Unlock()
@@ -96,7 +109,7 @@ func (mc *MetricsCollector) RecordOperation(name string, duration time.Duration,
 	}
 }
 
-// collectSystemMetrics 收集系统指标
+// collectSystemMetrics collects system metrics at regular intervals
 func (mc *MetricsCollector) collectSystemMetrics() {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
@@ -111,7 +124,7 @@ func (mc *MetricsCollector) collectSystemMetrics() {
 	}
 }
 
-// updateSystemMetrics 更新系统指标
+// updateSystemMetrics updates the current system metrics
 func (mc *MetricsCollector) updateSystemMetrics() {
 	mc.mu.Lock()
 	defer mc.mu.Unlock()
@@ -130,7 +143,7 @@ func (mc *MetricsCollector) updateSystemMetrics() {
 	mc.metrics.Uptime = time.Since(mc.metrics.StartTime)
 }
 
-// reportMetrics 报告指标
+// reportMetrics reports metrics to the logger at regular intervals
 func (mc *MetricsCollector) reportMetrics() {
 	ticker := time.NewTicker(mc.interval)
 	defer ticker.Stop()
@@ -145,12 +158,12 @@ func (mc *MetricsCollector) reportMetrics() {
 	}
 }
 
-// logMetrics 记录指标到日志
+// logMetrics logs all collected metrics
 func (mc *MetricsCollector) logMetrics() {
 	mc.mu.RLock()
 	defer mc.mu.RUnlock()
 
-	// 系统指标
+	// System metrics
 	mc.logger.Info("System metrics", Fields{
 		"memory_mb":      mc.metrics.MemoryUsage / 1024 / 1024,
 		"goroutines":     mc.metrics.GoroutineCount,
@@ -158,7 +171,7 @@ func (mc *MetricsCollector) logMetrics() {
 		"uptime_minutes": mc.metrics.Uptime.Minutes(),
 	})
 
-	// 操作指标
+	// Operation metrics
 	for name, op := range mc.operations {
 		avgTime := time.Duration(0)
 		if op.Count > 0 {
@@ -178,72 +191,4 @@ func (mc *MetricsCollector) logMetrics() {
 	}
 }
 
-// TraceOperation 追踪操作执行时间
-func TraceOperation(ctx context.Context, name string, fn func() error) error {
-	start := time.Now()
-	log := WithContext(ctx)
-
-	log.Debug("Operation started", Fields{
-		"operation": name,
-		"start_at":  start.Format(time.RFC3339),
-	})
-
-	err := fn()
-	duration := time.Since(start)
-
-	if err != nil {
-		log.Error("Operation failed", Fields{
-			"operation": name,
-			"duration":  duration.String(),
-			"error":     err.Error(),
-		})
-	} else {
-		log.Debug("Operation completed", Fields{
-			"operation": name,
-			"duration":  duration.String(),
-		})
-	}
-
-	// 记录到全局指标收集器（如果存在）
-	if globalMetrics != nil {
-		globalMetrics.RecordOperation(name, duration, err)
-	}
-
-	return err
-}
-
-// TraceFunc 函数追踪装饰器
-func TraceFunc(name string) func() {
-	start := time.Now()
-	log := GetLogger()
-
-	log.Debug("Function entered", Fields{
-		"function": name,
-	})
-
-	return func() {
-		duration := time.Since(start)
-		log.Debug("Function exited", Fields{
-			"function": name,
-			"duration": duration.String(),
-		})
-	}
-}
-
 var globalMetrics *MetricsCollector
-
-// InitMetrics 初始化全局指标收集器
-func InitMetrics(interval time.Duration) {
-	if globalMetrics == nil {
-		globalMetrics = NewMetricsCollector(GetLogger(), interval)
-		globalMetrics.Start()
-	}
-}
-
-// StopMetrics 停止全局指标收集器
-func StopMetrics() {
-	if globalMetrics != nil {
-		globalMetrics.Stop()
-		globalMetrics = nil
-	}
-}

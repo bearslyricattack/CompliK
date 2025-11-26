@@ -1,3 +1,20 @@
+// Copyright 2025 CompliK Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package metrics provides metrics collection and reporting functionality for the process scanner.
+// It collects various metrics including scan statistics, threat detection, system performance,
+// and notification status, exposing them in Prometheus format.
 package metrics
 
 import (
@@ -8,49 +25,49 @@ import (
 	legacy "github.com/bearslyricattack/CompliK/procscan/pkg/logger/legacy"
 )
 
-// Collector 负责收集和更新各种指标
+// Collector is responsible for collecting and updating various metrics
 type Collector struct {
 	startTime time.Time
 }
 
-// NewCollector 创建新的指标收集器
+// NewCollector creates a new metrics collector
 func NewCollector() *Collector {
 	return &Collector{
 		startTime: time.Now(),
 	}
 }
 
-// RecordScanStart 记录扫描开始
+// RecordScanStart records the start of a scan
 func (c *Collector) RecordScanStart() {
 	ScanTotal.Inc()
 	ScannerRunning.Set(1)
 }
 
-// RecordScanComplete 记录扫描完成
+// RecordScanComplete records the completion of a scan
 func (c *Collector) RecordScanComplete(duration time.Duration) {
 	ScanDurationSeconds.Observe(duration.Seconds())
 }
 
-// RecordScanError 记录扫描错误
+// RecordScanError records a scan error
 func (c *Collector) RecordScanError() {
 	ScanErrorsTotal.Inc()
 	ScannerRunning.Set(0)
 }
 
-// RecordThreatDetected 记录检测到的威胁
+// RecordThreatDetected records a detected threat
 func (c *Collector) RecordThreatDetected(threatType, severity string) {
 	ThreatsDetectedTotal.Inc()
 	ThreatsByType.WithLabelValues(threatType).Inc()
 	ThreatsBySeverity.WithLabelValues(severity).Inc()
 }
 
-// RecordSuspiciousProcesses 记录可疑进程
+// RecordSuspiciousProcesses records suspicious processes
 func (c *Collector) RecordSuspiciousProcesses(count int, namespace string) {
 	SuspiciousProcessesTotal.Add(float64(count))
 	SuspiciousProcessesByNamespace.WithLabelValues(namespace).Set(float64(count))
 }
 
-// RecordLabelAction 记录标签操作
+// RecordLabelAction records a label operation
 func (c *Collector) RecordLabelAction(success bool) {
 	LabelActionsTotal.Inc()
 	if success {
@@ -58,7 +75,7 @@ func (c *Collector) RecordLabelAction(success bool) {
 	}
 }
 
-// RecordNotification 记录通知发送
+// RecordNotification records a notification send attempt
 func (c *Collector) RecordNotification(success bool) {
 	if success {
 		NotificationsSentTotal.Inc()
@@ -67,27 +84,27 @@ func (c *Collector) RecordNotification(success bool) {
 	}
 }
 
-// RecordProcessesAnalyzed 记录已分析的进程数
+// RecordProcessesAnalyzed records the number of analyzed processes
 func (c *Collector) RecordProcessesAnalyzed(count int) {
 	ProcessesAnalyzedTotal.Add(float64(count))
 }
 
-// UpdateSystemMetrics 更新系统指标
+// UpdateSystemMetrics updates system metrics
 func (c *Collector) UpdateSystemMetrics() {
-	// 更新运行时间 - 直接累计当前时间间隔
-	ScannerUptimeSeconds.Add(1.0) // 每次调用增加1秒
+	// Update uptime - directly accumulate current time interval
+	ScannerUptimeSeconds.Add(1.0) // Increment by 1 second per call
 
-	// 更新内存使用
+	// Update memory usage
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 	MemoryUsageBytes.Set(float64(m.Alloc))
 
-	// 简单的CPU使用率估算（基于Goroutine数量）
+	// Simple CPU usage estimation (based on goroutine count)
 	goroutineCount := float64(runtime.NumGoroutine())
-	CPUUsagePercent.Set(goroutineCount / 1000.0 * 100) // 简化估算
+	CPUUsagePercent.Set(goroutineCount / 1000.0 * 100) // Simplified estimation
 }
 
-// StartMetricsUpdater 启动定期指标更新
+// StartMetricsUpdater starts periodic metrics updates
 func (c *Collector) StartMetricsUpdater(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -102,18 +119,18 @@ func (c *Collector) StartMetricsUpdater(ctx context.Context, interval time.Durat
 	}
 }
 
-// ResetNamespaceMetrics 重置特定命名空间的指标
+// ResetNamespaceMetrics resets metrics for a specific namespace
 func (c *Collector) ResetNamespaceMetrics(namespace string) {
 	SuspiciousProcessesByNamespace.DeleteLabelValues(namespace)
 }
 
-// GetMetricsSummary 获取指标摘要（用于调试）
+// GetMetricsSummary gets a summary of metrics (for debugging)
 func (c *Collector) GetMetricsSummary() map[string]interface{} {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 
-	// 注意：这里使用简单的计数器状态，不能获取精确的当前值
-	// 实际使用中应该通过 Prometheus 的 HTTP 接口获取指标
+	// Note: This uses simple counter states and cannot get precise current values
+	// In actual use, metrics should be retrieved via Prometheus HTTP interface
 	return map[string]interface{}{
 		"uptime_seconds":       time.Since(c.startTime).Seconds(),
 		"memory_usage_bytes":   m.Alloc,
@@ -124,10 +141,10 @@ func (c *Collector) GetMetricsSummary() map[string]interface{} {
 	}
 }
 
-// RegisterCustomMetrics 注册自定义指标（如果需要）
+// RegisterCustomMetrics registers custom metrics (if needed)
 func RegisterCustomMetrics() error {
-	// 这里可以注册额外的自定义指标
-	// 目前所有指标都通过 promauto 自动注册
-	legacy.L.Info("所有 Prometheus 指标已自动注册")
+	// Additional custom metrics can be registered here
+	// Currently all metrics are automatically registered via promauto
+	legacy.L.Info("All Prometheus metrics have been automatically registered")
 	return nil
 }

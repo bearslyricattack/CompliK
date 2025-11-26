@@ -1,3 +1,20 @@
+// Copyright 2025 CompliK Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package lark implements a notification plugin for Lark (Feishu) messaging platform.
+// It provides webhook-based notifications for detection results with optional
+// whitelist support to filter notifications based on namespace or host.
 package lark
 
 import (
@@ -76,7 +93,7 @@ func (p *LarkPlugin) getDefaultConfig() LarkConfig {
 func (p *LarkPlugin) loadConfig(setting string) error {
 	p.larkConfig = p.getDefaultConfig()
 	if setting == "" {
-		return errors.New("配置不能为空")
+		return errors.New("configuration cannot be empty")
 	}
 	var configFromJSON LarkConfig
 	err := json.Unmarshal([]byte(setting), &configFromJSON)
@@ -87,26 +104,26 @@ func (p *LarkPlugin) loadConfig(setting string) error {
 		return err
 	}
 	if configFromJSON.Webhook == "" {
-		return errors.New("webhook 配置不能为空")
+		return errors.New("webhook configuration cannot be empty")
 	}
 	if configFromJSON.EnabledWhitelist != nil && *configFromJSON.EnabledWhitelist {
 		p.larkConfig.EnabledWhitelist = configFromJSON.EnabledWhitelist
 		if configFromJSON.Host == "" {
-			return errors.New("host 配置不能为空")
+			return errors.New("host configuration cannot be empty")
 		}
 		if configFromJSON.Port == "" {
-			return errors.New("port 配置不能为空")
+			return errors.New("port configuration cannot be empty")
 		}
 		if configFromJSON.Username == "" {
-			return errors.New("username 配置不能为空")
+			return errors.New("username configuration cannot be empty")
 		}
 		if configFromJSON.Password == "" {
-			return errors.New("password 配置不能为空")
+			return errors.New("password configuration cannot be empty")
 		}
 		p.larkConfig.Host = configFromJSON.Host
 		p.larkConfig.Port = configFromJSON.Port
 		p.larkConfig.Username = configFromJSON.Username
-		// 支持从环境变量或加密值获取密码
+		// Support retrieving password from environment variable or encrypted value
 		if pwd, err := config.GetSecureValue(configFromJSON.Password); err == nil {
 			p.larkConfig.Password = pwd
 		} else {
@@ -138,15 +155,15 @@ func (p *LarkPlugin) initDB() (db *gorm.DB, err error) {
 		Logger: gormLogger.New(
 			log.New(os.Stdout, "\r\n", log.LstdFlags),
 			gormLogger.Config{
-				SlowThreshold: 3 * time.Second,  // 慢查询阈值设为1秒
-				LogLevel:      gormLogger.Error, // 只显示错误日志
-				Colorful:      false,            // 关闭颜色输出
+				SlowThreshold: 3 * time.Second,  // Slow query threshold set to 3 seconds
+				LogLevel:      gormLogger.Error, // Show only error logs
+				Colorful:      false,            // Disable color output
 			},
 		),
 	}
 	db, err = gorm.Open(mysql.Open(serverDSN), dbConfig)
 	if err != nil {
-		return nil, fmt.Errorf("连接 MySQL 服务器失败: %w", err)
+		return nil, fmt.Errorf("failed to connect to MySQL server: %w", err)
 	}
 	createDBSQL := fmt.Sprintf(
 		"CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET %s COLLATE %s_unicode_ci",
@@ -156,12 +173,12 @@ func (p *LarkPlugin) initDB() (db *gorm.DB, err error) {
 	)
 	err = db.Exec(createDBSQL).Error
 	if err != nil {
-		return nil, fmt.Errorf("创建数据库失败: %w", err)
+		return nil, fmt.Errorf("failed to create database: %w", err)
 	}
 	dbDSN := p.buildDSN(true)
 	db, err = gorm.Open(mysql.Open(dbDSN), dbConfig)
 	if err != nil {
-		return nil, fmt.Errorf("连接到数据库失败: %w", err)
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 	return db, nil
 }
@@ -193,10 +210,10 @@ func (p *LarkPlugin) Start(
 	if *p.larkConfig.EnabledWhitelist {
 		var db *gorm.DB
 		if db, err = p.initDB(); err != nil {
-			return fmt.Errorf("初始化数据库失败: %w", err)
+			return fmt.Errorf("failed to initialize database: %w", err)
 		}
 		if err := db.AutoMigrate(&whitelist.Whitelist{}); err != nil {
-			return fmt.Errorf("数据库迁移失败: %w", err)
+			return fmt.Errorf("database migration failed: %w", err)
 		}
 		p.notifier = NewNotifier(
 			p.larkConfig.Webhook,
@@ -209,11 +226,11 @@ func (p *LarkPlugin) Start(
 		if count == 0 {
 			testData := &whitelist.Whitelist{
 				Region:    "cn-beijing",
-				Name:      "测试白名单项目",
+				Name:      "Test Whitelist Item",
 				Namespace: "default",
 				Hostname:  "test.example.com",
 				Type:      "namespace",
-				Remark:    "这是一条初始化的测试数据，用于验证白名单功能",
+				Remark:    "This is a test data entry initialized to verify whitelist functionality",
 				CreatedAt: time.Now(),
 				UpdatedAt: time.Now(),
 			}

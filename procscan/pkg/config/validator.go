@@ -1,3 +1,18 @@
+// Copyright 2025 CompliK Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package config provides configuration validation functionality.
 package config
 
 import (
@@ -8,49 +23,49 @@ import (
 	"github.com/bearslyricattack/CompliK/procscan/pkg/models"
 )
 
-// ValidationResult 验证结果
+// ValidationResult represents the result of validation
 type ValidationResult struct {
-	Valid    bool     // 是否有效
-	Errors   []string // 错误列表
-	Warnings []string // 警告列表
+	Valid    bool     // Whether the validation passed
+	Errors   []string // List of errors
+	Warnings []string // List of warnings
 }
 
-// ConfigValidator 配置验证器
+// ConfigValidator validates configuration
 type ConfigValidator struct {
 	rules map[string][]ValidationRule
 }
 
-// ValidationRule 验证规则接口
+// ValidationRule is the interface for validation rules
 type ValidationRule interface {
 	Validate(value interface{}) *ValidationError
 }
 
-// ValidationError 验证错误
+// ValidationError represents a validation error
 type ValidationError struct {
-	Field   string      // 字段名
-	Value   interface{} // 字段值
-	Message string      // 错误信息
-	Code    string      // 错误代码
+	Field   string      // Field name
+	Value   interface{} // Field value
+	Message string      // Error message
+	Code    string      // Error code
 }
 
 func (e *ValidationError) Error() string {
-	return fmt.Sprintf("字段 '%s' 验证失败: %s (值: %v)", e.Field, e.Message, e.Value)
+	return fmt.Sprintf("Field '%s' validation failed: %s (value: %v)", e.Field, e.Message, e.Value)
 }
 
-// NewConfigValidator 创建新的配置验证器
+// NewConfigValidator creates a new configuration validator
 func NewConfigValidator() *ConfigValidator {
 	validator := &ConfigValidator{
 		rules: make(map[string][]ValidationRule),
 	}
 
-	// 注册默认验证规则
+	// Register default validation rules
 	validator.registerDefaultRules()
 	return validator
 }
 
-// registerDefaultRules 注册默认验证规则
+// registerDefaultRules registers default validation rules
 func (v *ConfigValidator) registerDefaultRules() {
-	// 扫描器配置规则
+	// Scanner configuration rules
 	v.AddRule("scanner.scan_interval", &DurationRule{
 		Min: 1 * time.Second,
 		Max: 1 * time.Hour,
@@ -60,16 +75,16 @@ func (v *ConfigValidator) registerDefaultRules() {
 	})
 	v.AddRule("scanner.proc_path", &PathRule{})
 
-	// 动作配置规则
+	// Action configuration rules
 	v.AddRule("actions.label.enabled", &BooleanRule{})
 
-	// 通知配置规则
+	// Notification configuration rules
 	v.AddRule("notifications.lark.webhook", &URLRule{
 		RequiredSchemes: []string{"https", "http"},
 		AllowEmpty:      true,
 	})
 
-	// 检测规则配置规则
+	// Detection rules configuration rules
 	v.AddRule("detectionRules.blacklist.processes", &SliceRule{
 		ElementRule: &RegexRule{},
 		AllowEmpty:  true,
@@ -92,7 +107,7 @@ func (v *ConfigValidator) registerDefaultRules() {
 	})
 }
 
-// AddRule 添加验证规则
+// AddRule adds a validation rule
 func (v *ConfigValidator) AddRule(field string, rule ValidationRule) {
 	if v.rules[field] == nil {
 		v.rules[field] = make([]ValidationRule, 0)
@@ -100,7 +115,7 @@ func (v *ConfigValidator) AddRule(field string, rule ValidationRule) {
 	v.rules[field] = append(v.rules[field], rule)
 }
 
-// Validate 验证配置
+// Validate validates the configuration
 func (v *ConfigValidator) Validate(config *models.Config) *ValidationResult {
 	result := &ValidationResult{
 		Valid:    true,
@@ -108,19 +123,19 @@ func (v *ConfigValidator) Validate(config *models.Config) *ValidationResult {
 		Warnings: make([]string, 0),
 	}
 
-	// 验证扫描器配置
+	// Validate scanner configuration
 	v.validateScanner(config.Scanner, result)
 
-	// 验证动作配置
+	// Validate actions configuration
 	v.validateActions(config.Actions, result)
 
-	// 验证通知配置
+	// Validate notifications configuration
 	v.validateNotifications(config.Notifications, result)
 
-	// 验证检测规则
+	// Validate detection rules
 	v.validateDetectionRules(config.DetectionRules, result)
 
-	// 跨字段验证
+	// Cross-field validation
 	v.validateCrossFields(config, result)
 
 	if len(result.Errors) > 0 {
@@ -130,70 +145,70 @@ func (v *ConfigValidator) Validate(config *models.Config) *ValidationResult {
 	return result
 }
 
-// validateScanner 验证扫描器配置
+// validateScanner validates scanner configuration
 func (v *ConfigValidator) validateScanner(scanner models.ScannerConfig, result *ValidationResult) {
-	// 验证扫描间隔
+	// Validate scan interval
 	if err := v.validateField("scanner.scan_interval", scanner.ScanInterval); err != nil {
 		result.Errors = append(result.Errors, err.Error())
 	}
 
-	// 验证日志级别
+	// Validate log level
 	if err := v.validateField("scanner.log_level", scanner.LogLevel); err != nil {
 		result.Errors = append(result.Errors, err.Error())
 	}
 
-	// 验证proc路径
+	// Validate proc path
 	if err := v.validateField("scanner.proc_path", scanner.ProcPath); err != nil {
 		result.Errors = append(result.Errors, err.Error())
 	}
 
-	// 检查proc路径是否存在
+	// Check if proc path is empty
 	if scanner.ProcPath == "" {
-		result.Warnings = append(result.Warnings, "scanner.proc_path 为空，将使用默认值 /host/proc")
+		result.Warnings = append(result.Warnings, "scanner.proc_path is empty, will use default value /host/proc")
 	}
 }
 
-// validateActions 验证动作配置
+// validateActions validates actions configuration
 func (v *ConfigValidator) validateActions(actions models.ActionsConfig, result *ValidationResult) {
-	// 验证标签动作
+	// Validate label action
 	if err := v.validateField("actions.label.enabled", actions.Label.Enabled); err != nil {
 		result.Errors = append(result.Errors, err.Error())
 	}
 
-	// 安全检查：标签功能正常工作时，会自动添加安全标签
+	// Security check: when label functionality is working normally, security labels will be automatically added
 	if actions.Label.Enabled {
-		result.Warnings = append(result.Warnings, "标签功能已启用，检测到的威胁将被标记并等待外部控制器处理")
+		result.Warnings = append(result.Warnings, "Label functionality is enabled, detected threats will be marked and await external controller processing")
 	}
 }
 
-// validateNotifications 验证通知配置
+// validateNotifications validates notifications configuration
 func (v *ConfigValidator) validateNotifications(notifications models.NotificationsConfig, result *ValidationResult) {
-	// 验证飞书webhook
+	// Validate Lark webhook
 	if err := v.validateField("notifications.lark.webhook", notifications.Lark.Webhook); err != nil {
 		result.Errors = append(result.Errors, err.Error())
 	}
 
-	// 检查通知配置
+	// Check notification configuration
 	if notifications.Lark.Webhook == "" {
-		result.Warnings = append(result.Warnings, "未配置通知webhook，将无法发送告警")
+		result.Warnings = append(result.Warnings, "Notification webhook not configured, alerts cannot be sent")
 	}
 }
 
-// validateDetectionRules 验证检测规则
+// validateDetectionRules validates detection rules
 func (v *ConfigValidator) validateDetectionRules(rules models.DetectionRules, result *ValidationResult) {
-	// 验证黑名单规则
+	// Validate blacklist rules
 	v.validateRuleSet("detectionRules.blacklist", rules.Blacklist, result)
 
-	// 验证白名单规则
+	// Validate whitelist rules
 	v.validateRuleSet("detectionRules.whitelist", rules.Whitelist, result)
 
-	// 检查规则逻辑
+	// Check rule logic
 	if len(rules.Blacklist.Processes) == 0 && len(rules.Blacklist.Keywords) == 0 {
-		result.Warnings = append(result.Warnings, "黑名单规则为空，可能无法检测到可疑进程")
+		result.Warnings = append(result.Warnings, "Blacklist rules are empty, may not detect suspicious processes")
 	}
 }
 
-// validateRuleSet 验证规则集
+// validateRuleSet validates a rule set
 func (v *ConfigValidator) validateRuleSet(prefix string, ruleSet models.RuleSet, result *ValidationResult) {
 	if err := v.validateField(prefix+".processes", ruleSet.Processes); err != nil {
 		result.Errors = append(result.Errors, err.Error())
@@ -212,25 +227,25 @@ func (v *ConfigValidator) validateRuleSet(prefix string, ruleSet models.RuleSet,
 	}
 }
 
-// validateCrossFields 跨字段验证
+// validateCrossFields performs cross-field validation
 func (v *ConfigValidator) validateCrossFields(config *models.Config, result *ValidationResult) {
-	// 检查扫描间隔是否合理
+	// Check if scan interval is reasonable
 	if config.Scanner.ScanInterval < 10*time.Second {
-		result.Warnings = append(result.Warnings, "扫描间隔过短，可能增加系统负载")
+		result.Warnings = append(result.Warnings, "Scan interval is too short, may increase system load")
 	}
 
-	// 检查动作配置的逻辑
+	// Check action configuration logic
 	if config.Actions.Label.Enabled {
-		result.Warnings = append(result.Warnings, "检测到的威胁将被标记，请确保外部控制器正在监控这些标签")
+		result.Warnings = append(result.Warnings, "Detected threats will be marked, please ensure external controller is monitoring these labels")
 	}
 
-	// 检查黑名单和白名单是否有冲突
+	// Check for conflicts between blacklist and whitelist
 	v.validateRuleConflicts(config.DetectionRules, result)
 }
 
-// validateRuleConflicts 验证规则冲突
+// validateRuleConflicts validates rule conflicts
 func (v *ConfigValidator) validateRuleConflicts(rules models.DetectionRules, result *ValidationResult) {
-	// 检查进程名冲突
+	// Check process name conflicts
 	blacklistProcesses := make(map[string]bool)
 	for _, process := range rules.Blacklist.Processes {
 		blacklistProcesses[process] = true
@@ -239,16 +254,16 @@ func (v *ConfigValidator) validateRuleConflicts(rules models.DetectionRules, res
 	for _, process := range rules.Whitelist.Processes {
 		if blacklistProcesses[process] {
 			result.Warnings = append(result.Warnings,
-				fmt.Sprintf("进程 '%s' 同时出现在黑名单和白名单中", process))
+				fmt.Sprintf("Process '%s' appears in both blacklist and whitelist", process))
 		}
 	}
 }
 
-// validateField 验证单个字段
+// validateField validates a single field
 func (v *ConfigValidator) validateField(field string, value interface{}) *ValidationError {
 	rules, exists := v.rules[field]
 	if !exists {
-		return nil // 没有验证规则，认为有效
+		return nil // No validation rules, consider valid
 	}
 
 	for _, rule := range rules {
@@ -260,29 +275,29 @@ func (v *ConfigValidator) validateField(field string, value interface{}) *Valida
 	return nil
 }
 
-// ValidateFile 验证配置文件
+// ValidateFile validates the configuration file
 func (v *ConfigValidator) ValidateFile(configPath string) *ValidationResult {
-	// 这里可以添加文件级别的验证，比如文件权限、格式等
+	// This can add file-level validation, such as file permissions, format, etc.
 	result := &ValidationResult{
 		Valid:    true,
 		Errors:   make([]string, 0),
 		Warnings: make([]string, 0),
 	}
 
-	// 检查文件扩展名
+	// Check file extension
 	if !strings.HasSuffix(configPath, ".yaml") && !strings.HasSuffix(configPath, ".yml") {
-		result.Warnings = append(result.Warnings, "配置文件建议使用 .yaml 或 .yml 扩展名")
+		result.Warnings = append(result.Warnings, "Configuration file should use .yaml or .yml extension")
 	}
 
 	return result
 }
 
-// GetFieldRules 获取字段的验证规则
+// GetFieldRules returns the validation rules for a field
 func (v *ConfigValidator) GetFieldRules(field string) []ValidationRule {
 	return v.rules[field]
 }
 
-// ListAllRules 列出所有验证规则
+// ListAllRules lists all validation rules
 func (v *ConfigValidator) ListAllRules() map[string][]ValidationRule {
 	return v.rules
 }

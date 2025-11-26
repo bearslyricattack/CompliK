@@ -1,166 +1,166 @@
-# 🛡️ ProcScan - Kubernetes 安全扫描工具
+# 🛡️ ProcScan - Kubernetes Security Scanner
 
 [![Go Version](https://img.shields.io/badge/Go-1.24+-blue.svg)](https://golang.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Build Status](https://img.shields.io/badge/Build-Passing-green.svg)]()
 
-> 一个专为 Kubernetes 设计的轻量级安全扫描工具，专注于进程监控和威胁检测。
+> A lightweight security scanning tool designed specifically for Kubernetes, focused on process monitoring and threat detection.
 
 ---
 
-## 🎯 项目概述
+## 🎯 Overview
 
-ProcScan 是一个精简的节点安全工具，以 `DaemonSet` 的形式运行在 Kubernetes 集群的每个节点上，持续扫描可疑进程，并基于灵活的规则引擎执行自动化响应。
+ProcScan is a streamlined node security tool that runs as a `DaemonSet` on every node in a Kubernetes cluster, continuously scanning for suspicious processes and executing automated responses based on a flexible rule engine.
 
-### ✨ 核心特性
+### ✨ Key Features
 
-- 🔍 **进程扫描**: 基于 `/proc` 文件系统的实时进程监控
-- 🎯 **智能检测**: 黑名单和白名单规则匹配
-- 📢 **告警通知**: 飞书 Webhook 通知集成
-- 🏷️ **自动响应**: 基于标签的自动化处理
-- ☸️ **原生集成**: 完全适配 Kubernetes 生态
-- 📝 **轻量配置**: 简化的配置文件，易于部署和维护
+- 🔍 **Process Scanning**: Real-time process monitoring based on `/proc` filesystem
+- 🎯 **Intelligent Detection**: Blacklist and whitelist rule matching
+- 📢 **Alert Notifications**: Lark (Feishu) Webhook notification integration
+- 🏷️ **Automated Response**: Label-based automated processing
+- ☸️ **Native Integration**: Fully compatible with Kubernetes ecosystem
+- 📝 **Lightweight Configuration**: Simplified configuration file, easy to deploy and maintain
 
 ---
 
-## 🚀 快速开始
+## 🚀 Quick Start
 
-### 前置要求
+### Prerequisites
 
 - Kubernetes 1.19+
-- Go 1.24+ (仅开发环境需要)
+- Go 1.24+ (development environment only)
 
-### 1. 部署到 Kubernetes
+### 1. Deploy to Kubernetes
 
 ```bash
-# 克隆仓库
+# Clone repository
 git clone https://github.com/bearslyricattack/procscan.git
 cd procscan
 
-# 创建命名空间
+# Create namespace
 kubectl create namespace procscan
 
-# 部署配置
+# Deploy configuration
 kubectl create configmap procscan-config --from-file=config.simple.yaml -n procscan
 
-# 部署应用
+# Deploy application
 kubectl apply -f deploy/ -n procscan
 
-# 查看运行状态
+# Check running status
 kubectl get pods -n procscan -o wide
 ```
 
-### 2. 本地运行
+### 2. Run Locally
 
 ```bash
-# 克隆仓库
+# Clone repository
 git clone https://github.com/bearslyricattack/procscan.git
 cd procscan
 
-# 安装依赖
+# Install dependencies
 go mod download
 
-# 运行程序
+# Run application
 go run cmd/procscan/main.go -config config.simple.yaml
 ```
 
 ---
 
-## ⚙️ 配置说明
+## ⚙️ Configuration
 
-### 核心配置文件
+### Core Configuration File
 
-使用 `config.simple.yaml` 进行配置：
+Configure using `config.simple.yaml`:
 
 ```yaml
-# 扫描器配置
+# Scanner configuration
 scanner:
-  proc_path: "/host/proc"      # 进程文件系统路径
-  scan_interval: "30s"         # 扫描间隔
-  log_level: "info"            # 日志级别
-  max_workers: 2               # 并发扫描数
+  proc_path: "/host/proc"      # Process filesystem path
+  scan_interval: "30s"         # Scan interval
+  log_level: "info"            # Log level
+  max_workers: 2               # Concurrent scan count
 
-# 自动化响应
+# Automated response
 actions:
   label:
-    enabled: true              # 启用标签标注
+    enabled: true              # Enable label annotation
     data:
       security.status: "suspicious"
       scanner.detected: "true"
 
-# 检测规则
+# Detection rules
 detectionRules:
   blacklist:
-    processes:                 # 黑名单进程
+    processes:                 # Blacklist processes
       - "^miner$"
       - "^xmrig$"
       - "^crypto$"
-    keywords:                  # 黑名单关键词
+    keywords:                  # Blacklist keywords
       - "stratum+tcp"
       - "pool."
       - "monero"
 
   whitelist:
-    processes:                 # 白名单进程
+    processes:                 # Whitelist processes
       - "^sh$"
       - "^bash$"
       - "^python[0-9]*$"
-    namespaces:                # 白名单命名空间
+    namespaces:                # Whitelist namespaces
       - "kube-system"
       - "procscan"
 
-# 告警通知
+# Alert notifications
 notifications:
   lark:
-    webhook: ""                # 飞书 Webhook URL
+    webhook: ""                # Lark Webhook URL
     timeout: "30s"
     retry_count: 3
 ```
 
-### 检测规则说明
+### Detection Rules
 
-#### 黑名单规则
-- **进程名匹配**: 使用正则表达式匹配进程名
-- **关键词匹配**: 匹配命令行中的可疑关键词
-- **支持模式**: `^miner$`, `^xmrig$`, `stratum+tcp` 等
+#### Blacklist Rules
+- **Process Name Matching**: Use regular expressions to match process names
+- **Keyword Matching**: Match suspicious keywords in command lines
+- **Supported Patterns**: `^miner$`, `^xmrig$`, `stratum+tcp`, etc.
 
-#### 白名单规则
-- **系统进程**: `sh`, `bash`, `python`, `java`, `node` 等
-- **系统命名空间**: `kube-system`, `procscan` 等
-- **避免误报**: 保护正常的系统进程和服务
+#### Whitelist Rules
+- **System Processes**: `sh`, `bash`, `python`, `java`, `node`, etc.
+- **System Namespaces**: `kube-system`, `procscan`, etc.
+- **Avoid False Positives**: Protect normal system processes and services
 
 ---
 
-## 📊 工作原理
+## 📊 How It Works
 
-### 扫描流程
+### Scanning Workflow
 
 ```mermaid
 graph TD
-    A[定时器触发] --> B[扫描/proc进程]
-    B --> C[进程信息解析]
-    C --> D{命名空间检查}
-    D -->|非ns-开头| E[忽略进程]
-    D -->|ns-开头| F[规则匹配]
-    F --> G{命中黑名单?}
-    G -->|否| H[检查白名单]
-    G -->|是| I[执行响应动作]
+    A[Timer Triggered] --> B[Scan /proc Processes]
+    B --> C[Parse Process Info]
+    C --> D{Namespace Check}
+    D -->|Non ns-prefixed| E[Ignore Process]
+    D -->|ns-prefixed| F[Rule Matching]
+    F --> G{Blacklist Hit?}
+    G -->|No| H[Check Whitelist]
+    G -->|Yes| I[Execute Response Actions]
     H --> I
-    I --> J[发送告警通知]
-    J --> K[等待下次扫描]
+    I --> J[Send Alert Notification]
+    J --> K[Wait for Next Scan]
 ```
 
-### 响应机制
+### Response Mechanism
 
-1. **标签标注**: 为可疑 Pod 添加安全标签
-2. **告警通知**: 通过飞书发送告警消息
-3. **日志记录**: 详细记录检测过程和结果
+1. **Label Annotation**: Add security labels to suspicious Pods
+2. **Alert Notification**: Send alert messages via Lark
+3. **Logging**: Detailed logging of detection process and results
 
 ---
 
-## 🔧 部署配置
+## 🔧 Deployment Configuration
 
-### DaemonSet 配置
+### DaemonSet Configuration
 
 ```yaml
 apiVersion: apps/v1
@@ -188,7 +188,7 @@ spec:
         effect: "NoSchedule"
 ```
 
-### RBAC 权限
+### RBAC Permissions
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -206,30 +206,30 @@ rules:
 
 ---
 
-## 📝 使用示例
+## 📝 Usage Examples
 
-### 基础监控
+### Basic Monitoring
 
 ```bash
-# 查看运行日志
+# View running logs
 kubectl logs -n procscan -l app=procscan -f
 
-# 检查 Pod 状态
+# Check Pod status
 kubectl get pods -n procscan -o wide
 
-# 查看检测到的威胁
+# View detected threats
 kubectl get pods -l security.status=suspicious --all-namespaces
 ```
 
-### 告警配置
+### Alert Configuration
 
-配置飞书 Webhook：
+Configure Lark Webhook:
 
 ```bash
-# 编辑 ConfigMap
+# Edit ConfigMap
 kubectl edit configmap procscan-config -n procscan
 
-# 添加 Webhook URL
+# Add Webhook URL
 notifications:
   lark:
     webhook: "https://open.feishu.cn/open-apis/bot/v2/hook/your-webhook"
@@ -237,91 +237,91 @@ notifications:
 
 ---
 
-## 🛠️ 开发指南
+## 🛠️ Development Guide
 
-### 构建项目
+### Building the Project
 
 ```bash
-# 本地构建
+# Local build
 go build -o procscan cmd/procscan/main.go
 
-# 交叉编译
+# Cross-compilation
 GOOS=linux GOARCH=amd64 go build -o procscan-linux-amd64 cmd/procscan/main.go
 ```
 
-### 项目结构
+### Project Structure
 
 ```
 procscan/
-├── cmd/procscan/          # 应用入口
-├── internal/              # 核心业务逻辑
-│   ├── scanner/          # 扫描引擎
-│   ├── container/        # 容器管理
-│   └── notification/     # 通知系统
-├── pkg/                   # 公共组件
-│   ├── config/           # 配置管理
-│   ├── k8s/              # Kubernetes 客户端
-│   ├── logger/           # 日志组件
-│   └── models/           # 数据模型
-├── deploy/               # 部署清单
-├── config.simple.yaml    # 简化配置文件
+├── cmd/procscan/          # Application entry point
+├── internal/              # Core business logic
+│   ├── scanner/          # Scanning engine
+│   ├── container/        # Container management
+│   └── notification/     # Notification system
+├── pkg/                   # Common components
+│   ├── config/           # Configuration management
+│   ├── k8s/              # Kubernetes client
+│   ├── logger/           # Logging component
+│   └── models/           # Data models
+├── deploy/               # Deployment manifests
+├── config.simple.yaml    # Simplified configuration file
 └── README.md
 ```
 
 ---
 
-## 🚨 故障排除
+## 🚨 Troubleshooting
 
-### 常见问题
+### Common Issues
 
-1. **权限不足**
+1. **Insufficient Permissions**
    ```bash
-   # 检查 RBAC 权限
+   # Check RBAC permissions
    kubectl auth can-i get pods --as=system:serviceaccount:procscan:procscan
    ```
 
-2. **配置文件错误**
+2. **Configuration File Error**
    ```bash
-   # 验证配置文件
+   # Verify configuration file
    kubectl get configmap procscan-config -n procscan -o yaml
    ```
 
-3. **容器运行时连接失败**
+3. **Container Runtime Connection Failed**
    ```bash
-   # 检查 /proc 挂载
+   # Check /proc mount
    kubectl exec -n procscan <pod> -- ls -la /host/proc
    ```
 
-### 日志分析
+### Log Analysis
 
 ```bash
-# 查看详细日志
+# View detailed logs
 kubectl logs -n procscan <pod> --tail=100
 
-# 搜索错误信息
+# Search for error messages
 kubectl logs -n procscan -l app=procscan | grep -i error
 ```
 
 ---
 
-## 📄 许可证
+## 📄 License
 
-本项目采用 Apache License 2.0 许可证。详见 [LICENSE](LICENSE) 文件。
-
----
-
-## 🤝 贡献
-
-欢迎提交 Issue 和 Pull Request！
-
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
+This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
 
 ---
 
-> **项目维护**: ProcScan Team
-> **最后更新**: 2025-10-21
-> **版本**: v1.0.0-alpha
+## 🤝 Contributing
+
+Issues and Pull Requests are welcome!
+
+1. Fork this repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+---
+
+> **Project Maintainer**: ProcScan Team
+> **Last Updated**: 2025-10-21
+> **Version**: v1.0.0-alpha

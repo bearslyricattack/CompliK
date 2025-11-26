@@ -1,3 +1,20 @@
+// Copyright 2025 CompliK Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package mining provides a security plugin that detects cryptocurrency mining processes
+// running in Kubernetes clusters. It deploys detection jobs on each node to scan for
+// known mining process names and reports findings through the event bus.
 package mining
 
 import (
@@ -54,7 +71,7 @@ type MiningConfig struct {
 	JobTimeoutMinute int      `json:"jobTimeoutMinute"`
 }
 
-// 检测结果数据结构
+// DetectionResult represents the result of detecting a mining process
 type DetectionResult struct {
 	PID         int    `json:"pid"`
 	Command     string `json:"command"`
@@ -98,7 +115,7 @@ func (p *MiningPlugin) Type() string {
 func (p *MiningPlugin) getDefaultMiningConfig() MiningConfig {
 	b := false
 	return MiningConfig{
-		IntervalMinute:  24 * 60, // 24小时
+		IntervalMinute:  24 * 60, // 24 hours
 		AutoStart:       &b,
 		StartTimeSecond: 60,
 		ProcessNames: []string{
@@ -162,9 +179,9 @@ func (p *MiningPlugin) Start(
 		return err
 	}
 
-	// 确保命名空间存在
+	// Ensure namespace exists
 	if err := p.ensureNamespace(); err != nil {
-		return fmt.Errorf("创建命名空间失败: %w", err)
+		return fmt.Errorf("failed to create namespace: %w", err)
 	}
 
 	if p.miningConfig.AutoStart != nil && *p.miningConfig.AutoStart {
@@ -203,7 +220,7 @@ func (p *MiningPlugin) executeTask(ctx context.Context, eventBus *eventbus.Event
 				continue
 			}
 
-			// 将检测结果转换为 DiscoveryInfo 并发送
+			// Convert detection results to DiscoveryInfo and send
 			discoveryInfos := p.convertToDiscoveryInfo(summary)
 			for _, info := range discoveryInfos {
 				eventBus.Publish(constants.DiscoveryTopic, eventbus.Event{
@@ -215,11 +232,11 @@ func (p *MiningPlugin) executeTask(ctx context.Context, eventBus *eventbus.Event
 }
 
 func (p *MiningPlugin) Stop(ctx context.Context) error {
-	// 清理资源
+	// Cleanup resources
 	return p.cleanup()
 }
 
-// 确保命名空间存在
+// ensureNamespace ensures the namespace exists
 func (p *MiningPlugin) ensureNamespace() error {
 	_, err := k8s.ClientSet.CoreV1().Namespaces().Get(
 		context.TODO(), p.namespace, metav1.GetOptions{})
@@ -269,12 +286,12 @@ RESULT_FILE="/shared/result-${NODE_NAME}.json"
 
 echo "Starting detection for process: $PROCESS_NAME on node: $NODE_NAME"
 
-# 安装必要工具
+# Install necessary tools
 apk add --no-cache jq curl procps util-linux 2>/dev/null || {
     echo "Failed to install packages, continuing with available tools..."
 }
 
-# 创建基础结果JSON结构
+# Create base result JSON structure
 cat > "$RESULT_FILE" << EOF
 {
   "hostname": "$(hostname)",
@@ -288,7 +305,7 @@ EOF
 
 echo "Searching for processes matching: $PROCESS_NAME"
 
-# 查找目标进程
+# Find target processes
 PIDS=""
 if command -v pgrep >/dev/null 2>&1; then
     PIDS=$(pgrep -fa "$PROCESS_NAME" 2>/dev/null | grep -v grep | grep -v detect.sh | awk '{print $1}' || true)
@@ -304,24 +321,24 @@ fi
 
 echo "Found PIDs: $PIDS"
 
-# 临时文件存储检测结果
+# Temporary file for detection results
 TEMP_RESULTS="/tmp/detections.json"
 echo "[]" > "$TEMP_RESULTS"
 
 for PID in $PIDS; do
     echo "Processing PID: $PID"
-    
+
     if [[ ! "$PID" =~ ^[0-9]+$ ]]; then
         echo "Invalid PID format: $PID"
         continue
     fi
-    
+
     if [ ! -d "/proc/$PID" ]; then
         echo "Process $PID no longer exists"
         continue
     fi
-    
-    # 获取进程命令行
+
+    # Get process command line
     PROCESS_CMD="unknown"
     if [ -r "/proc/$PID/cmdline" ]; then
         PROCESS_CMD=$(cat /proc/$PID/cmdline 2>/dev/null | tr '\0' ' ' | sed 's/[[:space:]]*$//' || echo "unknown")
@@ -329,8 +346,8 @@ for PID in $PIDS; do
             PROCESS_CMD=$(ps -p "$PID" -o cmd --no-headers 2>/dev/null || echo "unknown")
         fi
     fi
-    
-    # 获取cgroup信息
+
+    # Get cgroup information
     CGROUP_INFO=""
     CONTAINER_ID=""
     if [ -r "/proc/$PID/cgroup" ]; then
@@ -340,21 +357,21 @@ for PID in $PIDS; do
             CONTAINER_ID=$(echo "$CGROUP_INFO" | grep -o -E 'docker-[0-9a-f]{64}' | sed 's/docker-//' | head -n 1 || echo "")
         fi
     fi
-    
+
     POD_NAME=""
     NAMESPACE=""
-    
-    # 如果找到容器ID，尝试获取Pod信息
+
+    # If container ID found, try to get Pod information
     if [ -n "$CONTAINER_ID" ]; then
         echo "Found container ID: $CONTAINER_ID"
-        
+
         if command -v crictl >/dev/null 2>&1; then
             echo "Using crictl to get container info..."
             CONTAINER_INFO=$(crictl inspect "$CONTAINER_ID" 2>/dev/null || echo "{}")
-            
+
             if command -v jq >/dev/null 2>&1 && [ "$CONTAINER_INFO" != "{}" ]; then
                 POD_ID=$(echo "$CONTAINER_INFO" | jq -r '.info.sandboxID // .info.config.labels."io.kubernetes.pod.uid" // empty' 2>/dev/null || echo "")
-                
+
                 if [ -n "$POD_ID" ]; then
                     echo "Found pod ID: $POD_ID"
                     POD_INFO=$(crictl inspectp "$POD_ID" 2>/dev/null || echo "{}")
@@ -363,14 +380,14 @@ for PID in $PIDS; do
                         NAMESPACE=$(echo "$POD_INFO" | jq -r '.info.config.metadata.namespace // empty' 2>/dev/null || echo "")
                     fi
                 fi
-                
+
                 if [ -z "$POD_NAME" ]; then
                     POD_NAME=$(echo "$CONTAINER_INFO" | jq -r '.info.config.labels."io.kubernetes.pod.name" // empty' 2>/dev/null || echo "")
                     NAMESPACE=$(echo "$CONTAINER_INFO" | jq -r '.info.config.labels."io.kubernetes.pod.namespace" // empty' 2>/dev/null || echo "")
                 fi
             fi
         fi
-        
+
         if [ -z "$POD_NAME" ] && [ -n "$CGROUP_INFO" ]; then
             echo "Trying to extract pod info from cgroup..."
             POD_UID=$(echo "$CGROUP_INFO" | grep -o 'pod[0-9a-f-]\{36\}' | sed 's/pod//'
@@ -380,10 +397,10 @@ for PID in $PIDS; do
             fi
         fi
     fi
-    
+
     echo "Process info - PID: $PID, CMD: $PROCESS_CMD, Container: $CONTAINER_ID, Pod: $POD_NAME, NS: $NAMESPACE"
-    
-    # 创建检测结果JSON对象
+
+    # Create detection result JSON object
     DETECTION_JSON=$(cat << EOF
 {
   "pid": $PID,
@@ -395,8 +412,8 @@ for PID in $PIDS; do
 }
 EOF
 )
-    
-    # 添加到检测结果数组
+
+    # Add to detection results array
     if command -v jq >/dev/null 2>&1; then
         echo "$DETECTION_JSON" | jq . > /tmp/single_detection.json 2>/dev/null
         jq ". += [$(cat /tmp/single_detection.json)]" "$TEMP_RESULTS" > "${TEMP_RESULTS}.tmp" && mv "${TEMP_RESULTS}.tmp" "$TEMP_RESULTS"
@@ -405,7 +422,7 @@ EOF
     fi
 done
 
-# 更新最终结果文件
+# Update final result file
 if command -v jq >/dev/null 2>&1; then
     jq ".detections = $(cat $TEMP_RESULTS)" "$RESULT_FILE" > "${RESULT_FILE}.tmp" && mv "${RESULT_FILE}.tmp" "$RESULT_FILE"
 else
@@ -415,11 +432,11 @@ fi
 echo "Detection completed on $NODE_NAME"
 echo "Results saved to: $RESULT_FILE"
 
-# 显示结果摘要
+# Display result summary
 DETECTION_COUNT=$(cat "$TEMP_RESULTS" | grep -o '"pid"' | wc -l 2>/dev/null || echo "0")
 echo "Found $DETECTION_COUNT processes matching '$PROCESS_NAME'"
 
-# 输出结果文件内容用于调试
+# Output result file content for debugging
 echo "=== Result file content ==="
 cat "$RESULT_FILE"
 echo "=== End of result file ==="
@@ -437,7 +454,7 @@ echo "=== End of result file ==="
 	return nil
 }
 
-// 获取所有可调度的节点
+// getSchedulableNodes gets all schedulable nodes
 func (p *MiningPlugin) getSchedulableNodes() ([]string, error) {
 	nodes, err := k8s.ClientSet.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
@@ -446,7 +463,7 @@ func (p *MiningPlugin) getSchedulableNodes() ([]string, error) {
 
 	var schedulableNodes []string
 	for _, node := range nodes.Items {
-		// 检查节点是否可调度
+		// Check if node is schedulable
 		isSchedulable := true
 		for _, condition := range node.Status.Conditions {
 			if condition.Type == corev1.NodeReady && condition.Status != corev1.ConditionTrue {
@@ -455,7 +472,7 @@ func (p *MiningPlugin) getSchedulableNodes() ([]string, error) {
 			}
 		}
 
-		// 检查节点是否被标记为不可调度
+		// Check if node is marked as unschedulable
 		if node.Spec.Unschedulable {
 			isSchedulable = false
 		}
@@ -474,7 +491,7 @@ func (p *MiningPlugin) createDetectionJobs(processName string, nodes []string) (
 	for i, nodeName := range nodes {
 		jobName := fmt.Sprintf("detect-%s-%s-%d-%d", processName, nodeName, timestamp, i)
 
-		// 限制Job名称长度
+		// Limit Job name length
 		if len(jobName) > 63 {
 			jobName = fmt.Sprintf("detect-%d-%d", timestamp, i)
 		}
@@ -491,8 +508,8 @@ func (p *MiningPlugin) createDetectionJobs(processName string, nodes []string) (
 				},
 			},
 			Spec: batchv1.JobSpec{
-				BackoffLimit:            &[]int32{1}[0],   // 最多重试1次
-				TTLSecondsAfterFinished: &[]int32{300}[0], // 5分钟后自动清理
+				BackoffLimit:            &[]int32{1}[0],   // Retry at most once
+				TTLSecondsAfterFinished: &[]int32{300}[0], // Auto cleanup after 5 minutes
 				Template: corev1.PodTemplateSpec{
 					ObjectMeta: metav1.ObjectMeta{
 						Labels: map[string]string{
@@ -503,26 +520,26 @@ func (p *MiningPlugin) createDetectionJobs(processName string, nodes []string) (
 					},
 					Spec: corev1.PodSpec{
 						RestartPolicy: corev1.RestartPolicyNever,
-						NodeName:      nodeName, // 直接指定节点
-						HostPID:       true,     // 访问宿主机进程
-						HostNetwork:   true,     // 使用宿主机网络
+						NodeName:      nodeName, // Directly specify node
+						HostPID:       true,     // Access host processes
+						HostNetwork:   true,     // Use host network
 						SecurityContext: &corev1.PodSecurityContext{
-							RunAsUser: &[]int64{0}[0], // root用户
+							RunAsUser: &[]int64{0}[0], // root user
 						},
 						Tolerations: []corev1.Toleration{
 							{
-								Operator: corev1.TolerationOpExists, // 容忍所有污点
+								Operator: corev1.TolerationOpExists, // Tolerate all taints
 							},
 						},
 						Containers: []corev1.Container{
 							{
 								Name:  "detector",
-								Image: "alpine:3.18", // 使用稳定版本
+								Image: "alpine:3.18", // Use stable version
 								SecurityContext: &corev1.SecurityContext{
-									Privileged: &[]bool{false}[0], // 避免特权模式
+									Privileged: &[]bool{false}[0], // Avoid privileged mode
 									Capabilities: &corev1.Capabilities{
 										Add: []corev1.Capability{
-											corev1.Capability("SYS_PTRACE"), // 仅添加必要的能力
+											corev1.Capability("SYS_PTRACE"), // Add only necessary capabilities
 										},
 									},
 								},
@@ -532,13 +549,13 @@ func (p *MiningPlugin) createDetectionJobs(processName string, nodes []string) (
 									fmt.Sprintf(`
                                         echo "Starting detection on node: %s"
                                         echo "Target process: %s"
-                                        
-                                        # 设置超时
+
+                                        # Set timeout
                                         timeout 300 /scripts/detect.sh "%s" || {
                                             echo "Detection script timeout or failed"
                                             echo '{"hostname":"'$(hostname)'","node_name":"%s","timestamp":"'$(date -Iseconds)'","process_name":"%s","status":"failed","error":"script_timeout","detections":[]}' > /shared/result-%s.json
                                         }
-                                        
+
                                         echo "Detection completed on node: %s"
                                         `, nodeName, processName, processName, nodeName, processName, nodeName, nodeName),
 								},
@@ -658,7 +675,7 @@ func (p *MiningPlugin) createDetectionJobs(processName string, nodes []string) (
 	return jobNames, nil
 }
 
-// 等待所有Job完成
+// waitForJobsCompletion waits for all Jobs to complete
 func (p *MiningPlugin) waitForJobsCompletion(jobNames []string, timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -705,7 +722,7 @@ func (p *MiningPlugin) waitForJobsCompletion(jobNames []string, timeout time.Dur
 	)
 }
 
-// 从Pod中执行命令
+// execInPod executes a command in a pod
 func (p *MiningPlugin) execInPod(
 	podName, containerName string,
 	cmd []string,
@@ -737,7 +754,7 @@ func (p *MiningPlugin) execInPod(
 	return stdout.String(), stderr.String(), err
 }
 
-// 收集所有Job的检测结果
+// collectJobResults collects detection results from all Jobs
 func (p *MiningPlugin) collectJobResults(jobNames []string) ([]NodeDetectionResult, error) {
 	var results []NodeDetectionResult
 	var mu sync.Mutex
@@ -757,7 +774,7 @@ func (p *MiningPlugin) collectJobResults(jobNames []string) ([]NodeDetectionResu
 					"error": err.Error(),
 				})
 
-				// 创建失败结果
+				// Create failed result
 				failedResult := NodeDetectionResult{
 					Hostname:   "unknown",
 					NodeName:   "unknown",
@@ -786,9 +803,9 @@ func (p *MiningPlugin) collectJobResults(jobNames []string) ([]NodeDetectionResu
 	return results, nil
 }
 
-// 从单个Job获取检测结果
+// getResultFromJob gets detection result from a single Job
 func (p *MiningPlugin) getResultFromJob(jobName string) (NodeDetectionResult, error) {
-	// 获取Job相关的Pod
+	// Get Job-related Pod
 	pods, err := k8s.ClientSet.CoreV1().Pods(p.namespace).List(
 		context.TODO(),
 		metav1.ListOptions{
@@ -796,14 +813,14 @@ func (p *MiningPlugin) getResultFromJob(jobName string) (NodeDetectionResult, er
 		},
 	)
 	if err != nil {
-		return NodeDetectionResult{}, fmt.Errorf("列出Job %s 的Pod失败: %w", jobName, err)
+		return NodeDetectionResult{}, fmt.Errorf("failed to list Pods for Job %s: %w", jobName, err)
 	}
 
 	if len(pods.Items) == 0 {
-		return NodeDetectionResult{}, fmt.Errorf("job %s 没有找到Pod", jobName)
+		return NodeDetectionResult{}, fmt.Errorf("no Pods found for job %s", jobName)
 	}
 	pod := pods.Items[0]
-	// 检查Pod状态
+	// Check Pod status
 	if pod.Status.Phase == corev1.PodFailed {
 		return NodeDetectionResult{
 			NodeName:   pod.Spec.NodeName,
@@ -815,7 +832,7 @@ func (p *MiningPlugin) getResultFromJob(jobName string) (NodeDetectionResult, er
 		}, nil
 	}
 
-	// 从Pod中读取结果文件
+	// Read result file from Pod
 	cmd := []string{
 		"sh",
 		"-c",
@@ -850,7 +867,7 @@ func (p *MiningPlugin) getResultFromJob(jobName string) (NodeDetectionResult, er
 		}, nil
 	}
 
-	// 解析JSON结果
+	// Parse JSON result
 	var nodeResult NodeDetectionResult
 	if err := json.Unmarshal([]byte(stdout), &nodeResult); err != nil {
 		p.log.Error("Failed to parse JSON result from pod", logger.Fields{
@@ -868,7 +885,7 @@ func (p *MiningPlugin) getResultFromJob(jobName string) (NodeDetectionResult, er
 		}, nil
 	}
 
-	// 确保NodeName字段被正确设置
+	// Ensure NodeName field is properly set
 	if nodeResult.NodeName == "" {
 		nodeResult.NodeName = pod.Spec.NodeName
 	}
@@ -876,7 +893,7 @@ func (p *MiningPlugin) getResultFromJob(jobName string) (NodeDetectionResult, er
 	return nodeResult, nil
 }
 
-// 生成汇总报告
+// generateSummary generates a summary report
 func (p *MiningPlugin) generateSummary(
 	results []NodeDetectionResult,
 	processName string,
@@ -920,7 +937,7 @@ func (p *MiningPlugin) generateSummary(
 	}
 }
 
-// 主要的检测方法
+// detectProcess is the main detection method
 func (p *MiningPlugin) detectProcess(processName string) (*DetectionSummary, error) {
 	startTime := time.Now()
 
@@ -928,40 +945,40 @@ func (p *MiningPlugin) detectProcess(processName string) (*DetectionSummary, err
 		"process": processName,
 	})
 
-	// 1. 创建检测脚本
+	// 1. Create detection script
 	if err := p.createDetectionScript(); err != nil {
-		return nil, fmt.Errorf("创建检测脚本失败: %w", err)
+		return nil, fmt.Errorf("failed to create detection script: %w", err)
 	}
 
-	// 2. 获取可调度的节点列表
+	// 2. Get list of schedulable nodes
 	nodes, err := p.getSchedulableNodes()
 	if err != nil {
-		return nil, fmt.Errorf("获取节点列表失败: %w", err)
+		return nil, fmt.Errorf("failed to get node list: %w", err)
 	}
 
 	if len(nodes) == 0 {
-		return nil, errors.New("没有找到可调度的节点")
+		return nil, errors.New("no schedulable nodes found")
 	}
 
 	p.log.Info("Found schedulable nodes", logger.Fields{
 		"node_count": len(nodes),
 	})
 
-	// 3. 为每个节点创建检测Job
+	// 3. Create detection Job for each node
 	jobNames, err := p.createDetectionJobs(processName, nodes)
 	if err != nil {
-		return nil, fmt.Errorf("创建检测任务失败: %w", err)
+		return nil, fmt.Errorf("failed to create detection tasks: %w", err)
 	}
 
 	if len(jobNames) == 0 {
-		return nil, errors.New("没有成功创建任何检测任务")
+		return nil, errors.New("failed to create any detection tasks")
 	}
 
 	p.log.Info("Detection tasks created", logger.Fields{
 		"task_count": len(jobNames),
 	})
 
-	// 确保清理资源
+	// Ensure cleanup of resources
 	defer func() {
 		if err := p.cleanupJobs(jobNames); err != nil {
 			p.log.Error("Failed to cleanup resources", logger.Fields{
@@ -970,24 +987,24 @@ func (p *MiningPlugin) detectProcess(processName string) (*DetectionSummary, err
 		}
 	}()
 
-	// 4. 等待所有Job完成
+	// 4. Wait for all Jobs to complete
 	p.log.Info("Waiting for detection tasks to complete")
 	timeout := time.Duration(p.miningConfig.JobTimeoutMinute) * time.Minute
 	if err := p.waitForJobsCompletion(jobNames, timeout); err != nil {
 		p.log.Error("Timeout waiting for tasks to complete", logger.Fields{
 			"error": err.Error(),
 		})
-		// 即使超时也尝试收集已完成的结果
+		// Try to collect completed results even on timeout
 	}
 
-	// 5. 收集检测结果
+	// 5. Collect detection results
 	p.log.Info("Collecting detection results")
 	results, err := p.collectJobResults(jobNames)
 	if err != nil {
-		return nil, fmt.Errorf("收集检测结果失败: %w", err)
+		return nil, fmt.Errorf("failed to collect detection results: %w", err)
 	}
 
-	// 6. 生成汇总报告
+	// 6. Generate summary report
 	endTime := time.Now()
 	summary := p.generateSummary(results, processName, startTime, endTime)
 
@@ -997,7 +1014,7 @@ func (p *MiningPlugin) detectProcess(processName string) (*DetectionSummary, err
 	return summary, nil
 }
 
-// 转换为DiscoveryInfo格式
+// convertToDiscoveryInfo converts to DiscoveryInfo format
 func (p *MiningPlugin) convertToDiscoveryInfo(summary *DetectionSummary) []models.MiningInfo {
 	var discoveryInfos []models.MiningInfo
 

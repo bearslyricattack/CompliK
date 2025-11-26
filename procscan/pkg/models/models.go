@@ -1,41 +1,57 @@
+// Copyright 2025 CompliK Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package models provides data structures for configuration and process information
+// used throughout the process scanner application.
 package models
 
 import (
 	"time"
 )
 
-// --- 新的、按领域分组的配置结构 ---
+// --- Configuration structures organized by domain ---
 
-// ScannerConfig 包含了扫描器本身的核心配置
+// ScannerConfig contains the core configuration for the scanner itself
 type ScannerConfig struct {
 	ProcPath     string        `yaml:"proc_path"`
 	ScanInterval time.Duration `yaml:"scan_interval"`
 	LogLevel     string        `yaml:"log_level"`
 }
 
-// LabelActionConfig 包含了标签动作相关的配置
+// LabelActionConfig contains configuration for label actions
 type LabelActionConfig struct {
 	Enabled bool              `yaml:"enabled"`
 	Data    map[string]string `yaml:"data"`
 }
 
-// ActionsConfig 聚合了所有可用的自动化动作
+// ActionsConfig aggregates all available automated actions
 type ActionsConfig struct {
 	Label LabelActionConfig `yaml:"label"`
 }
 
-// LarkNotificationConfig 包含了飞书通知渠道的配置
+// LarkNotificationConfig contains configuration for Lark notification channel
 type LarkNotificationConfig struct {
 	Webhook string `yaml:"webhook"`
 }
 
-// NotificationsConfig 聚合了所有通知渠道
+// NotificationsConfig aggregates all notification channels
 type NotificationsConfig struct {
 	Lark   LarkNotificationConfig `yaml:"lark"`
 	Region string                 `yaml:"region"`
 }
 
-// MetricsConfig 包含了 Prometheus 指标相关的配置
+// MetricsConfig contains configuration for Prometheus metrics
 type MetricsConfig struct {
 	Enabled       bool          `yaml:"enabled"`
 	Port          int           `yaml:"port"`
@@ -46,7 +62,7 @@ type MetricsConfig struct {
 	RetryInterval time.Duration `yaml:"retry_interval"`
 }
 
-// RuleSet 定义了一套匹配规则，所有规则都将被解析为正则表达式
+// RuleSet defines a set of matching rules, all rules will be parsed as regular expressions
 type RuleSet struct {
 	Processes  []string `yaml:"processes"`
 	Keywords   []string `yaml:"keywords"`
@@ -55,13 +71,13 @@ type RuleSet struct {
 	PodNames   []string `yaml:"podNames"`
 }
 
-// DetectionRules 包含了黑名单和白名单两套规则
+// DetectionRules contains both blacklist and whitelist rule sets
 type DetectionRules struct {
 	Blacklist RuleSet `yaml:"blacklist"`
 	Whitelist RuleSet `yaml:"whitelist"`
 }
 
-// Config 是最终的、唯一的顶层配置结构体
+// Config is the final, unified top-level configuration structure
 type Config struct {
 	Scanner        ScannerConfig       `yaml:"scanner"`
 	Actions        ActionsConfig       `yaml:"actions"`
@@ -70,9 +86,9 @@ type Config struct {
 	DetectionRules DetectionRules      `yaml:"detectionRules"`
 }
 
-// --- 业务数据模型 ---
+// --- Business data models ---
 
-// ProcessInfo 存储了单个被检测到的可疑进程的完整信息
+// ProcessInfo stores complete information for a single detected suspicious process
 type ProcessInfo struct {
 	PID         int
 	ProcessName string

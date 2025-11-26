@@ -1,5 +1,5 @@
 /*
-Copyright 2025 gitlayzer.
+Copyright 2025 CompliK Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package main is the entry point for the kubectl-block CLI plugin.
+// It provides commands to manage Kubernetes namespace lifecycle through the block controller.
 package main
 
 import (
@@ -27,10 +29,10 @@ import (
 )
 
 func main() {
-	// 初始化 klog
+	// Initialize klog
 	klog.InitFlags(nil)
 
-	// 创建根命令
+	// Create root command
 	rootCmd := &cobra.Command{
 		Use:   "kubectl-block",
 		Short: "Block controller CLI for managing namespace lifecycle",
@@ -40,12 +42,12 @@ namespaces with ease.`,
 		Version: "v0.2.0",
 	}
 
-	// 初始化 kubeconfig
+	// Initialize kubeconfig
 	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
 	configOverrides := &clientcmd.ConfigOverrides{}
 	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
 
-	// 添加子命令
+	// Add subcommands
 	rootCmd.AddCommand(cmd.NewLockCommand(kubeConfig))
 	rootCmd.AddCommand(cmd.NewUnlockCommand(kubeConfig))
 	rootCmd.AddCommand(cmd.NewStatusCommand(kubeConfig))
@@ -53,13 +55,13 @@ namespaces with ease.`,
 	rootCmd.AddCommand(cmd.NewCleanupCommand(kubeConfig))
 	rootCmd.AddCommand(cmd.NewReportCommand(kubeConfig))
 
-	// 全局参数
+	// Global flags
 	rootCmd.PersistentFlags().StringVarP(&configOverrides.Context.Context, "context", "c", "", "The name of the kubeconfig context to use")
 	rootCmd.PersistentFlags().StringVarP(&configOverrides.CurrentContext, "namespace", "n", "", "If present, the namespace scope for this CLI request")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
 	rootCmd.PersistentFlags().BoolVar(&dryRun, "dry-run", false, "If true, only print the object that would be sent, without sending it")
 
-	// 执行命令
+	// Execute command
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)

@@ -1,3 +1,20 @@
+// Copyright 2025 CompliK Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package postages implements a database handle plugin for storing detection results.
+// It supports MySQL/PostgreSQL databases and provides automatic schema migration
+// and event-driven result persistence.
 package postages
 
 import (
@@ -64,7 +81,7 @@ func (p *DatabasePlugin) loadConfig(setting string) error {
 
 	if setting == "" {
 		p.log.Error("Configuration cannot be empty")
-		return errors.New("配置不能为空")
+		return errors.New("configuration cannot be empty")
 	}
 
 	var configFromJSON DatabaseConfig
@@ -76,16 +93,16 @@ func (p *DatabasePlugin) loadConfig(setting string) error {
 		return err
 	}
 	if configFromJSON.Host == "" {
-		return errors.New("host 配置不能为空")
+		return errors.New("host configuration cannot be empty")
 	}
 	if configFromJSON.Port == "" {
-		return errors.New("port 配置不能为空")
+		return errors.New("port configuration cannot be empty")
 	}
 	if configFromJSON.Username == "" {
-		return errors.New("username 配置不能为空")
+		return errors.New("username configuration cannot be empty")
 	}
 	if configFromJSON.Password == "" {
-		return errors.New("password 配置不能为空")
+		return errors.New("password configuration cannot be empty")
 	}
 
 	p.databaseConfig.Host = configFromJSON.Host
@@ -166,7 +183,7 @@ func (p *DatabasePlugin) Start(
 		p.log.Error("Failed to initialize database", logger.Fields{
 			"error": err.Error(),
 		})
-		return fmt.Errorf("初始化数据库失败: %w", err)
+		return fmt.Errorf("failed to initialize database: %w", err)
 	}
 
 	p.log.Debug("Running database migration")
@@ -175,7 +192,7 @@ func (p *DatabasePlugin) Start(
 			"error": err.Error(),
 			"table": p.databaseConfig.TableName,
 		})
-		return fmt.Errorf("数据库迁移失败: %w", err)
+		return fmt.Errorf("database migration failed: %w", err)
 	}
 
 	p.log.Info("Database migration completed successfully")
@@ -250,7 +267,7 @@ func (p *DatabasePlugin) Stop(ctx context.Context) error {
 			p.log.Error("Failed to get database connection", logger.Fields{
 				"error": err.Error(),
 			})
-			return fmt.Errorf("获取数据库连接失败: %w", err)
+			return fmt.Errorf("failed to get database connection: %w", err)
 		}
 
 		if err := sqlDB.Close(); err != nil {
@@ -285,7 +302,7 @@ func (p *DatabasePlugin) initDB() error {
 	}
 	db, err := gorm.Open(mysql.Open(serverDSN), dbConfig)
 	if err != nil {
-		return fmt.Errorf("连接 MySQL 服务器失败: %w", err)
+		return fmt.Errorf("failed to connect to MySQL server: %w", err)
 	}
 	err = db.Exec(
 		fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s CHARACTER SET %s COLLATE %s_unicode_ci",
@@ -294,12 +311,12 @@ func (p *DatabasePlugin) initDB() error {
 			p.databaseConfig.Charset),
 	).Error
 	if err != nil {
-		return fmt.Errorf("创建数据库失败: %w", err)
+		return fmt.Errorf("failed to create database: %w", err)
 	}
 	dbDSN := p.buildDSN(true)
 	db, err = gorm.Open(mysql.Open(dbDSN), dbConfig)
 	if err != nil {
-		return fmt.Errorf("连接到数据库失败: %w", err)
+		return fmt.Errorf("failed to connect to database: %w", err)
 	}
 	p.db = db
 
@@ -328,15 +345,15 @@ func (p *DatabasePlugin) buildDSN(includeDB bool) string {
 func (p *DatabasePlugin) saveResults(result *models.DetectorInfo) error {
 	if p == nil {
 		p.log.Error("DatabasePlugin instance is nil")
-		return errors.New("DatabasePlugin 实例为空")
+		return errors.New("DatabasePlugin instance is nil")
 	}
 	if p.db == nil {
 		p.log.Error("Database connection not initialized")
-		return errors.New("数据库连接未初始化")
+		return errors.New("database connection not initialized")
 	}
 	if result == nil {
 		p.log.Error("Detection result is nil")
-		return errors.New("分析结果为空")
+		return errors.New("detection result is nil")
 	}
 	record := DetectorRecord{
 		DiscoveryName: result.DiscoveryName,

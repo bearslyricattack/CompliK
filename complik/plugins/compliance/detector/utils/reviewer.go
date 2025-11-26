@@ -1,3 +1,20 @@
+// Copyright 2025 CompliK Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package utils provides utility functions and types for compliance detection,
+// including an AI-powered content reviewer that analyzes website content for
+// compliance violations using language models.
 package utils
 
 import (
@@ -44,7 +61,7 @@ func (r *ContentReviewer) ReviewSiteContent(
 ) (*models.DetectorInfo, error) {
 	if content == nil {
 		r.log.Error("Review called with nil content")
-		return nil, errors.New("ScrapeResult 参数为空")
+		return nil, errors.New("ScrapeResult parameter is nil")
 	}
 
 	r.log.Debug("Preparing review request", logger.Fields{
@@ -58,7 +75,7 @@ func (r *ContentReviewer) ReviewSiteContent(
 			"error": err.Error(),
 			"host":  content.Host,
 		})
-		return nil, fmt.Errorf("准备请求数据失败: %w", err)
+		return nil, fmt.Errorf("failed to prepare request data: %w", err)
 	}
 
 	r.log.Debug("Calling review API", logger.Fields{
@@ -72,7 +89,7 @@ func (r *ContentReviewer) ReviewSiteContent(
 			"error": err.Error(),
 			"host":  content.Host,
 		})
-		return nil, fmt.Errorf("调用API失败: %w", err)
+		return nil, fmt.Errorf("failed to call API: %w", err)
 	}
 
 	r.log.Debug("Parsing API response")
@@ -82,7 +99,7 @@ func (r *ContentReviewer) ReviewSiteContent(
 			"error": err.Error(),
 			"host":  content.Host,
 		})
-		return nil, fmt.Errorf("解析响应失败: %w", err)
+		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
 	r.log.Debug("Review completed", logger.Fields{
@@ -143,45 +160,45 @@ func (r *ContentReviewer) buildPrompt(htmlContent string) string {
 	return `# Role: Content Analysis and Compliance Checker
 
 # Goal:
-1. 对给定的网页内容或用途进行一句话的简明描述。
-2. 提供若干与网页相关的关键词。
-3. 判断网页是否包含违反中国法律法规的内容，特别是涉及以下类别：色情、涉政、违禁、赌博、邪教、暴恐等。
+1. Provide a brief one-sentence description of the given webpage content or purpose.
+2. Extract several keywords relevant to the webpage.
+3. Determine whether the webpage contains content that violates Chinese laws and regulations, particularly in the following categories: pornography, political sensitivity, prohibited items, gambling, cult activities, violence/terrorism, fraud, and infringement.
 
 # Instructions:
-1. **内容描述**: 根据HTML文件和网页截图，生成一句话描述，概括网页的主要内容或用途。
+1. **Content Description**: Based on the HTML file and webpage screenshot, generate a one-sentence summary describing the main content or purpose of the webpage.
 
-2. **关键词总结**: 提取与网页内容最相关的关键词，最多5个关键词。
+2. **Keyword Extraction**: Extract up to 5 keywords most relevant to the webpage content.
 
-3. **合规性判断**: 分析网页内容，判断是否包含以下违法违规内容，并提供简短说明。
-   - **色情内容**: 是否存在与性相关的露骨图片、文字或视频？
-   - **涉政内容**: 是否存在政治敏感信息，或批评中国政府的言论？
-   - **违禁内容**: 是否存在任何中国法律禁止的物品、行为或服务？
-   - **赌博内容**: 是否涉及赌博行为或广告？
-   - **邪教内容**: 是否宣扬邪教或极端宗教思想？
-   - **暴恐内容**: 是否包含暴力或恐怖主义内容？
-   - **欺诈内容**: 是否包含网络诈骗内容？
-   - **侵权内容**: 是否包含侵权内容？
-   - **欺诈内容**: 特别注意是不是聊天页面，如果是聊天页面，请判断是否涉嫌诈骗
+3. **Compliance Assessment**: Analyze the webpage content to determine if it contains the following illegal or non-compliant content, and provide a brief explanation.
+   - **Pornographic Content**: Are there any sexually explicit images, text, or videos?
+   - **Political Sensitivity**: Is there politically sensitive information or criticism of the Chinese government?
+   - **Prohibited Items**: Are there any items, behaviors, or services prohibited by Chinese law?
+   - **Gambling Content**: Does it involve gambling activities or advertisements?
+   - **Cult Content**: Does it promote cult or extreme religious ideology?
+   - **Violence/Terrorism**: Does it contain violent or terrorist content?
+   - **Fraud Content**: Does it contain online fraud content?
+   - **Infringement Content**: Does it contain infringing content?
+   - **Fraud Detection**: Pay special attention to chat pages; if it's a chat page, determine whether it involves suspected fraud.
 
-# 重要说明：
-我正在同时提供给你网页截图和HTML代码，请综合分析这两种信息。某些内容可能在截图中更明显，而其他内容可能需要从HTML代码中分析。请保持警惕，即使表面看起来正常的网站，也可能在代码中隐藏违规内容。
-页面和源码中特别注意 微博 微信 抖音 快手 小红书 等社交平台，以及其他知名平台，防止诈骗内容，同时也要特别注意 赌博 色情 涉政 暴恐 邪教 等违法违规内容关键字。
+# Important Notes:
+I am providing you with both a webpage screenshot and HTML code. Please analyze both sources comprehensively. Some content may be more obvious in the screenshot, while other content may need to be analyzed from the HTML code. Stay vigilant; even seemingly normal websites may hide non-compliant content in the code.
+Pay special attention to social platforms like Weibo, WeChat, Douyin, Kuaishou, Xiaohongshu, and other well-known platforms to prevent fraudulent content. Also be particularly alert for keywords related to gambling, pornography, political sensitivity, violence/terrorism, and cult activities.
 
-## 特别提醒
-如果页面提示访问404,各种错误，空白，资源不存在，则认定为合规。
+## Special Reminder
+If the page shows 404 errors, various errors, blank pages, or missing resources, it should be considered compliant.
 
-# HTML代码节选:
+# HTML Code Excerpt:
 ` + "```html\n" + htmlContent + "\n```" + `
 
 # Output:
-请严格按照以下JSON格式输出，不要添加任何解释或其他文字：
+Please output strictly in the following JSON format without any additional explanation or text:
 
 {
-  "description": "<生成的网页描述>",
-  "keywords": ["<关键词1>", "<关键词2>", "<关键词3>", "<关键词4>", "<关键词5>"],
+  "description": "<Generated webpage description>",
+  "keywords": ["<keyword1>", "<keyword2>", "<keyword3>", "<keyword4>", "<keyword5>"],
   "compliance": {
     "is_illegal": "<Yes/No>",
-    "explanation": "<简短的说明，列出具体违反的类别及证据>"
+    "explanation": "<Brief explanation listing specific violated categories and evidence>"
   }
 }`
 }
@@ -197,9 +214,9 @@ func (r *ContentReviewer) buildRulesDescription(rules []CustomKeywordRule) strin
 
 		ruleText := fmt.Sprintf(`
 ### %s
-- 描述: %s  
-- 关键词: %s
-`, rule.Type, rule.Description, strings.Join(keywords, "、"))
+- Description: %s
+- Keywords: %s
+`, rule.Type, rule.Description, strings.Join(keywords, ", "))
 
 		builder.WriteString(ruleText)
 	}
@@ -212,52 +229,52 @@ func (r *ContentReviewer) buildCustomPrompt(
 	customRules []CustomKeywordRule,
 ) string {
 	rulesDescription := r.buildRulesDescription(customRules)
-	return fmt.Sprintf(`# Role: 智能网页内容合规检测专家
+	return fmt.Sprintf(`# Role: Intelligent Webpage Content Compliance Detection Expert
 
-# 任务目标:
-对提供的网页内容进行全面分析，重点检测自定义关键词规则，并严格按照JSON格式输出结果。
+# Task Objective:
+Conduct a comprehensive analysis of the provided webpage content, focusing on detecting custom keyword rules, and output results strictly in JSON format.
 
-# 分析要求:
+# Analysis Requirements:
 
-## 1. 内容描述
-- 根据HTML代码分析，用一句话简明概括网页的主要内容或用途
-- 描述要准确、客观，不超过50字
+## 1. Content Description
+- Based on HTML code analysis, provide a one-sentence concise summary of the webpage's main content or purpose
+- The description should be accurate, objective, and no more than 50 characters
 
-## 2. 关键词提取
-- 提取最能代表网页内容的关键词
-- 多个关键词用逗号分隔，最多5个
-- 关键词要准确反映网页的核心内容
+## 2. Keyword Extraction
+- Extract keywords that best represent the webpage content
+- Multiple keywords separated by commas, up to 5
+- Keywords should accurately reflect the core content of the webpage
 
-## 3. 自定义规则检测
-请严格按照以下自定义规则进行检测：
+## 3. Custom Rule Detection
+Please strictly detect according to the following custom rules:
 
 %s
 
-## 检测说明:
-- 仔细分析HTML代码中的文本内容
-- 对每个自定义规则进行逐一检查
-- 记录所有匹配的关键词和对应规则
+## Detection Instructions:
+- Carefully analyze the text content in the HTML code
+- Check each custom rule one by one
+- Record all matching keywords and corresponding rules
 
-# HTML代码:
+# HTML Code:
 %s
 
-# 重要说明：
-我正在同时提供给你网页截图和HTML代码，请综合分析这两种信息。某些内容可能在截图中更明显，而其他内容可能需要从HTML代码中分析。请保持警惕，即使表面看起来正常的网站，也可能在代码中隐藏违规内容。
-如果页面提示访问错误，为空白，或者资源不存在，则认定为合规。
+# Important Notes:
+I am providing you with both a webpage screenshot and HTML code. Please analyze both sources comprehensively. Some content may be more obvious in the screenshot, while other content may need to be analyzed from the HTML code. Stay vigilant; even seemingly normal websites may hide non-compliant content in the code.
+If the page shows access errors, is blank, or resources do not exist, it should be considered compliant.
 
-# 输出要求:
-请严格按照以下JSON格式输出，不要添加任何解释或其他文字：
+# Output Requirements:
+Please output strictly in the following JSON format without any additional explanation or text:
 
 {
   "is_compliant": true,
-  "keywords": "关键词1,关键词2,关键词3",
-  "description": "网页内容的一句话描述"
+  "keywords": "keyword1,keyword2,keyword3",
+  "description": "One-sentence description of webpage content"
 }
 
-注意：
-- is_compliant: true表示内容合规，false表示发现违规内容
-- keywords: 多个关键词用逗号分隔
-- description: 简洁明了的一句话描述`, rulesDescription, htmlContent)
+Notes:
+- is_compliant: true indicates compliant content, false indicates non-compliant content found
+- keywords: Multiple keywords separated by commas
+- description: Concise one-sentence description`, rulesDescription, htmlContent)
 }
 
 func (r *ContentReviewer) callAPI(
@@ -315,7 +332,7 @@ func (r *ContentReviewer) callAPI(
 	}(resp.Body)
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("读取响应体失败: %w", err)
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
 		errorText := string(body)
@@ -324,15 +341,15 @@ func (r *ContentReviewer) callAPI(
 			"error_text":  errorText,
 			"url":         r.apiURL,
 		})
-		return nil, fmt.Errorf("API调用失败: 状态码 %d", resp.StatusCode)
+		return nil, fmt.Errorf("API call failed: status code %d", resp.StatusCode)
 	}
 	var responseData APIResponse
 	if err := json.Unmarshal(body, &responseData); err != nil {
-		return nil, fmt.Errorf("解码API响应失败: %w", err)
+		return nil, fmt.Errorf("failed to decode API response: %w", err)
 	}
 	if len(responseData.Choices) == 0 {
 		r.log.Error("API response has no choices")
-		return nil, errors.New("API响应中没有结果")
+		return nil, errors.New("no results in API response")
 	}
 
 	r.log.Debug("API call successful", logger.Fields{
@@ -355,7 +372,7 @@ func (r *ContentReviewer) parseResponse(
 			"error":           err.Error(),
 			"raw_data_length": len(cleanData),
 		})
-		return nil, fmt.Errorf("解析API响应失败: %w", err)
+		return nil, fmt.Errorf("failed to parse API response: %w", err)
 	}
 
 	keywords := result.Keywords
@@ -366,7 +383,7 @@ func (r *ContentReviewer) parseResponse(
 	isIllegal := result.Compliance.IsIllegal == "Yes"
 	explanation := result.Compliance.Explanation
 	if explanation == "" {
-		explanation = "无具体说明"
+		explanation = "No specific explanation"
 	}
 
 	return &models.DetectorInfo{
@@ -402,7 +419,7 @@ type CustomComplianceResult struct {
 	IsCompliant   bool     `json:"is_compliant"`
 	Keywords      string   `json:"keywords"`
 	Description   string   `json:"description"`
-	ViolatedTypes []string `json:"violated_types,omitempty"` // 违规类型列表
+	ViolatedTypes []string `json:"violated_types,omitempty"` // List of violated types
 }
 
 type ReviewResult struct {
@@ -416,6 +433,14 @@ type Compliance struct {
 	Explanation string `json:"explanation"`
 }
 
+type APIResponse struct {
+	Choices []struct {
+		Message struct {
+			Content string `json:"content"`
+		} `json:"message"`
+	} `json:"choices"`
+}
+
 var ReviewResultSchema = map[string]any{
 	"type": "json_schema",
 	"json_schema": map[string]any{
@@ -426,7 +451,7 @@ var ReviewResultSchema = map[string]any{
 			"properties": map[string]any{
 				"description": map[string]any{
 					"type":        "string",
-					"description": "网页内容的简明描述，一句话概括网页的主要内容或用途",
+					"description": "Brief description of webpage content, one sentence summarizing the main content or purpose",
 				},
 				"keywords": map[string]any{
 					"type": "array",
@@ -434,7 +459,7 @@ var ReviewResultSchema = map[string]any{
 						"type": "string",
 					},
 					"maxItems":    5,
-					"description": "与网页内容最相关的关键词，最多5个",
+					"description": "Keywords most relevant to webpage content, up to 5",
 				},
 				"compliance": map[string]any{
 					"type": "object",
@@ -442,11 +467,11 @@ var ReviewResultSchema = map[string]any{
 						"is_illegal": map[string]any{
 							"type":        "string",
 							"enum":        []string{"Yes", "No"},
-							"description": "是否包含违法违规内容，Yes表示违规，No表示合规",
+							"description": "Whether it contains illegal or non-compliant content, Yes indicates non-compliant, No indicates compliant",
 						},
 						"explanation": map[string]any{
 							"type":        "string",
-							"description": "简短的说明，列出具体违反的类别及证据",
+							"description": "Brief explanation listing specific violated categories and evidence",
 						},
 					},
 					"required": []string{

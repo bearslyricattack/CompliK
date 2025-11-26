@@ -1,5 +1,5 @@
 /*
-Copyright 2025 gitlayzer.
+Copyright 2025 CompliK Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package cmd implements the kubectl-block subcommands.
 package cmd
 
 import (
@@ -29,7 +30,7 @@ import (
 	"github.com/bearslyricattack/CompliK/block-controller/internal/constants"
 )
 
-// NewLockCommand 创建 lock 命令
+// NewLockCommand creates the lock command
 func NewLockCommand(kubeConfig clientcmd.ClientConfig) *cobra.Command {
 	opts := NewCommandOptions(kubeConfig)
 
@@ -61,7 +62,7 @@ from being created until the namespace is unlocked or the lock expires.`,
 		RunE: opts.runLock,
 	}
 
-	// 添加参数
+	// Add flags
 	cmd.Flags().StringP(&opts.namespace, "namespace", "n", "", "The namespace to create BlockRequest in (default: current namespace)")
 	cmd.Flags().StringVarP(&opts.selector, "selector", "l", "", "Label selector to identify namespaces to lock")
 	cmd.Flags().StringVarP(&opts.file, "file", "f", "", "File containing list of namespaces to lock (one per line)")
@@ -73,27 +74,27 @@ from being created until the namespace is unlocked or the lock expires.`,
 }
 
 func (o *CommandOptions) runLock(cmd *cobra.Command, args []string) error {
-	// 初始化
+	// Initialize
 	if err := o.Init(); err != nil {
 		return err
 	}
 
-	// 确定要锁定的 namespace 列表
+	// Determine the list of namespaces to lock
 	var namespaces []string
 	var err error
 
 	switch {
 	case len(args) > 0:
-		// 直接指定了 namespace 名称
+		// Namespace name directly specified
 		namespaces = args
 	case opts.all:
-		// 锁定所有 namespace
+		// Lock all namespaces
 		namespaces, err = o.getAllNamespaces()
 	case opts.selector != "":
-		// 通过选择器锁定
+		// Lock by selector
 		namespaces, err = o.getNamespacesBySelector(opts.selector)
 	case opts.file != "":
-		// 从文件读取
+		// Read from file
 		namespaces, err = ReadNamespacesFromFile(opts.file)
 	default:
 		return fmt.Errorf("you must specify a namespace name, or use --selector, --file, or --all")
@@ -108,14 +109,14 @@ func (o *CommandOptions) runLock(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// 验证 namespace
+	// Validate namespaces
 	for _, ns := range namespaces {
 		if err := o.ValidateNamespace(ns); err != nil {
 			return fmt.Errorf("invalid namespace %s: %v", ns, err)
 		}
 	}
 
-	// 显示操作计划
+	// Display operation plan
 	fmt.Printf("🔒 Planning to lock %d namespace(s):\n", len(namespaces))
 	for _, ns := range namespaces {
 		status, _ := o.GetNamespaceStatus(ns)
@@ -126,7 +127,7 @@ func (o *CommandOptions) runLock(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  %s %s (current: %s)\n", statusIcon, ns, status)
 	}
 
-	// 确认操作
+	// Confirm operation
 	if !opts.force && !opts.dryRun {
 		fmt.Printf("\n⚠️  This will scale down all workloads in the listed namespaces.\n")
 		fmt.Printf("Duration: %s\n", FormatDuration(o.duration))
@@ -143,7 +144,7 @@ func (o *CommandOptions) runLock(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// 执行锁定操作
+	// Execute lock operation
 	fmt.Printf("\n🚀 Starting lock operation...\n")
 	successCount := 0
 	failureCount := 0
@@ -158,7 +159,7 @@ func (o *CommandOptions) runLock(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// 显示结果
+	// Display results
 	fmt.Printf("\n📊 Lock operation completed:\n")
 	fmt.Printf("  ✅ Success: %d\n", successCount)
 	fmt.Printf("  ❌ Failed: %d\n", failureCount)
@@ -170,9 +171,9 @@ func (o *CommandOptions) runLock(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// lockNamespace 锁定单个 namespace
+// lockNamespace locks a single namespace
 func (o *CommandOptions) lockNamespace(namespace string) error {
-	// 检查当前状态
+	// Check current status
 	currentStatus, err := o.GetNamespaceStatus(namespace)
 	if err != nil {
 		return err
@@ -186,7 +187,7 @@ func (o *CommandOptions) lockNamespace(namespace string) error {
 		fmt.Printf("🔄 Namespace %s is already locked, re-locking...\n", namespace)
 	}
 
-	// 方法1：通过标签直接锁定
+	// Method 1: Lock directly through labels
 	if err := o.updateNamespaceForLock(namespace); err != nil {
 		return err
 	}
@@ -194,40 +195,40 @@ func (o *CommandOptions) lockNamespace(namespace string) error {
 	return nil
 }
 
-// updateNamespaceForLock 更新 namespace 以进行锁定
+// updateNamespaceForLock updates namespace for locking
 func (o *CommandOptions) updateNamespaceForLock(namespace string) error {
 	ctx := context.TODO()
 
-	// 获取 namespace
+	// Get namespace
 	ns, err := o.GetNamespace(namespace)
 	if err != nil {
 		return err
 	}
 
-	// 更新标签
+	// Update labels
 	if ns.Labels == nil {
 		ns.Labels = make(map[string]string)
 	}
 	ns.Labels[constants.StatusLabel] = constants.LockedStatus
 
-	// 更新注解
+	// Update annotations
 	if ns.Annotations == nil {
 		ns.Annotations = make(map[string]string)
 	}
 
-	// 设置解锁时间戳
+	// Set unlock timestamp
 	if o.duration > 0 {
 		unlockTime := time.Now().Add(o.duration)
 		ns.Annotations[constants.UnlockTimestampLabel] = unlockTime.Format(time.RFC3339)
 	}
 
-	// 添加操作原因
+	// Add operation reason
 	if opts.reason != "" {
 		ns.Annotations["clawcloud.run/lock-reason"] = opts.reason
 		ns.Annotations["clawcloud.run/lock-operator"] = "kubectl-block"
 	}
 
-	// 更新 namespace
+	// Update namespace
 	if o.dryRun {
 		fmt.Printf("[DRY-RUN] Would update namespace %s\n", namespace)
 		return nil
@@ -242,7 +243,7 @@ func (o *CommandOptions) updateNamespaceForLock(namespace string) error {
 	return nil
 }
 
-// getAllNamespaces 获取所有非系统 namespace
+// getAllNamespaces gets all non-system namespaces
 func (o *CommandOptions) getAllNamespaces() ([]string, error) {
 	ctx := context.TODO()
 	namespaces, err := o.client.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
@@ -268,7 +269,7 @@ func (o *CommandOptions) getAllNamespaces() ([]string, error) {
 	return result, nil
 }
 
-// getNamespacesBySelector 通过标签选择器获取 namespace
+// getNamespacesBySelector gets namespaces by label selector
 func (o *CommandOptions) getNamespacesBySelector(selector string) ([]string, error) {
 	ctx := context.TODO()
 	options := metav1.ListOptions{

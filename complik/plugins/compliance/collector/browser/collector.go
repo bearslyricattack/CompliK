@@ -1,3 +1,20 @@
+// Copyright 2025 CompliK Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package browser provides a web page collector that captures HTML content and screenshots
+// using a headless browser. It supports concurrent browser instance management through a
+// browser pool and handles various error conditions during page navigation and rendering.
 package browser
 
 import (
@@ -65,7 +82,7 @@ func (s *Collector) CollectorAndScreenshot(
 	}
 	instance, err := browserPool.Get(taskCtx)
 	if err != nil {
-		return nil, fmt.Errorf("获取浏览器实例失败: %w", err)
+		return nil, fmt.Errorf("failed to get browser instance: %w", err)
 	}
 	defer browserPool.Put(instance)
 	page, err := s.setupPage(taskCtx, instance)
@@ -73,7 +90,7 @@ func (s *Collector) CollectorAndScreenshot(
 		return nil, err
 	}
 	if page == nil {
-		return nil, errors.New("页面对象为空")
+		return nil, errors.New("page object is nil")
 	}
 	defer func() {
 		if page != nil {
@@ -98,7 +115,7 @@ func (s *Collector) CollectorAndScreenshot(
 	defer wait()
 	err = page.Navigate(url)
 	if err != nil {
-		return nil, fmt.Errorf("页面导航失败: %w", err)
+		return nil, fmt.Errorf("page navigation failed: %w", err)
 	}
 	if err := taskCtx.Err(); err != nil {
 		if errors.Is(err, context.Canceled) {
@@ -195,16 +212,16 @@ func (s *Collector) setupPage(
 ) (*rod.Page, error) {
 	var page *rod.Page
 	if instance == nil {
-		return nil, errors.New("浏览器实例为空")
+		return nil, errors.New("browser instance is nil")
 	}
 	if instance.Browser == nil {
-		return nil, errors.New("浏览器对象为空")
+		return nil, errors.New("browser object is nil")
 	}
 	err := rod.Try(func() {
 		page = instance.Browser.MustPage().Context(ctx)
 	})
 	if err != nil {
-		return nil, fmt.Errorf("创建页面失败: %w", err)
+		return nil, fmt.Errorf("failed to create page: %w", err)
 	}
 	err = page.SetUserAgent(&proto.NetworkSetUserAgentOverride{
 		UserAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36",

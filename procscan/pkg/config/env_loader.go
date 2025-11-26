@@ -1,3 +1,18 @@
+// Copyright 2025 CompliK Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package config provides environment variable loading functionality for configuration.
 package config
 
 import (
@@ -12,20 +27,20 @@ import (
 	"github.com/bearslyricattack/CompliK/procscan/pkg/models"
 )
 
-// EnvLoader 环境变量加载器
+// EnvLoader is an environment variable loader
 type EnvLoader struct {
-	prefix     string                   // 环境变量前缀
-	separator  string                   // 分隔符，默认为"_"
-	mapping    map[string]string        // 字段映射
-	converters map[string]TypeConverter // 类型转换器
+	prefix     string                   // Environment variable prefix
+	separator  string                   // Separator, default is "_"
+	mapping    map[string]string        // Field mapping
+	converters map[string]TypeConverter // Type converters
 }
 
-// TypeConverter 类型转换器接口
+// TypeConverter is the interface for type converters
 type TypeConverter interface {
 	Convert(value string) (interface{}, error)
 }
 
-// NewEnvLoader 创建新的环境变量加载器
+// NewEnvLoader creates a new environment variable loader
 func NewEnvLoader(prefix string) *EnvLoader {
 	if prefix == "" {
 		prefix = "PROCSCAN"
@@ -39,53 +54,53 @@ func NewEnvLoader(prefix string) *EnvLoader {
 	}
 }
 
-// SetSeparator 设置分隔符
+// SetSeparator sets the separator
 func (e *EnvLoader) SetSeparator(separator string) *EnvLoader {
 	e.separator = separator
 	return e
 }
 
-// AddMapping 添加字段映射
+// AddMapping adds a field mapping
 func (e *EnvLoader) AddMapping(field, envKey string) *EnvLoader {
 	e.mapping[field] = envKey
 	return e
 }
 
-// AddConverter 添加类型转换器
+// AddConverter adds a type converter
 func (e *EnvLoader) AddConverter(field string, converter TypeConverter) *EnvLoader {
 	e.converters[field] = converter
 	return e
 }
 
-// LoadFromEnv 从环境变量加载配置
+// LoadFromEnv loads configuration from environment variables
 func (e *EnvLoader) LoadFromEnv(config *models.Config) error {
-	legacy.L.WithField("prefix", e.prefix).Info("开始从环境变量加载配置")
+	legacy.L.WithField("prefix", e.prefix).Info("Starting to load configuration from environment variables")
 
-	// 加载扫描器配置
+	// Load scanner configuration
 	if err := e.loadScannerConfig(&config.Scanner); err != nil {
-		return fmt.Errorf("加载扫描器配置失败: %w", err)
+		return fmt.Errorf("failed to load scanner configuration: %w", err)
 	}
 
-	// 加载动作配置
+	// Load actions configuration
 	if err := e.loadActionsConfig(&config.Actions); err != nil {
-		return fmt.Errorf("加载动作配置失败: %w", err)
+		return fmt.Errorf("failed to load actions configuration: %w", err)
 	}
 
-	// 加载通知配置
+	// Load notifications configuration
 	if err := e.loadNotificationsConfig(&config.Notifications); err != nil {
-		return fmt.Errorf("加载通知配置失败: %w", err)
+		return fmt.Errorf("failed to load notifications configuration: %w", err)
 	}
 
-	// 加载检测规则
+	// Load detection rules
 	if err := e.loadDetectionRules(&config.DetectionRules); err != nil {
-		return fmt.Errorf("加载检测规则失败: %w", err)
+		return fmt.Errorf("failed to load detection rules: %w", err)
 	}
 
-	legacy.L.Info("环境变量配置加载完成")
+	legacy.L.Info("Environment variable configuration loading completed")
 	return nil
 }
 
-// loadScannerConfig 加载扫描器配置
+// loadScannerConfig loads scanner configuration
 func (e *EnvLoader) loadScannerConfig(scanner *models.ScannerConfig) error {
 	configMap := map[string]interface{}{
 		"scanner.proc_path":     &scanner.ProcPath,
@@ -96,7 +111,7 @@ func (e *EnvLoader) loadScannerConfig(scanner *models.ScannerConfig) error {
 	return e.loadConfigMap(configMap)
 }
 
-// loadActionsConfig 加载动作配置
+// loadActionsConfig loads actions configuration
 func (e *EnvLoader) loadActionsConfig(actions *models.ActionsConfig) error {
 	configMap := map[string]interface{}{
 		"actions.label.enabled": &actions.Label.Enabled,
@@ -106,7 +121,7 @@ func (e *EnvLoader) loadActionsConfig(actions *models.ActionsConfig) error {
 	return e.loadConfigMap(configMap)
 }
 
-// loadNotificationsConfig 加载通知配置
+// loadNotificationsConfig loads notifications configuration
 func (e *EnvLoader) loadNotificationsConfig(notifications *models.NotificationsConfig) error {
 	configMap := map[string]interface{}{
 		"notifications.lark.webhook": &notifications.Lark.Webhook,
@@ -115,9 +130,9 @@ func (e *EnvLoader) loadNotificationsConfig(notifications *models.NotificationsC
 	return e.loadConfigMap(configMap)
 }
 
-// loadDetectionRules 加载检测规则
+// loadDetectionRules loads detection rules
 func (e *EnvLoader) loadDetectionRules(rules *models.DetectionRules) error {
-	// 黑名单规则
+	// Blacklist rules
 	blacklistMap := map[string]interface{}{
 		"detectionRules.blacklist.processes":  &rules.Blacklist.Processes,
 		"detectionRules.blacklist.keywords":   &rules.Blacklist.Keywords,
@@ -130,7 +145,7 @@ func (e *EnvLoader) loadDetectionRules(rules *models.DetectionRules) error {
 		return err
 	}
 
-	// 白名单规则
+	// Whitelist rules
 	whitelistMap := map[string]interface{}{
 		"detectionRules.whitelist.processes":  &rules.Whitelist.Processes,
 		"detectionRules.whitelist.keywords":   &rules.Whitelist.Keywords,
@@ -142,7 +157,7 @@ func (e *EnvLoader) loadDetectionRules(rules *models.DetectionRules) error {
 	return e.loadConfigMap(whitelistMap)
 }
 
-// loadConfigMap 加载配置映射
+// loadConfigMap loads a configuration map
 func (e *EnvLoader) loadConfigMap(configMap map[string]interface{}) error {
 	for field, target := range configMap {
 		envValue := e.getEnvValue(field)
@@ -150,70 +165,70 @@ func (e *EnvLoader) loadConfigMap(configMap map[string]interface{}) error {
 			continue
 		}
 
-		// 类型转换
+		// Type conversion
 		convertedValue, err := e.convertValue(field, envValue)
 		if err != nil {
 			legacy.L.WithFields(map[string]interface{}{
 				"field": field,
 				"value": envValue,
 				"error": err.Error(),
-			}).Error("环境变量类型转换失败")
-			return fmt.Errorf("字段 '%s' 类型转换失败: %w", field, err)
+			}).Error("Environment variable type conversion failed")
+			return fmt.Errorf("field '%s' type conversion failed: %w", field, err)
 		}
 
-		// 设置值
+		// Set value
 		if err := e.setFieldValue(target, convertedValue); err != nil {
-			return fmt.Errorf("设置字段 '%s' 值失败: %w", field, err)
+			return fmt.Errorf("failed to set field '%s' value: %w", field, err)
 		}
 
 		legacy.L.WithFields(map[string]interface{}{
 			"field":   field,
 			"env_key": e.getEnvKey(field),
 			"value":   convertedValue,
-		}).Debug("从环境变量加载配置")
+		}).Debug("Loaded configuration from environment variable")
 	}
 
 	return nil
 }
 
-// getEnvValue 获取环境变量值
+// getEnvValue gets the environment variable value
 func (e *EnvLoader) getEnvValue(field string) string {
 	envKey := e.getEnvKey(field)
 	return os.Getenv(envKey)
 }
 
-// getEnvKey 获取环境变量键名
+// getEnvKey gets the environment variable key name
 func (e *EnvLoader) getEnvKey(field string) string {
-	// 检查是否有自定义映射
+	// Check if there is a custom mapping
 	if customKey, exists := e.mapping[field]; exists {
 		return customKey
 	}
 
-	// 默认映射：将点号分隔的字段名转换为下划线分隔
+	// Default mapping: convert dot-separated field names to underscore-separated
 	key := strings.ReplaceAll(field, ".", e.separator)
 	key = strings.ReplaceAll(key, "-", "_")
 	key = strings.ToUpper(key)
 	return e.prefix + e.separator + key
 }
 
-// convertValue 转换值类型
+// convertValue converts value type
 func (e *EnvLoader) convertValue(field, value string) (interface{}, error) {
-	// 检查是否有自定义转换器
+	// Check if there is a custom converter
 	if converter, exists := e.converters[field]; exists {
 		return converter.Convert(value)
 	}
 
-	// 自动类型推断
+	// Automatic type inference
 	return e.autoConvert(field, value)
 }
 
-// autoConvert 自动类型转换
+// autoConvert performs automatic type conversion
 func (e *EnvLoader) autoConvert(field, value string) (interface{}, error) {
-	// 根据字段名推断类型
+	// Infer type based on field name
 	if strings.Contains(field, "interval") {
 		duration, err := time.ParseDuration(value)
 		if err != nil {
-			return nil, fmt.Errorf("无效的时间间隔格式: %w", err)
+			return nil, fmt.Errorf("invalid duration format: %w", err)
 		}
 		return duration, nil
 	}
@@ -224,7 +239,7 @@ func (e *EnvLoader) autoConvert(field, value string) (interface{}, error) {
 		} else if strings.ToLower(value) == "false" || value == "0" {
 			return false, nil
 		}
-		return nil, fmt.Errorf("无效的布尔值: %s", value)
+		return nil, fmt.Errorf("invalid boolean value: %s", value)
 	}
 
 	if strings.Contains(field, "processes") ||
@@ -232,7 +247,7 @@ func (e *EnvLoader) autoConvert(field, value string) (interface{}, error) {
 		strings.Contains(field, "commands") ||
 		strings.Contains(field, "namespaces") ||
 		strings.Contains(field, "podNames") {
-		// 切片类型，用逗号分隔
+		// Slice type, comma-separated
 		if value == "" {
 			return []string{}, nil
 		}
@@ -240,15 +255,15 @@ func (e *EnvLoader) autoConvert(field, value string) (interface{}, error) {
 	}
 
 	if strings.Contains(field, "data") {
-		// map类型，简化处理：key1=value1,key2=value2
+		// Map type, simplified handling: key1=value1,key2=value2
 		return e.parseMap(value)
 	}
 
-	// 默认为字符串
+	// Default to string
 	return value, nil
 }
 
-// parseMap 解析map类型
+// parseMap parses map type
 func (e *EnvLoader) parseMap(value string) (map[string]string, error) {
 	if value == "" {
 		return make(map[string]string), nil
@@ -260,7 +275,7 @@ func (e *EnvLoader) parseMap(value string) (map[string]string, error) {
 	for _, pair := range pairs {
 		kv := strings.SplitN(pair, "=", 2)
 		if len(kv) != 2 {
-			return nil, fmt.Errorf("无效的map格式: %s", pair)
+			return nil, fmt.Errorf("invalid map format: %s", pair)
 		}
 		result[strings.TrimSpace(kv[0])] = strings.TrimSpace(kv[1])
 	}
@@ -268,7 +283,7 @@ func (e *EnvLoader) parseMap(value string) (map[string]string, error) {
 	return result, nil
 }
 
-// setFieldValue 设置字段值
+// setFieldValue sets the field value
 func (e *EnvLoader) setFieldValue(target interface{}, value interface{}) error {
 	targetValue := reflect.ValueOf(target)
 	if targetValue.Kind() != reflect.Ptr {
@@ -289,11 +304,11 @@ func (e *EnvLoader) setFieldValue(target interface{}, value interface{}) error {
 	return nil
 }
 
-// ListEnvVars 列出所有相关的环境变量
+// ListEnvVars lists all related environment variables
 func (e *EnvLoader) ListEnvVars() []string {
 	var envVars []string
 
-	// 收集所有环境变量
+	// Collect all environment variables
 	for _, env := range os.Environ() {
 		if strings.HasPrefix(env, e.prefix+"_") {
 			envVars = append(envVars, env)
@@ -303,7 +318,7 @@ func (e *EnvLoader) ListEnvVars() []string {
 	return envVars
 }
 
-// GetEnvSummary 获取环境变量摘要
+// GetEnvSummary gets the environment variable summary
 func (e *EnvLoader) GetEnvSummary() map[string]interface{} {
 	summary := make(map[string]interface{})
 
@@ -316,16 +331,16 @@ func (e *EnvLoader) GetEnvSummary() map[string]interface{} {
 	return summary
 }
 
-// 具体的类型转换器实现
+// Specific type converter implementations
 
-// StringConverter 字符串转换器
+// StringConverter converts string values
 type StringConverter struct{}
 
 func (c *StringConverter) Convert(value string) (interface{}, error) {
 	return value, nil
 }
 
-// BoolConverter 布尔值转换器
+// BoolConverter converts boolean values
 type BoolConverter struct{}
 
 func (c *BoolConverter) Convert(value string) (interface{}, error) {
@@ -339,21 +354,21 @@ func (c *BoolConverter) Convert(value string) (interface{}, error) {
 	}
 }
 
-// DurationConverter 时间间隔转换器
+// DurationConverter converts duration values
 type DurationConverter struct{}
 
 func (c *DurationConverter) Convert(value string) (interface{}, error) {
 	return time.ParseDuration(value)
 }
 
-// IntConverter 整数转换器
+// IntConverter converts integer values
 type IntConverter struct{}
 
 func (c *IntConverter) Convert(value string) (interface{}, error) {
 	return strconv.Atoi(value)
 }
 
-// StringSliceConverter 字符串切片转换器
+// StringSliceConverter converts string slice values
 type StringSliceConverter struct {
 	Separator string
 }

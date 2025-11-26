@@ -1,3 +1,21 @@
+/*
+Copyright 2025 CompliK Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package controller implements the BlockRequest controller for managing namespace blocking operations.
+// It provides batch processing capabilities to handle large numbers of namespaces efficiently.
 package controller
 
 import (
@@ -28,6 +46,11 @@ type BlockRequestReconciler struct {
 // +kubebuilder:rbac:groups=core.clawcloud.run,resources=blockrequests/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch;update;patch
 
+// Reconcile handles the reconciliation loop for BlockRequest resources.
+// It processes namespaces in batches to avoid overwhelming the API server when dealing with
+// large numbers of namespaces. The reconciliation happens in two phases:
+// 1. Process explicitly named namespaces from NamespaceNames
+// 2. Process namespaces matching the NamespaceSelector using pagination
 func (r *BlockRequestReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 

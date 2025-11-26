@@ -1,3 +1,17 @@
+// Copyright 2025 CompliK Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package logger
 
 import (
@@ -9,67 +23,33 @@ import (
 	"time"
 )
 
-// RotatingFileWriter 支持日志轮转的文件写入器
+// RotatingFileWriter implements log file rotation based on size and time
 type RotatingFileWriter struct {
 	mu          sync.Mutex
 	file        *os.File
 	filename    string
-	maxSize     int64 // 最大文件大小（字节）
-	maxBackups  int   // 保留的备份文件数量
-	maxAge      int   // 保留的最大天数
+	maxSize     int64
+	maxBackups  int
+	maxAge      int
 	currentSize int64
 	lastRotate  time.Time
 }
 
-// NewRotatingFileWriter 创建轮转文件写入器
-func NewRotatingFileWriter(
-	filename string,
-	maxSize int64,
-	maxBackups, maxAge int,
-) (*RotatingFileWriter, error) {
-	w := &RotatingFileWriter{
-		filename:   filename,
-		maxSize:    maxSize,
-		maxBackups: maxBackups,
-		maxAge:     maxAge,
-		lastRotate: time.Now(),
-	}
-
-	// 确保目录存在
-	dir := filepath.Dir(filename)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return nil, err
-	}
-
-	// 打开文件
-	if err := w.openFile(); err != nil {
-		return nil, err
-	}
-
-	// 启动清理协程
-	go w.cleanupOldFiles()
-
-	return w, nil
-}
-
-// Write 实现 io.Writer 接口
+// Write implements the io.Writer interface and handles automatic log rotation
 func (w *RotatingFileWriter) Write(p []byte) (n int, err error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-
-	// 检查是否需要轮转
 	if w.shouldRotate(int64(len(p))) {
 		if err := w.rotate(); err != nil {
 			return 0, err
 		}
 	}
-
 	n, err = w.file.Write(p)
 	w.currentSize += int64(n)
 	return n, err
 }
 
-// Close 关闭文件
+// Close closes the log file
 func (w *RotatingFileWriter) Close() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -80,55 +60,51 @@ func (w *RotatingFileWriter) Close() error {
 	return nil
 }
 
-// shouldRotate 检查是否需要轮转
+// shouldRotate determines if log rotation should occur
 func (w *RotatingFileWriter) shouldRotate(writeSize int64) bool {
-	// 按大小轮转
 	if w.maxSize > 0 && w.currentSize+writeSize > w.maxSize {
 		return true
 	}
-
-	// 按日期轮转（每天）
 	if time.Since(w.lastRotate) > 24*time.Hour {
 		return true
 	}
-
 	return false
 }
 
-// rotate 执行日志轮转
+// rotate performs the log file rotation
 func (w *RotatingFileWriter) rotate() error {
-	// 关闭当前文件
+	// Close current file
 	if w.file != nil {
 		w.file.Close()
 	}
 
-	// 重命名当前文件
+	// Rename current file to backup
 	backupName := w.backupName()
 	if err := os.Rename(w.filename, backupName); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 
-	// 打开新文件
+	// Open new file
 	if err := w.openFile(); err != nil {
 		return err
 	}
 
 	w.lastRotate = time.Now()
 
-	// 清理旧文件
+	// Clean up old backup files
 	w.cleanupBackups()
 
 	return nil
 }
 
-// openFile 打开日志文件
+// openFile opens the log file for writing
 func (w *RotatingFileWriter) openFile() error {
 	file, err := os.OpenFile(w.filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o666)
 	if err != nil {
 		return err
 	}
 
-	// 获取文件大小
+	// Get current file size
 	info, err := file.Stat()
 	if err != nil {
 		file.Close()
@@ -140,7 +116,7 @@ func (w *RotatingFileWriter) openFile() error {
 	return nil
 }
 
-// backupName 生成备份文件名
+// backupName generates a backup file name with timestamp
 func (w *RotatingFileWriter) backupName() string {
 	dir := filepath.Dir(w.filename)
 	base := filepath.Base(w.filename)
@@ -151,7 +127,7 @@ func (w *RotatingFileWriter) backupName() string {
 	return filepath.Join(dir, fmt.Sprintf("%s-%s%s", name, timestamp, ext))
 }
 
-// cleanupBackups 清理旧的备份文件
+// cleanupBackups removes old backup files based on retention policies
 func (w *RotatingFileWriter) cleanupBackups() {
 	dir := filepath.Dir(w.filename)
 	base := filepath.Base(w.filename)
@@ -164,7 +140,7 @@ func (w *RotatingFileWriter) cleanupBackups() {
 		return
 	}
 
-	// 按修改时间排序
+	// Sort by modification time
 	type fileInfo struct {
 		path    string
 		modTime time.Time
@@ -181,13 +157,13 @@ func (w *RotatingFileWriter) cleanupBackups() {
 		})
 	}
 	if w.maxBackups > 0 && len(files) > w.maxBackups {
-		// 按时间排序，保留最新的
+		// Sort by time and keep only the newest backups
 		for i := range len(files) - w.maxBackups {
 			os.Remove(files[i].path)
 		}
 	}
 
-	// 删除超过时间限制的文件
+	// Remove files exceeding the maximum age
 	if w.maxAge > 0 {
 		cutoff := time.Now().AddDate(0, 0, -w.maxAge)
 		for _, f := range files {
@@ -198,7 +174,7 @@ func (w *RotatingFileWriter) cleanupBackups() {
 	}
 }
 
-// cleanupOldFiles 定期清理旧文件
+// cleanupOldFiles periodically cleans up old log files
 func (w *RotatingFileWriter) cleanupOldFiles() {
 	ticker := time.NewTicker(24 * time.Hour)
 	defer ticker.Stop()
@@ -210,17 +186,17 @@ func (w *RotatingFileWriter) cleanupOldFiles() {
 	}
 }
 
-// MultiWriter 多输出写入器
+// MultiWriter writes to multiple output destinations simultaneously
 type MultiWriter struct {
 	writers []io.Writer
 }
 
-// NewMultiWriter 创建多输出写入器
+// NewMultiWriter creates a new multi-output writer
 func NewMultiWriter(writers ...io.Writer) *MultiWriter {
 	return &MultiWriter{writers: writers}
 }
 
-// Write 实现 io.Writer 接口
+// Write implements the io.Writer interface
 func (mw *MultiWriter) Write(p []byte) (n int, err error) {
 	for _, w := range mw.writers {
 		n, err = w.Write(p)

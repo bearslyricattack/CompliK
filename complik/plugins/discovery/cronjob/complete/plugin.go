@@ -1,3 +1,18 @@
+// Copyright 2025 CompliK Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package complete provides a cron job plugin for complete discovery of ingress resources.
 package complete
 
 import (
@@ -242,13 +257,13 @@ func (p *CompletePlugin) GetIngressList(ctx context.Context) ([]models.Discovery
 		p.log.Error("Failed to get ingress list", logger.Fields{
 			"error": ingressErr.Error(),
 		})
-		return nil, fmt.Errorf("获取Ingress列表失败: %w", ingressErr)
+		return nil, fmt.Errorf("failed to get Ingress list: %w", ingressErr)
 	}
 	if endpointSlicesErr != nil {
 		p.log.Error("Failed to get endpoint slices list", logger.Fields{
 			"error": endpointSlicesErr.Error(),
 		})
-		return nil, fmt.Errorf("获取EndpointSlices列表失败: %w", endpointSlicesErr)
+		return nil, fmt.Errorf("failed to get EndpointSlices list: %w", endpointSlicesErr)
 	}
 
 	p.log.Debug("Successfully fetched Kubernetes resources", logger.Fields{
@@ -339,7 +354,7 @@ func (p *CompletePlugin) processIngressAndEndpointSlices(
 		"endpointSliceCount": len(endpointSlicesItems),
 	})
 
-	// 构建 EndpointSlice 映射：namespace -> serviceName -> []EndpointSlice
+	// Build EndpointSlice mapping: namespace -> serviceName -> []EndpointSlice
 	endpointSlicesMap := make(map[string]map[string][]*discoveryv1.EndpointSlice)
 	processedEndpointSlices := 0
 	skippedEndpointSlices := 0
@@ -367,7 +382,7 @@ func (p *CompletePlugin) processIngressAndEndpointSlices(
 		"skippedEndpointSlices":   skippedEndpointSlices,
 		"namespaceCount":          len(endpointSlicesMap),
 	})
-	// 估算结果大小并过滤 ns- 命名空间
+	// Estimate result size and filter ns- namespaces
 	estimatedSize := 0
 	validIngresses := 0
 	for _, ingress := range ingressItems {

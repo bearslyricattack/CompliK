@@ -1,3 +1,20 @@
+// Copyright 2025 CompliK Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package ingress implements a discovery plugin that monitors Kubernetes Ingress resources
+// using informers. It detects changes to Ingress configurations and publishes discovery
+// events for ingress endpoints with associated pod information.
 package ingress
 
 import (
@@ -215,19 +232,19 @@ func (p *IngressPlugin) shouldProcessIngress(ingress *networkingv1.Ingress) bool
 }
 
 func (p *IngressPlugin) hasIngressChanged(oldIngress, newIngress *networkingv1.Ingress) bool {
-	// 检查规则是否变化
+	// Check if rules have changed
 	if len(oldIngress.Spec.Rules) != len(newIngress.Spec.Rules) {
 		return true
 	}
 
-	// 检查每个规则的内容
+	// Check each rule's content
 	for i, oldRule := range oldIngress.Spec.Rules {
 		newRule := newIngress.Spec.Rules[i]
 		if oldRule.Host != newRule.Host {
 			return true
 		}
 
-		// 检查路径
+		// Check paths
 		if oldRule.HTTP == nil && newRule.HTTP == nil {
 			continue
 		}
@@ -245,7 +262,7 @@ func (p *IngressPlugin) hasIngressChanged(oldIngress, newIngress *networkingv1.I
 				return true
 			}
 
-			// 检查后端服务
+			// Check backend service
 			if oldPath.Backend.Service == nil && newPath.Backend.Service == nil {
 				continue
 			}
@@ -272,21 +289,21 @@ func (p *IngressPlugin) handleIngressEvent(discoveryInfo []models.DiscoveryInfo)
 func (p *IngressPlugin) getIngressWithPodInfo(
 	ingress *networkingv1.Ingress,
 ) ([]models.DiscoveryInfo, error) {
-	// 获取命名空间中所有的 EndpointSlice
+	// Get all EndpointSlices in the namespace
 	endpointSlices, err := k8s.ClientSet.DiscoveryV1().
 		EndpointSlices(ingress.Namespace).
 		List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("获取命名空间 %s 中的 EndpointSlice 列表失败: %w", ingress.Namespace, err)
+		return nil, fmt.Errorf("failed to get EndpointSlice list in namespace %s: %w", ingress.Namespace, err)
 	}
 
-	// 构建 EndpointSlice 映射
+	// Build EndpointSlice mapping
 	endpointSlicesMap := make(map[string]map[string][]*discoveryv1.EndpointSlice)
 	endpointSlicesMap[ingress.Namespace] = make(map[string][]*discoveryv1.EndpointSlice)
 
 	for i := range endpointSlices.Items {
 		slice := &endpointSlices.Items[i]
-		// 获取 EndpointSlice 关联的服务名
+		// Get the service name associated with the EndpointSlice
 		serviceName, exists := slice.Labels[discoveryv1.LabelServiceName]
 		if !exists {
 			continue
@@ -301,7 +318,7 @@ func (p *IngressPlugin) getIngressWithPodInfo(
 		)
 	}
 
-	// 使用 utils 包的函数生成 DiscoveryInfo，包含 Pod 信息
+	// Use utils package function to generate DiscoveryInfo with Pod information
 	discoveryInfos := utils.GenerateIngressAndPodInfo(*ingress, endpointSlicesMap, p.Name())
 
 	return discoveryInfos, nil

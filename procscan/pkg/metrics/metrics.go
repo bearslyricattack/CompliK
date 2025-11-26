@@ -1,3 +1,17 @@
+// Copyright 2025 CompliK Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package metrics
 
 import (
@@ -6,7 +20,7 @@ import (
 )
 
 var (
-	// 扫描器状态指标
+	// Scanner status metrics
 	ScannerRunning = promauto.NewGauge(prometheus.GaugeOpts{
 		Name: "procscan_scanner_running",
 		Help: "Indicates whether the scanner is currently running (1 for running, 0 for stopped)",
@@ -33,7 +47,7 @@ var (
 		Help: "Total number of scan errors",
 	})
 
-	// 威胁检测指标
+	// Threat detection metrics
 	ThreatsDetectedTotal = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "procscan_threats_detected_total",
 		Help: "Total number of threats detected",
@@ -59,7 +73,7 @@ var (
 		Help: "Number of suspicious processes detected by namespace",
 	}, []string{"namespace"})
 
-	// 响应动作指标
+	// Response action metrics
 	LabelActionsTotal = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "procscan_label_actions_total",
 		Help: "Total number of label actions attempted",
@@ -80,7 +94,7 @@ var (
 		Help: "Total number of failed notification attempts",
 	})
 
-	// 性能指标
+	// Performance metrics
 	ProcessesAnalyzedTotal = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "procscan_processes_analyzed_total",
 		Help: "Total number of processes analyzed",

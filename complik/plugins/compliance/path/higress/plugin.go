@@ -1,3 +1,20 @@
+// Copyright 2025 CompliK Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package higress provides a compliance plugin that queries Higress gateway logs
+// to collect information about discovered services and their access patterns.
+// The plugin subscribes to discovery events and queries log data for analysis.
 package higress
 
 import (
@@ -44,8 +61,8 @@ type HigressConfig struct {
 	LogServerPath string `json:"log_server_path"`
 	Username      string `json:"username"`
 	Password      string `json:"password"`
-	TimeRange     string `json:"time_range"` // 默认时间范围，如 "5m"
-	App           string `json:"app"`        // 应用名称
+	TimeRange     string `json:"time_range"` // Default time range, e.g. "5m"
+	App           string `json:"app"`        // Application name
 }
 
 type LogEntry struct {
@@ -74,12 +91,12 @@ func (p *HigressPlugin) Start(
 		"maxWorkers": maxWorkers,
 	})
 
-	// 解析配置
+	// Parse configuration
 	if err := p.parseConfig(config); err != nil {
 		p.log.Error("Failed to parse plugin config", logger.Fields{
 			"error": err.Error(),
 		})
-		return fmt.Errorf("解析配置失败: %w", err)
+		return fmt.Errorf("failed to parse configuration: %w", err)
 	}
 
 	p.log.Debug("Plugin config parsed successfully", logger.Fields{
@@ -88,7 +105,7 @@ func (p *HigressPlugin) Start(
 		"hasAuth":   p.config.Username != "",
 	})
 
-	// 初始化 HTTP 客户端
+	// Initialize HTTP client
 	p.client = &http.Client{
 		Timeout: 30 * time.Second,
 	}
@@ -133,7 +150,7 @@ func (p *HigressPlugin) Start(
 					"name":      ingress.Name,
 				})
 
-				// 查询日志
+				// Query logs
 				result, err := p.queryLogs(ingress)
 				if err != nil {
 					p.log.Error("Failed to query Higress logs", logger.Fields{
@@ -143,7 +160,7 @@ func (p *HigressPlugin) Start(
 						"error":     err.Error(),
 					})
 				} else {
-					// 发布查询结果到收集器主题
+					// Publish query result to collector topic
 					eventBus.Publish(constants.CollectorTopic, eventbus.Event{
 						Payload: result,
 					})
@@ -156,7 +173,7 @@ func (p *HigressPlugin) Start(
 			}(event)
 		case <-ctx.Done():
 			p.log.Info("Context cancelled, stopping Higress plugin")
-			// 等待所有工作协程完成
+			// Wait for all worker goroutines to finish
 			for range maxWorkers {
 				semaphore <- struct{}{}
 			}
@@ -195,7 +212,7 @@ func (p *HigressPlugin) parseConfig(config config.PluginConfig) error {
 		return err
 	}
 
-	// 设置默认值
+	// Set default values
 	if p.config.TimeRange == "" {
 		p.config.TimeRange = "5m"
 		p.log.Debug("Set default time range", logger.Fields{"timeRange": "5m"})
@@ -223,30 +240,30 @@ func (p *HigressPlugin) queryLogs(
 		"namespace": ingress.Namespace,
 	})
 
-	// 构建查询参数
+	// Build query parameters
 	query := p.buildQuery(ingress)
 	p.log.Debug("Built log query", logger.Fields{
 		"query": query,
 	})
 
-	// 发送请求
+	// Send request
 	resp, err := p.sendLogQuery(query)
 	if err != nil {
 		p.log.Error("Failed to send log query request", logger.Fields{
 			"query": query,
 			"error": err.Error(),
 		})
-		return nil, fmt.Errorf("发送日志查询请求失败: %w", err)
+		return nil, fmt.Errorf("failed to send log query request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	// 解析响应
+	// Parse response
 	logs, err := p.parseLogResponse(resp.Body)
 	if err != nil {
 		p.log.Error("Failed to parse log response", logger.Fields{
 			"error": err.Error(),
 		})
-		return nil, fmt.Errorf("解析日志响应失败: %w", err)
+		return nil, fmt.Errorf("failed to parse log response: %w", err)
 	}
 
 	p.log.Debug("Log query completed successfully", logger.Fields{
@@ -259,27 +276,27 @@ func (p *HigressPlugin) queryLogs(
 func (p *HigressPlugin) buildQuery(ingress models.DiscoveryInfo) string {
 	var builder strings.Builder
 
-	// 基础查询：根据 namespace 和关键词过滤
+	// Base query: filter by namespace and keywords
 	builder.WriteString(fmt.Sprintf(`{namespace="%s"} `, ingress.Namespace))
 
-	// 添加路径关键词搜索
+	// Add path keyword search
 	if ingress.Host != "" {
 		builder.WriteString(fmt.Sprintf(`"%s" `, ingress.Host))
 	}
 
-	// 添加时间范围
+	// Add time range
 	builder.WriteString(fmt.Sprintf(`_time:%s `, p.config.TimeRange))
 
-	// 添加应用过滤
+	// Add application filter
 	builder.WriteString(fmt.Sprintf(`app:="%s" `, p.config.App))
 
-	// 添加 JSON 解析和字段提取
+	// Add JSON parsing and field extraction
 	builder.WriteString(`| unpack_json `)
 
-	// 删除不需要的字段
+	// Remove unnecessary fields
 	builder.WriteString(`| Drop _stream_id,_stream,job,node `)
 
-	// 限制返回数量
+	// Limit return quantity
 	builder.WriteString(`| limit 1000`)
 
 	return builder.String()
@@ -288,7 +305,7 @@ func (p *HigressPlugin) buildQuery(ingress models.DiscoveryInfo) string {
 func (p *HigressPlugin) sendLogQuery(query string) (*http.Response, error) {
 	p.log.Debug("Sending HTTP request for log query")
 
-	// 使用类似 VLogs 的请求方式
+	// Use request method similar to VLogs
 	req, err := p.generateRequest(query)
 	if err != nil {
 		p.log.Error("Failed to generate HTTP request", logger.Fields{
@@ -303,7 +320,7 @@ func (p *HigressPlugin) sendLogQuery(query string) (*http.Response, error) {
 			"url":   req.URL.String(),
 			"error": err.Error(),
 		})
-		return nil, fmt.Errorf("HTTP 请求错误: %w", err)
+		return nil, fmt.Errorf("HTTP request error: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -312,7 +329,7 @@ func (p *HigressPlugin) sendLogQuery(query string) (*http.Response, error) {
 			"status":     resp.Status,
 		})
 		resp.Body.Close()
-		return nil, fmt.Errorf("响应错误，状态码: %d", resp.StatusCode)
+		return nil, fmt.Errorf("response error, status code: %d", resp.StatusCode)
 	}
 
 	p.log.Debug("HTTP request successful", logger.Fields{
@@ -323,7 +340,7 @@ func (p *HigressPlugin) sendLogQuery(query string) (*http.Response, error) {
 }
 
 func (p *HigressPlugin) generateRequest(query string) (*http.Request, error) {
-	// 构建请求 URL
+	// Build request URL
 	baseURL := fmt.Sprintf("%s/select/logsql/query?query=%s",
 		p.config.LogServerPath,
 		strings.ReplaceAll(query, " ", "%20"))
@@ -338,10 +355,10 @@ func (p *HigressPlugin) generateRequest(query string) (*http.Request, error) {
 			"url":   baseURL,
 			"error": err.Error(),
 		})
-		return nil, fmt.Errorf("创建 HTTP 请求错误: %w", err)
+		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
 
-	// 设置基础认证
+	// Set basic authentication
 	req.SetBasicAuth(p.config.Username, p.config.Password)
 	p.log.Debug("Set basic authentication", logger.Fields{
 		"username": p.config.Username,
@@ -358,7 +375,7 @@ func (p *HigressPlugin) parseLogResponse(body io.Reader) ([]LogEntry, error) {
 		p.log.Error("Failed to read response body", logger.Fields{
 			"error": err.Error(),
 		})
-		return nil, fmt.Errorf("读取响应体失败: %w", err)
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	p.log.Debug("Read response body", logger.Fields{
@@ -386,7 +403,7 @@ func (p *HigressPlugin) parseLogResponse(body io.Reader) ([]LogEntry, error) {
 				"line":  line,
 				"error": err.Error(),
 			})
-			// 如果 JSON 解析失败，创建一个简单的日志条目
+			// If JSON parsing fails, create a simple log entry
 			entry = LogEntry{
 				Timestamp: time.Now().Format(time.RFC3339),
 				Message:   line,

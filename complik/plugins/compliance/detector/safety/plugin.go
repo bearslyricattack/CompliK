@@ -1,3 +1,20 @@
+// Copyright 2025 CompliK Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package safety provides a compliance detector plugin that performs safety and compliance
+// checks on collected website content using AI-powered analysis. The plugin subscribes to
+// collector events, analyzes content for potential violations, and publishes detection results.
 package safety
 
 import (
@@ -67,7 +84,7 @@ func (p *SafetyPlugin) loadConfig(setting string) error {
 
 	if setting == "" {
 		p.log.Error("Configuration cannot be empty")
-		return errors.New("配置不能为空")
+		return errors.New("configuration cannot be empty")
 	}
 
 	var safetyConfig SafetyConfig
@@ -81,7 +98,7 @@ func (p *SafetyPlugin) loadConfig(setting string) error {
 
 	if safetyConfig.APIKey == "" {
 		p.log.Error("APIKey configuration is required")
-		return errors.New("APIKey 配置不能为空")
+		return errors.New("APIKey configuration cannot be empty")
 	}
 
 	// Support secure API key from environment variable or encryption
@@ -152,17 +169,17 @@ func (p *SafetyPlugin) Start(
 	time.Sleep(30 * time.Second)
 	eventBus.Publish(constants.DetectorTopic, eventbus.Event{
 		Payload: &models.DetectorInfo{
-			DiscoveryName: "程序启动，飞书通知测试",
-			CollectorName: "程序启动，飞书通知测试",
+			DiscoveryName: "Program started, Feishu notification test",
+			CollectorName: "Program started, Feishu notification test",
 			DetectorName:  p.Name(),
-			Name:          "程序启动，飞书通知测试",
-			Namespace:     "程序启动，飞书通知测试",
+			Name:          "Program started, Feishu notification test",
+			Namespace:     "Program started, Feishu notification test",
 			Host:          "",
 			Path:          nil,
-			URL:           "程序启动，飞书通知测试",
+			URL:           "Program started, Feishu notification test",
 			IsIllegal:     true,
-			Description:   "飞书消息测试 - 程序已成功启动",
-			Keywords:      []string{"程序启动", "飞书测试", "系统初始化"},
+			Description:   "Feishu message test - Program successfully started",
+			Keywords:      []string{"program_start", "feishu_test", "system_initialization"},
 		},
 	})
 	for {

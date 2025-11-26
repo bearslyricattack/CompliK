@@ -1,5 +1,5 @@
 /*
-Copyright 2025 gitlayzer.
+Copyright 2025 CompliK Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package main is the entry point for the block-controller manager.
+// It initializes and starts the controller manager for namespace lifecycle management.
 package main
 
 import (
@@ -95,7 +97,7 @@ func main() {
 	var webhookEnable bool
 	flag.BoolVar(&webhookEnable, "web-hook-enable", true, "enable webhook server")
 
-	// 优化架构参数
+	// Optimization architecture parameters
 	var maxMemoryMB int
 	flag.IntVar(&maxMemoryMB, "max-memory-mb", 1024, "Maximum memory limit in MB for the controller")
 	var workerCount int
@@ -211,9 +213,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 根据配置选择使用优化架构或原始架构
+	// Choose between optimized architecture or original architecture based on configuration
 	if enableOptimizedArchitecture {
-		// 使用优化架构
+		// Use optimized architecture
 		setupLog.Info("Using optimized memory-efficient architecture",
 			"maxMemoryMB", maxMemoryMB,
 			"workerCount", workerCount,
@@ -230,7 +232,7 @@ func main() {
 			os.Exit(1)
 		}
 	} else {
-		// 使用原始架构
+		// Use original architecture
 		setupLog.Info("Using original controller architecture")
 		if err := (&controller.BlockRequestReconciler{
 			Client:                  mgr.GetClient(),  // Caching client for Get/Update

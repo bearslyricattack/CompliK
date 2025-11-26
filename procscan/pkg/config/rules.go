@@ -1,3 +1,18 @@
+// Copyright 2025 CompliK Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package config provides validation rules for configuration fields.
 package config
 
 import (
@@ -11,7 +26,7 @@ import (
 	"time"
 )
 
-// StringRule 字符串验证规则
+// StringRule validates string values
 type StringRule struct {
 	MinLength int
 	MaxLength int
@@ -24,7 +39,7 @@ func (r *StringRule) Validate(value interface{}) *ValidationError {
 	if !ok {
 		return &ValidationError{
 			Code:    "INVALID_TYPE",
-			Message: "值必须是字符串类型",
+			Message: "Value must be a string type",
 			Value:   value,
 		}
 	}
@@ -32,20 +47,20 @@ func (r *StringRule) Validate(value interface{}) *ValidationError {
 	if r.Required && str == "" {
 		return &ValidationError{
 			Code:    "REQUIRED",
-			Message: "字段不能为空",
+			Message: "Field cannot be empty",
 			Value:   value,
 		}
 	}
 
 	if str == "" && !r.Required {
-		return nil // 空值且非必需，认为有效
+		return nil // Empty value and not required, consider valid
 	}
 
 	length := len(str)
 	if r.MinLength > 0 && length < r.MinLength {
 		return &ValidationError{
 			Code:    "MIN_LENGTH",
-			Message: fmt.Sprintf("字符串长度不能小于 %d", r.MinLength),
+			Message: fmt.Sprintf("String length cannot be less than %d", r.MinLength),
 			Value:   value,
 		}
 	}
@@ -53,7 +68,7 @@ func (r *StringRule) Validate(value interface{}) *ValidationError {
 	if r.MaxLength > 0 && length > r.MaxLength {
 		return &ValidationError{
 			Code:    "MAX_LENGTH",
-			Message: fmt.Sprintf("字符串长度不能大于 %d", r.MaxLength),
+			Message: fmt.Sprintf("String length cannot be greater than %d", r.MaxLength),
 			Value:   value,
 		}
 	}
@@ -61,7 +76,7 @@ func (r *StringRule) Validate(value interface{}) *ValidationError {
 	if r.Pattern != nil && !r.Pattern.MatchString(str) {
 		return &ValidationError{
 			Code:    "PATTERN_MISMATCH",
-			Message: "字符串格式不正确",
+			Message: "String format is incorrect",
 			Value:   value,
 		}
 	}
@@ -69,7 +84,7 @@ func (r *StringRule) Validate(value interface{}) *ValidationError {
 	return nil
 }
 
-// BooleanRule 布尔值验证规则
+// BooleanRule validates boolean values
 type BooleanRule struct{}
 
 func (r *BooleanRule) Validate(value interface{}) *ValidationError {
@@ -77,14 +92,14 @@ func (r *BooleanRule) Validate(value interface{}) *ValidationError {
 	if !ok {
 		return &ValidationError{
 			Code:    "INVALID_TYPE",
-			Message: "值必须是布尔类型",
+			Message: "Value must be a boolean type",
 			Value:   value,
 		}
 	}
 	return nil
 }
 
-// DurationRule 时间间隔验证规则
+// DurationRule validates duration values
 type DurationRule struct {
 	Min time.Duration
 	Max time.Duration
@@ -95,7 +110,7 @@ func (r *DurationRule) Validate(value interface{}) *ValidationError {
 	if !ok {
 		return &ValidationError{
 			Code:    "INVALID_TYPE",
-			Message: "值必须是时间间隔类型",
+			Message: "Value must be a duration type",
 			Value:   value,
 		}
 	}
@@ -103,7 +118,7 @@ func (r *DurationRule) Validate(value interface{}) *ValidationError {
 	if r.Min > 0 && duration < r.Min {
 		return &ValidationError{
 			Code:    "MIN_DURATION",
-			Message: fmt.Sprintf("时间间隔不能小于 %v", r.Min),
+			Message: fmt.Sprintf("Duration cannot be less than %v", r.Min),
 			Value:   value,
 		}
 	}
@@ -111,7 +126,7 @@ func (r *DurationRule) Validate(value interface{}) *ValidationError {
 	if r.Max > 0 && duration > r.Max {
 		return &ValidationError{
 			Code:    "MAX_DURATION",
-			Message: fmt.Sprintf("时间间隔不能大于 %v", r.Max),
+			Message: fmt.Sprintf("Duration cannot be greater than %v", r.Max),
 			Value:   value,
 		}
 	}
@@ -119,7 +134,7 @@ func (r *DurationRule) Validate(value interface{}) *ValidationError {
 	return nil
 }
 
-// EnumRule 枚举值验证规则
+// EnumRule validates enum values
 type EnumRule struct {
 	AllowedValues []string
 	CaseSensitive bool
@@ -130,7 +145,7 @@ func (r *EnumRule) Validate(value interface{}) *ValidationError {
 	if !ok {
 		return &ValidationError{
 			Code:    "INVALID_TYPE",
-			Message: "值必须是字符串类型",
+			Message: "Value must be a string type",
 			Value:   value,
 		}
 	}
@@ -149,12 +164,12 @@ func (r *EnumRule) Validate(value interface{}) *ValidationError {
 
 	return &ValidationError{
 		Code:    "INVALID_ENUM",
-		Message: fmt.Sprintf("值必须是以下之一: %v", r.AllowedValues),
+		Message: fmt.Sprintf("Value must be one of: %v", r.AllowedValues),
 		Value:   value,
 	}
 }
 
-// URLRule URL验证规则
+// URLRule validates URL values
 type URLRule struct {
 	RequiredSchemes []string
 	AllowEmpty      bool
@@ -165,7 +180,7 @@ func (r *URLRule) Validate(value interface{}) *ValidationError {
 	if !ok {
 		return &ValidationError{
 			Code:    "INVALID_TYPE",
-			Message: "值必须是字符串类型",
+			Message: "Value must be a string type",
 			Value:   value,
 		}
 	}
@@ -176,7 +191,7 @@ func (r *URLRule) Validate(value interface{}) *ValidationError {
 		}
 		return &ValidationError{
 			Code:    "REQUIRED",
-			Message: "URL不能为空",
+			Message: "URL cannot be empty",
 			Value:   value,
 		}
 	}
@@ -185,7 +200,7 @@ func (r *URLRule) Validate(value interface{}) *ValidationError {
 	if err != nil {
 		return &ValidationError{
 			Code:    "INVALID_URL",
-			Message: "URL格式不正确",
+			Message: "URL format is incorrect",
 			Value:   value,
 		}
 	}
@@ -201,7 +216,7 @@ func (r *URLRule) Validate(value interface{}) *ValidationError {
 		if !schemeValid {
 			return &ValidationError{
 				Code:    "INVALID_SCHEME",
-				Message: fmt.Sprintf("URL协议必须是以下之一: %v", r.RequiredSchemes),
+				Message: fmt.Sprintf("URL scheme must be one of: %v", r.RequiredSchemes),
 				Value:   value,
 			}
 		}
@@ -210,7 +225,7 @@ func (r *URLRule) Validate(value interface{}) *ValidationError {
 	return nil
 }
 
-// PathRule 路径验证规则
+// PathRule validates path values
 type PathRule struct {
 	MustExist bool
 	IsDir     bool
@@ -221,20 +236,20 @@ func (r *PathRule) Validate(value interface{}) *ValidationError {
 	if !ok {
 		return &ValidationError{
 			Code:    "INVALID_TYPE",
-			Message: "值必须是字符串类型",
+			Message: "Value must be a string type",
 			Value:   value,
 		}
 	}
 
 	if str == "" {
-		return nil // 空路径认为有效（使用默认值）
+		return nil // Empty path is considered valid (use default value)
 	}
 
-	// 检查路径格式
+	// Check path format
 	if !filepath.IsAbs(str) {
 		return &ValidationError{
 			Code:    "INVALID_PATH",
-			Message: "路径必须是绝对路径",
+			Message: "Path must be an absolute path",
 			Value:   value,
 		}
 	}
@@ -244,14 +259,14 @@ func (r *PathRule) Validate(value interface{}) *ValidationError {
 		if os.IsNotExist(err) {
 			return &ValidationError{
 				Code:    "PATH_NOT_EXIST",
-				Message: "路径不存在",
+				Message: "Path does not exist",
 				Value:   value,
 			}
 		}
 		if err != nil {
 			return &ValidationError{
 				Code:    "ACCESS_ERROR",
-				Message: "无法访问路径",
+				Message: "Cannot access path",
 				Value:   value,
 			}
 		}
@@ -259,7 +274,7 @@ func (r *PathRule) Validate(value interface{}) *ValidationError {
 		if r.IsDir && !info.IsDir() {
 			return &ValidationError{
 				Code:    "NOT_DIRECTORY",
-				Message: "路径必须是目录",
+				Message: "Path must be a directory",
 				Value:   value,
 			}
 		}
@@ -268,7 +283,7 @@ func (r *PathRule) Validate(value interface{}) *ValidationError {
 	return nil
 }
 
-// RegexRule 正则表达式验证规则
+// RegexRule validates regular expression values
 type RegexRule struct{}
 
 func (r *RegexRule) Validate(value interface{}) *ValidationError {
@@ -276,20 +291,20 @@ func (r *RegexRule) Validate(value interface{}) *ValidationError {
 	if !ok {
 		return &ValidationError{
 			Code:    "INVALID_TYPE",
-			Message: "值必须是字符串类型",
+			Message: "Value must be a string type",
 			Value:   value,
 		}
 	}
 
 	if str == "" {
-		return nil // 空字符串认为有效
+		return nil // Empty string is considered valid
 	}
 
 	_, err := regexp.Compile(str)
 	if err != nil {
 		return &ValidationError{
 			Code:    "INVALID_REGEX",
-			Message: "正则表达式格式不正确: " + err.Error(),
+			Message: "Regular expression format is incorrect: " + err.Error(),
 			Value:   value,
 		}
 	}
@@ -297,7 +312,7 @@ func (r *RegexRule) Validate(value interface{}) *ValidationError {
 	return nil
 }
 
-// SliceRule 切片验证规则
+// SliceRule validates slice values
 type SliceRule struct {
 	ElementRule ValidationRule
 	MinLength   int
@@ -310,7 +325,7 @@ func (r *SliceRule) Validate(value interface{}) *ValidationError {
 	if !ok {
 		return &ValidationError{
 			Code:    "INVALID_TYPE",
-			Message: "值必须是字符串数组类型",
+			Message: "Value must be a string array type",
 			Value:   value,
 		}
 	}
@@ -319,7 +334,7 @@ func (r *SliceRule) Validate(value interface{}) *ValidationError {
 		if !r.AllowEmpty {
 			return &ValidationError{
 				Code:    "REQUIRED",
-				Message: "数组不能为空",
+				Message: "Array cannot be empty",
 				Value:   value,
 			}
 		}
@@ -329,7 +344,7 @@ func (r *SliceRule) Validate(value interface{}) *ValidationError {
 	if r.MinLength > 0 && len(slice) < r.MinLength {
 		return &ValidationError{
 			Code:    "MIN_LENGTH",
-			Message: fmt.Sprintf("数组长度不能小于 %d", r.MinLength),
+			Message: fmt.Sprintf("Array length cannot be less than %d", r.MinLength),
 			Value:   value,
 		}
 	}
@@ -337,7 +352,7 @@ func (r *SliceRule) Validate(value interface{}) *ValidationError {
 	if r.MaxLength > 0 && len(slice) > r.MaxLength {
 		return &ValidationError{
 			Code:    "MAX_LENGTH",
-			Message: fmt.Sprintf("数组长度不能大于 %d", r.MaxLength),
+			Message: fmt.Sprintf("Array length cannot be greater than %d", r.MaxLength),
 			Value:   value,
 		}
 	}
@@ -354,7 +369,7 @@ func (r *SliceRule) Validate(value interface{}) *ValidationError {
 	return nil
 }
 
-// PortRule 端口验证规则
+// PortRule validates port values
 type PortRule struct {
 	MinPort int
 	MaxPort int
@@ -371,7 +386,7 @@ func (r *PortRule) Validate(value interface{}) *ValidationError {
 		if err != nil {
 			return &ValidationError{
 				Code:    "INVALID_PORT",
-				Message: "端口号必须是数字",
+				Message: "Port number must be numeric",
 				Value:   value,
 			}
 		}
@@ -379,7 +394,7 @@ func (r *PortRule) Validate(value interface{}) *ValidationError {
 	default:
 		return &ValidationError{
 			Code:    "INVALID_TYPE",
-			Message: "端口号必须是整数类型",
+			Message: "Port number must be an integer type",
 			Value:   value,
 		}
 	}
@@ -387,7 +402,7 @@ func (r *PortRule) Validate(value interface{}) *ValidationError {
 	if port < 1 || port > 65535 {
 		return &ValidationError{
 			Code:    "INVALID_PORT_RANGE",
-			Message: "端口号必须在 1-65535 范围内",
+			Message: "Port number must be in the range 1-65535",
 			Value:   value,
 		}
 	}
@@ -395,7 +410,7 @@ func (r *PortRule) Validate(value interface{}) *ValidationError {
 	if r.MinPort > 0 && port < r.MinPort {
 		return &ValidationError{
 			Code:    "MIN_PORT",
-			Message: fmt.Sprintf("端口号不能小于 %d", r.MinPort),
+			Message: fmt.Sprintf("Port number cannot be less than %d", r.MinPort),
 			Value:   value,
 		}
 	}
@@ -403,7 +418,7 @@ func (r *PortRule) Validate(value interface{}) *ValidationError {
 	if r.MaxPort > 0 && port > r.MaxPort {
 		return &ValidationError{
 			Code:    "MAX_PORT",
-			Message: fmt.Sprintf("端口号不能大于 %d", r.MaxPort),
+			Message: fmt.Sprintf("Port number cannot be greater than %d", r.MaxPort),
 			Value:   value,
 		}
 	}
@@ -411,7 +426,7 @@ func (r *PortRule) Validate(value interface{}) *ValidationError {
 	return nil
 }
 
-// NumberRule 数字验证规则
+// NumberRule validates number values
 type NumberRule struct {
 	Min      *int
 	Max      *int
@@ -429,7 +444,7 @@ func (r *NumberRule) Validate(value interface{}) *ValidationError {
 		if err != nil {
 			return &ValidationError{
 				Code:    "INVALID_NUMBER",
-				Message: "值必须是数字",
+				Message: "Value must be numeric",
 				Value:   value,
 			}
 		}
@@ -437,7 +452,7 @@ func (r *NumberRule) Validate(value interface{}) *ValidationError {
 	default:
 		return &ValidationError{
 			Code:    "INVALID_TYPE",
-			Message: "值必须是整数类型",
+			Message: "Value must be an integer type",
 			Value:   value,
 		}
 	}
@@ -445,7 +460,7 @@ func (r *NumberRule) Validate(value interface{}) *ValidationError {
 	if r.Min != nil && num < *r.Min {
 		return &ValidationError{
 			Code:    "MIN_VALUE",
-			Message: fmt.Sprintf("值不能小于 %d", *r.Min),
+			Message: fmt.Sprintf("Value cannot be less than %d", *r.Min),
 			Value:   value,
 		}
 	}
@@ -453,7 +468,7 @@ func (r *NumberRule) Validate(value interface{}) *ValidationError {
 	if r.Max != nil && num > *r.Max {
 		return &ValidationError{
 			Code:    "MAX_VALUE",
-			Message: fmt.Sprintf("值不能大于 %d", *r.Max),
+			Message: fmt.Sprintf("Value cannot be greater than %d", *r.Max),
 			Value:   value,
 		}
 	}

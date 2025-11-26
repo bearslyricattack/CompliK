@@ -1,5 +1,5 @@
 /*
-Copyright 2025 gitlayzer.
+Copyright 2025 CompliK Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package v1 contains API Schema definitions for the core v1 API group.
+// It defines the BlockRequest CRD which is used to manage namespace blocking operations.
 package v1
 
 import (
@@ -40,8 +42,11 @@ type BlockRequestSpec struct {
 	Action string `json:"action"`
 }
 
+// NamespaceStatus represents the status of a single namespace operation
 type NamespaceStatus struct {
-	Name    string `json:"name"`
+	// Name is the name of the namespace
+	Name string `json:"name"`
+	// Message contains the result message of the operation
 	Message string `json:"message"`
 }
 

@@ -1,5 +1,5 @@
 /*
-Copyright 2025 gitlayzer.
+Copyright 2025 CompliK Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package cmd implements the kubectl-block subcommands.
 package cmd
 
 import (
@@ -29,7 +30,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-// NamespaceStatus 包含 namespace 状态信息
+// NamespaceStatus contains namespace status information
 type NamespaceStatus struct {
 	Name          string            `json:"name" yaml:"name"`
 	Status        string            `json:"status" yaml:"status"`
@@ -44,7 +45,7 @@ type NamespaceStatus struct {
 	Annotations   map[string]string `json:"annotations,omitempty" yaml:"annotations,omitempty"`
 }
 
-// NewStatusCommand 创建 status 命令
+// NewStatusCommand creates the status command
 func NewStatusCommand(kubeConfig clientcmd.ClientConfig) *cobra.Command {
 	opts := NewCommandOptions(kubeConfig)
 
@@ -75,7 +76,7 @@ remaining lock time, resource usage, and other relevant information.`,
 		RunE: opts.runStatus,
 	}
 
-	// 添加参数
+	// Add flags
 	cmd.Flags().StringP(&opts.selector, "selector", "l", "", "Label selector to identify namespaces")
 	cmd.Flags().BoolVar(&opts.all, "all", false, "Show status of all namespaces")
 	cmd.Flags().BoolVar(&opts.lockedOnly, "locked-only", false, "Show only locked namespaces")
@@ -96,27 +97,27 @@ var (
 )
 
 func (o *CommandOptions) runStatus(cmd *cobra.Command, args []string) error {
-	// 初始化
+	// Initialize
 	if err := o.Init(); err != nil {
 		return err
 	}
 
-	// 确定要查询的 namespace 列表
+	// Determine the list of namespaces to query
 	var namespaces []string
 	var err error
 
 	switch {
 	case len(args) > 0:
-		// 直接指定了 namespace 名称
+		// Namespace name directly specified
 		namespaces = args
 	case opts.all:
-		// 查询所有 namespace
+		// Query all namespaces
 		namespaces, err = o.getAllNamespaces()
 	case opts.selector != "":
-		// 通过选择器查询
+		// Query by selector
 		namespaces, err = o.getNamespacesBySelector(opts.selector)
 	case lockedOnly:
-		// 只查询已锁定的 namespace
+		// Query only locked namespaces
 		namespaces, err = o.getLockedNamespaces()
 	default:
 		return fmt.Errorf("you must specify a namespace name, or use --selector, --all, or --locked-only")
@@ -131,7 +132,7 @@ func (o *CommandOptions) runStatus(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// 获取状态信息
+	// Get status information
 	var statuses []NamespaceStatus
 	for _, ns := range namespaces {
 		status, err := o.getNamespaceStatus(ns, showWorkloads)
@@ -142,7 +143,7 @@ func (o *CommandOptions) runStatus(cmd *cobra.Command, args []string) error {
 		statuses = append(statuses, status)
 	}
 
-	// 输出结果
+	// Output results
 	if opts.dryRun {
 		o.dryRunOutput(statuses)
 	} else {
@@ -152,11 +153,11 @@ func (o *CommandOptions) runStatus(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// getNamespaceStatus 获取 namespace 状态信息
+// getNamespaceStatus gets namespace status information
 func (o *CommandOptions) getNamespaceStatus(namespace string, includeWorkloads bool) (NamespaceStatus, error) {
 	ctx := context.TODO()
 
-	// 获取 namespace
+	// Get namespace
 	ns, err := o.client.CoreV1().Namespaces().Get(ctx, namespace, metav1.GetOptions{})
 	if err != nil {
 		return NamespaceStatus{}, err
@@ -167,14 +168,14 @@ func (o *CommandOptions) getNamespaceStatus(namespace string, includeWorkloads b
 		Annotations: ns.Annotations,
 	}
 
-	// 获取状态标签
+	// Get status label
 	statusLabel := ns.Labels[constants.StatusLabel]
 	if statusLabel == "" {
 		statusLabel = "active"
 	}
 	status.Status = statusLabel
 
-	// 设置状态图标
+	// Set status icon
 	switch statusLabel {
 	case constants.LockedStatus:
 		status.StatusIcon = "🔒"
@@ -184,9 +185,9 @@ func (o *CommandOptions) getNamespaceStatus(namespace string, includeWorkloads b
 		status.StatusIcon = "❓"
 	}
 
-	// 处理注解信息
+	// Process annotation information
 	if ns.Annotations != nil {
-		// 解锁时间
+		// Unlock time
 		if unlockTimeStr := ns.Annotations[constants.UnlockTimestampLabel]; unlockTimeStr != "" {
 			if unlockTime, err := time.Parse(time.RFC3339, unlockTimeStr); err == nil {
 				status.UnlockAt = &unlockTime
@@ -194,23 +195,23 @@ func (o *CommandOptions) getNamespaceStatus(namespace string, includeWorkloads b
 			}
 		}
 
-		// 锁定原因
+		// Lock reason
 		status.Reason = ns.Annotations["clawcloud.run/lock-reason"]
 		status.Operator = ns.Annotations["clawcloud.run/lock-operator"]
 
-		// 锁定时间（从事件中获取，这里简化为创建时间）
+		// Lock time (retrieved from events, simplified to creation time here)
 		if status.Status == constants.LockedStatus {
 			status.LockedAt = &ns.CreationTimestamp.Time
 		}
 	}
 
-	// 检查 ResourceQuota
+	// Check ResourceQuota
 	rq, err := o.client.CoreV1().ResourceQuotas(namespace).Get(ctx, constants.ResourceQuotaName, metav1.GetOptions{})
 	if err == nil && rq != nil {
 		status.ResourceQuota = true
 	}
 
-	// 统计工作负载（如果需要）
+	// Count workloads (if needed)
 	if includeWorkloads {
 		status.WorkloadCount, err = o.countWorkloads(namespace)
 		if err != nil {
@@ -221,36 +222,36 @@ func (o *CommandOptions) getNamespaceStatus(namespace string, includeWorkloads b
 	return status, nil
 }
 
-// countWorkloads 统计 namespace 中的工作负载
+// countWorkloads counts workloads in the namespace
 func (o *CommandOptions) countWorkloads(namespace string) (int, error) {
 	ctx := context.TODO()
 	count := 0
 
-	// 统计 Deployments
+	// Count Deployments
 	deployments, err := o.client.AppsV1().Deployments(namespace).List(ctx, metav1.ListOptions{})
 	if err == nil {
 		count += len(deployments.Items)
 	}
 
-	// 统计 StatefulSets
+	// Count StatefulSets
 	statefulSets, err := o.client.AppsV1().StatefulSets(namespace).List(ctx, metav1.ListOptions{})
 	if err == nil {
 		count += len(statefulSets.Items)
 	}
 
-	// 统计 DaemonSets
+	// Count DaemonSets
 	daemonSets, err := o.client.AppsV1().DaemonSets(namespace).List(ctx, metav1.ListOptions{})
 	if err == nil {
 		count += len(daemonSets.Items)
 	}
 
-	// 统计 Jobs
+	// Count Jobs
 	jobs, err := o.client.BatchV1().Jobs(namespace).List(ctx, metav1.ListOptions{})
 	if err == nil {
 		count += len(jobs.Items)
 	}
 
-	// 统计 CronJobs
+	// Count CronJobs
 	cronJobs, err := o.client.BatchV1beta1().CronJobs(namespace).List(ctx, metav1.ListOptions{})
 	if err == nil {
 		count += len(cronJobs.Items)
@@ -259,7 +260,7 @@ func (o *CommandOptions) countWorkloads(namespace string) (int, error) {
 	return count, nil
 }
 
-// outputStatus 输出状态信息
+// outputStatus outputs status information
 func (o *CommandOptions) outputStatus(statuses []NamespaceStatus) error {
 	switch opts.output {
 	case "json":
@@ -271,15 +272,15 @@ func (o *CommandOptions) outputStatus(statuses []NamespaceStatus) error {
 	}
 }
 
-// outputTable 以表格形式输出
+// outputTable outputs in table format
 func (o *CommandOptions) outputTable(statuses []NamespaceStatus) error {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	defer w.Flush()
 
-	// 表头
+	// Table header
 	fmt.Fprintln(w, "NAMESPACE\tSTATUS\tREMAINING\tREASON\tWORKLOADS")
 
-	// 数据行
+	// Data rows
 	for _, status := range statuses {
 		remaining := status.Remaining
 		if remaining == "" {
@@ -306,7 +307,7 @@ func (o *CommandOptions) outputTable(statuses []NamespaceStatus) error {
 		)
 	}
 
-	// 如果显示详细信息，添加额外信息
+	// Add extra information if showing details
 	if showDetails && len(statuses) == 1 {
 		status := statuses[0]
 		fmt.Fprintf(w, "\nDetailed Information:\n")
@@ -333,7 +334,7 @@ func (o *CommandOptions) outputTable(statuses []NamespaceStatus) error {
 	return nil
 }
 
-// outputJSON 以 JSON 格式输出
+// outputJSON outputs in JSON format
 func (o *CommandOptions) outputJSON(statuses []NamespaceStatus) error {
 	data, err := json.MarshalIndent(statuses, "", "  ")
 	if err != nil {
@@ -344,7 +345,7 @@ func (o *CommandOptions) outputJSON(statuses []NamespaceStatus) error {
 	return nil
 }
 
-// outputYAML 以 YAML 格式输出
+// outputYAML outputs in YAML format
 func (o *CommandOptions) outputYAML(statuses []NamespaceStatus) error {
 	data, err := yaml.Marshal(statuses)
 	if err != nil {
@@ -355,7 +356,7 @@ func (o *CommandOptions) outputYAML(statuses []NamespaceStatus) error {
 	return nil
 }
 
-// dryRunOutput 干运行输出
+// dryRunOutput outputs dry run results
 func (o *CommandOptions) dryRunOutput(statuses []NamespaceStatus) {
 	fmt.Println("[DRY-RUN] Status query results:")
 	for _, status := range statuses {
@@ -363,7 +364,7 @@ func (o *CommandOptions) dryRunOutput(statuses []NamespaceStatus) {
 	}
 }
 
-// formatRemainingTime 格式化剩余时间
+// formatRemainingTime formats remaining time
 func formatRemainingTime(unlockTime time.Time) string {
 	now := time.Now()
 	if unlockTime.Before(now) {

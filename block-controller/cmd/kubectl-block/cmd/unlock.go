@@ -1,5 +1,5 @@
 /*
-Copyright 2025 gitlayzer.
+Copyright 2025 CompliK Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package cmd implements the kubectl-block subcommands.
 package cmd
 
 import (
@@ -28,7 +29,7 @@ import (
 	"github.com/bearslyricattack/CompliK/block-controller/internal/constants"
 )
 
-// NewUnlockCommand 创建 unlock 命令
+// NewUnlockCommand creates the unlock command
 func NewUnlockCommand(kubeConfig clientcmd.ClientConfig) *cobra.Command {
 	opts := NewCommandOptions(kubeConfig)
 
@@ -63,7 +64,7 @@ remove the resource quota that was preventing new resources from being created.`
 		RunE: opts.runUnlock,
 	}
 
-	// 添加参数
+	// Add flags
 	cmd.Flags().StringP(&opts.namespace, "namespace", "n", "", "The namespace to create BlockRequest in (default: current namespace)")
 	cmd.Flags().StringVarP(&opts.selector, "selector", "l", "", "Label selector to identify namespaces to unlock")
 	cmd.Flags().StringVarP(&opts.file, "file", "f", "", "File containing list of namespaces to unlock (one per line)")
@@ -76,30 +77,30 @@ remove the resource quota that was preventing new resources from being created.`
 }
 
 func (o *CommandOptions) runUnlock(cmd *cobra.Command, args []string) error {
-	// 初始化
+	// Initialize
 	if err := o.Init(); err != nil {
 		return err
 	}
 
-	// 确定要解锁的 namespace 列表
+	// Determine the list of namespaces to unlock
 	var namespaces []string
 	var err error
 
 	switch {
 	case len(args) > 0:
-		// 直接指定了 namespace 名称
+		// Namespace name directly specified
 		namespaces = args
 	case opts.allLocked:
-		// 解锁所有已锁定的 namespace
+		// Unlock all locked namespaces
 		namespaces, err = o.getLockedNamespaces()
 	case opts.all:
-		// 解锁所有 namespace
+		// Unlock all namespaces
 		namespaces, err = o.getAllNamespaces()
 	case opts.selector != "":
-		// 通过选择器解锁
+		// Unlock by selector
 		namespaces, err = o.getNamespacesBySelector(opts.selector)
 	case opts.file != "":
-		// 从文件读取
+		// Read from file
 		namespaces, err = ReadNamespacesFromFile(opts.file)
 	default:
 		return fmt.Errorf("you must specify a namespace name, or use --selector, --file, --all, or --all-locked")
@@ -114,14 +115,14 @@ func (o *CommandOptions) runUnlock(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// 验证 namespace
+	// Validate namespaces
 	for _, ns := range namespaces {
 		if err := o.ValidateNamespace(ns); err != nil {
 			return fmt.Errorf("invalid namespace %s: %v", ns, err)
 		}
 	}
 
-	// 显示操作计划
+	// Display operation plan
 	fmt.Printf("🔓 Planning to unlock %d namespace(s):\n", len(namespaces))
 	for _, ns := range namespaces {
 		status, _ := o.GetNamespaceStatus(ns)
@@ -132,7 +133,7 @@ func (o *CommandOptions) runUnlock(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  %s %s (current: %s)\n", statusIcon, ns, status)
 	}
 
-	// 确认操作
+	// Confirm operation
 	if !opts.force && !opts.dryRun {
 		fmt.Printf("\n⚠️  This will restore all workloads in the listed namespaces.\n")
 		fmt.Printf("Reason: %s\n", opts.reason)
@@ -148,7 +149,7 @@ func (o *CommandOptions) runUnlock(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// 执行解锁操作
+	// Execute unlock operation
 	fmt.Printf("\n🚀 Starting unlock operation...\n")
 	successCount := 0
 	failureCount := 0
@@ -163,7 +164,7 @@ func (o *CommandOptions) runUnlock(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// 显示结果
+	// Display results
 	fmt.Printf("\n📊 Unlock operation completed:\n")
 	fmt.Printf("  ✅ Success: %d\n", successCount)
 	fmt.Printf("  ❌ Failed: %d\n", failureCount)
@@ -175,9 +176,9 @@ func (o *CommandOptions) runUnlock(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// unlockNamespace 解锁单个 namespace
+// unlockNamespace unlocks a single namespace
 func (o *CommandOptions) unlockNamespace(namespace string) error {
-	// 检查当前状态
+	// Check current status
 	currentStatus, err := o.GetNamespaceStatus(namespace)
 	if err != nil {
 		return err
@@ -191,7 +192,7 @@ func (o *CommandOptions) unlockNamespace(namespace string) error {
 		fmt.Printf("🔄 Namespace %s is already unlocked, ensuring clean state...\n", namespace)
 	}
 
-	// 更新 namespace
+	// Update namespace
 	if err := o.updateNamespaceForUnlock(namespace); err != nil {
 		return err
 	}
@@ -199,39 +200,39 @@ func (o *CommandOptions) unlockNamespace(namespace string) error {
 	return nil
 }
 
-// updateNamespaceForUnlock 更新 namespace 以进行解锁
+// updateNamespaceForUnlock updates namespace for unlocking
 func (o *CommandOptions) updateNamespaceForUnlock(namespace string) error {
 	ctx := context.TODO()
 
-	// 获取 namespace
+	// Get namespace
 	ns, err := o.GetNamespace(namespace)
 	if err != nil {
 		return err
 	}
 
-	// 更新标签
+	// Update labels
 	if ns.Labels == nil {
 		ns.Labels = make(map[string]string)
 	}
 	ns.Labels[constants.StatusLabel] = constants.ActiveStatus
 
-	// 清理注解
+	// Clear annotations
 	if ns.Annotations == nil {
 		ns.Annotations = make(map[string]string)
 	}
 
-	// 移除锁定相关的注解
+	// Remove lock-related annotations
 	delete(ns.Annotations, constants.UnlockTimestampLabel)
 	delete(ns.Annotations, "clawcloud.run/lock-reason")
 	delete(ns.Annotations, "clawcloud.run/lock-operator")
 
-	// 添加解锁原因
+	// Add unlock reason
 	if opts.reason != "" {
 		ns.Annotations["clawcloud.run/unlock-reason"] = opts.reason
 		ns.Annotations["clawcloud.run/unlock-operator"] = "kubectl-block"
 	}
 
-	// 更新 namespace
+	// Update namespace
 	if o.dryRun {
 		fmt.Printf("[DRY-RUN] Would update namespace %s\n", namespace)
 		return nil
@@ -246,7 +247,7 @@ func (o *CommandOptions) updateNamespaceForUnlock(namespace string) error {
 	return nil
 }
 
-// getLockedNamespaces 获取所有已锁定的 namespace
+// getLockedNamespaces gets all locked namespaces
 func (o *CommandOptions) getLockedNamespaces() ([]string, error) {
 	ctx := context.TODO()
 	namespaces, err := o.client.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})

@@ -1,3 +1,19 @@
+// Copyright 2025 CompliK Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package config provides configuration structures and utilities for loading
+// and managing ProcScan scanner settings, detection rules, and notification configurations.
 package config
 
 import (
@@ -7,35 +23,35 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// ScannerConfig 扫描器配置
+// ScannerConfig defines scanner configuration
 type ScannerConfig struct {
 	ProcPath     string        `yaml:"proc_path"`
 	ScanInterval time.Duration `yaml:"scan_interval"`
 	LogLevel     string        `yaml:"log_level"`
 }
 
-// LabelActionConfig 标签动作配置
+// LabelActionConfig defines label action configuration
 type LabelActionConfig struct {
 	Enabled bool              `yaml:"enabled"`
 	Data    map[string]string `yaml:"data"`
 }
 
-// ActionsConfig 动作配置
+// ActionsConfig defines action configuration
 type ActionsConfig struct {
 	Label LabelActionConfig `yaml:"label"`
 }
 
-// LarkNotificationConfig 飞书通知配置
+// LarkNotificationConfig defines Lark (Feishu) notification configuration
 type LarkNotificationConfig struct {
 	Webhook string `yaml:"webhook"`
 }
 
-// NotificationsConfig 通知配置
+// NotificationsConfig defines notification configuration
 type NotificationsConfig struct {
 	Lark LarkNotificationConfig `yaml:"lark"`
 }
 
-// RuleSet 规则集
+// RuleSet defines a set of detection rules
 type RuleSet struct {
 	Processes  []string `yaml:"processes"`
 	Keywords   []string `yaml:"keywords"`
@@ -44,13 +60,13 @@ type RuleSet struct {
 	PodNames   []string `yaml:"podNames"`
 }
 
-// DetectionRules 检测规则
+// DetectionRules defines detection rules with blacklist and whitelist
 type DetectionRules struct {
 	Blacklist RuleSet `yaml:"blacklist"`
 	Whitelist RuleSet `yaml:"whitelist"`
 }
 
-// Config 配置
+// Config defines the main configuration structure
 type Config struct {
 	Scanner        ScannerConfig       `yaml:"scanner"`
 	Actions        ActionsConfig       `yaml:"actions"`
@@ -58,7 +74,7 @@ type Config struct {
 	DetectionRules DetectionRules      `yaml:"detectionRules"`
 }
 
-// LoadConfig 加载配置
+// LoadConfig loads configuration from the specified path
 func LoadConfig(configPath string) (*Config, error) {
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		return nil, err
@@ -74,7 +90,7 @@ func LoadConfig(configPath string) (*Config, error) {
 		return nil, err
 	}
 
-	// 设置默认值
+	// Set default values
 	if config.Scanner.ProcPath == "" {
 		config.Scanner.ProcPath = "/host/proc"
 	}

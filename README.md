@@ -1,77 +1,137 @@
-# CompliK Monorepo 项目结构说明
+# CompliK - Kubernetes Compliance and Security Platform
 
-本文档说明 CompliK 项目采用 Monorepo 架构后的组织结构和使用方式。
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?logo=go)](https://go.dev/)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-1.19+-326CE5?logo=kubernetes)](https://kubernetes.io/)
 
-## 项目整合概述
+**CompliK** is a comprehensive Kubernetes compliance and security platform built with a Monorepo architecture. It provides three powerful tools for monitoring, managing, and securing your Kubernetes clusters.
 
-本仓库采用 **Monorepo + 多模块** 架构，将三个完全独立且平等的子项目组织在同一个代码仓库中：
+## 🚀 Quick Links
 
-1. **complik** - 综合合规性和安全监控平台
-2. **block-controller** - Kubernetes 命名空间生命周期管理器
-3. **procscan** - 轻量级 Kubernetes 安全扫描工具
+- **[Documentation](#documentation)** - Full documentation for all components
+- **[Installation](#installation)** - Quick start guides
+- **[Contributing](CONTRIBUTING.md)** - How to contribute
+- **[License](#license)** - Apache 2.0
 
-**重要**: 三个子项目在结构和组织方式上完全平等，没有主次之分，均位于根目录下的独立子目录中。
+## 📦 Components
 
-## 目录结构
+This repository adopts a **Monorepo + Multi-module** architecture, organizing three completely independent and equal sub-projects:
+
+### 1. CompliK Platform
+**Comprehensive compliance and security monitoring platform with plugin architecture**
+
+- Event-driven plugin system for extensibility
+- Automated service discovery for Kubernetes resources
+- Browser-based compliance checking
+- Integration with Lark/Feishu for alerts
+- PostgreSQL storage for compliance records
+
+[➡️ Learn more](complik/README.md)
+
+### 2. Block Controller
+**Kubernetes namespace lifecycle manager with resource blocking capabilities**
+
+- Custom Resource Definition (CRD) for batch namespace operations
+- Automatic workload scaling and resource quota management
+- Namespace expiration and cleanup handling
+- kubectl plugin for easy CLI access
+- High availability with leader election
+
+[➡️ Learn more](block-controller/README.md)
+
+### 3. ProcScan
+**Lightweight security scanning DaemonSet for process monitoring**
+
+- Real-time /proc filesystem monitoring
+- Blacklist/whitelist rule engine
+- Cryptocurrency mining detection
+- Automatic labeling of suspicious pods
+- Comprehensive Prometheus metrics
+
+[➡️ Learn more](procscan/README.md)
+
+### 4. Keyword Analyzer
+**Data analysis tool for compliance detection keywords**
+
+- MySQL database integration
+- Frequency analysis with top-N statistics
+- Histogram visualization with Chinese font support
+- Cross-platform compatibility
+
+[➡️ Learn more](analyze/README.md)
+
+## 🎯 Key Features
+
+- **Unified Monorepo**: All components in one repository with independent modules
+- **Cloud-Native**: Built for Kubernetes with CRDs, operators, and DaemonSets
+- **Extensible**: Plugin architecture for custom compliance checks
+- **Production-Ready**: Comprehensive logging, metrics, and monitoring
+- **Open Source**: Apache 2.0 licensed for community contributions
+
+## 🏗️ Architecture Overview
+
+**Important**: The sub-projects are completely equal in structure and organization, with no primary-secondary distinction, all located in independent subdirectories under the root directory.
+
+## Directory Structure
 
 ```
-CompliK/                                # Monorepo 根目录
-├── README.md                           # 项目总览和快速开始
-├── MONOREPO.md                         # 本文档（架构说明）
-├── Makefile                            # 统一构建系统
-├── .git/                               # Git 仓库
-├── .github/                            # GitHub 配置（CI/CD等）
+CompliK/                                # Monorepo root directory
+├── README.md                           # Project overview and quick start
+├── MONOREPO.md                         # This document (architecture guide)
+├── Makefile                            # Unified build system
+├── .git/                               # Git repository
+├── .github/                            # GitHub configuration (CI/CD, etc.)
 │
-├── complik/                            # 子项目1：合规监控平台
-│   ├── go.mod                          # 独立模块
+├── complik/                            # Sub-project 1: Compliance monitoring platform
+│   ├── go.mod                          # Independent module
 │   │                                   # module: github.com/bearslyricattack/CompliK/complik
 │   ├── go.sum
-│   ├── cmd/complik/                    # 主程序入口
+│   ├── cmd/complik/                    # Main program entry
 │   │   └── main.go
-│   ├── internal/                       # 内部实现
+│   ├── internal/                       # Internal implementation
 │   │   └── app/
-│   ├── plugins/                        # 插件系统
+│   ├── plugins/                        # Plugin system
 │   │   ├── compliance/
 │   │   ├── discovery/
 │   │   └── handle/
-│   ├── pkg/                            # 公共包
-│   ├── deploy/                         # K8s 部署配置
-│   ├── config.yml                      # 配置文件
-│   ├── Dockerfile                      # Docker 镜像构建
-│   └── bin/                            # 构建产物
+│   ├── pkg/                            # Public packages
+│   ├── deploy/                         # K8s deployment configuration
+│   ├── config.yml                      # Configuration file
+│   ├── Dockerfile                      # Docker image build
+│   └── bin/                            # Build artifacts
 │       └── manager
 │
-├── block-controller/                   # 子项目2：命名空间管理器
-│   ├── go.mod                          # 独立模块
+├── block-controller/                   # Sub-project 2: Namespace manager
+│   ├── go.mod                          # Independent module
 │   │                                   # module: github.com/bearslyricattack/CompliK/block-controller
 │   ├── go.sum
-│   ├── cmd/                            # 入口程序
-│   │   ├── main.go                     # 控制器主入口
-│   │   └── kubectl-block/              # kubectl 插件
-│   ├── api/v1/                         # CRD API 定义
-│   ├── internal/                       # 内部实现
-│   │   ├── controller/                 # 控制器逻辑
-│   │   ├── scanner/                    # 命名空间扫描器
+│   ├── cmd/                            # Entry programs
+│   │   ├── main.go                     # Controller main entry
+│   │   └── kubectl-block/              # kubectl plugin
+│   ├── api/v1/                         # CRD API definitions
+│   ├── internal/                       # Internal implementation
+│   │   ├── controller/                 # Controller logic
+│   │   ├── scanner/                    # Namespace scanner
 │   │   ├── constants/
 │   │   └── utils/
-│   ├── config/                         # Kubernetes 配置
+│   ├── config/                         # Kubernetes configuration
 │   │   ├── crd/
 │   │   ├── default/
 │   │   ├── manager/
 │   │   └── rbac/
-│   ├── deploy/                         # 部署清单
-│   ├── Dockerfile                      # Docker 镜像构建
-│   ├── Makefile                        # 本地构建脚本
-│   └── bin/                            # 构建产物
+│   ├── deploy/                         # Deployment manifests
+│   ├── Dockerfile                      # Docker image build
+│   ├── Makefile                        # Local build script
+│   └── bin/                            # Build artifacts
 │       └── manager
 │
-└── procscan/                           # 子项目3：进程扫描工具
-    ├── go.mod                          # 独立模块
+└── procscan/                           # Sub-project 3: Process scanning tool
+    ├── go.mod                          # Independent module
     │                                   # module: github.com/bearslyricattack/CompliK/procscan
     ├── go.sum
-    ├── cmd/procscan/                   # 主程序入口
+    ├── cmd/procscan/                   # Main program entry
     │   └── main.go
-    ├── internal/                       # 内部实现
+    ├── internal/                       # Internal implementation
     │   ├── core/
     │   │   ├── alert/
     │   │   ├── k8s/
@@ -79,37 +139,37 @@ CompliK/                                # Monorepo 根目录
     │   │   └── scanner/
     │   ├── container/
     │   └── notification/
-    ├── pkg/                            # 公共包
+    ├── pkg/                            # Public packages
     │   ├── config/
     │   ├── logger/
     │   ├── metrics/
     │   └── models/
-    ├── deploy/                         # DaemonSet 部署配置
-    ├── config.yaml                     # 配置文件
-    ├── Dockerfile                      # Docker 镜像构建
-    ├── CLAUDE.md                       # 开发指南
-    └── bin/                            # 构建产物
+    ├── deploy/                         # DaemonSet deployment configuration
+    ├── config.yaml                     # Configuration file
+    ├── Dockerfile                      # Docker image build
+    ├── CLAUDE.md                       # Development guide
+    └── bin/                            # Build artifacts
         └── procscan
 ```
 
-## 架构设计原则
+## Architecture Design Principles
 
-### 1. 完全平等的子项目
+### 1. Completely Equal Sub-projects
 
-三个子项目在结构和组织方式上**完全平等**：
+The three sub-projects are **completely equal** in structure and organization:
 
-| 特性 | complik | block-controller | procscan |
-|------|---------|-----------------|----------|
-| **目录位置** | 根目录下 | 根目录下 | 根目录下 |
-| **go.mod** | 独立模块 | 独立模块 | 独立模块 |
-| **代码结构** | cmd/internal/pkg | cmd/internal/api | cmd/internal/pkg |
-| **部署配置** | deploy/ | deploy/ | deploy/ |
+| Feature | complik | block-controller | procscan |
+|---------|---------|-----------------|----------|
+| **Directory Location** | Under root | Under root | Under root |
+| **go.mod** | Independent module | Independent module | Independent module |
+| **Code Structure** | cmd/internal/pkg | cmd/internal/api | cmd/internal/pkg |
+| **Deployment Config** | deploy/ | deploy/ | deploy/ |
 | **Docker** | Dockerfile | Dockerfile | Dockerfile |
-| **构建产物** | bin/ | bin/ | bin/ |
+| **Build Artifacts** | bin/ | bin/ | bin/ |
 
-### 2. 多模块架构
+### 2. Multi-module Architecture
 
-每个子项目拥有独立的 `go.mod`，形成独立的 Go 模块：
+Each sub-project has its own independent `go.mod`, forming independent Go modules:
 
 ```go
 // complik/go.mod
@@ -122,93 +182,93 @@ module github.com/bearslyricattack/CompliK/block-controller
 module github.com/bearslyricattack/CompliK/procscan
 ```
 
-**优势**：
-- 独立的依赖管理（可使用不同版本的 k8s.io 等）
-- 独立的构建和测试
-- 清晰的模块边界
-- 避免依赖冲突
+**Advantages**:
+- Independent dependency management (can use different versions of k8s.io, etc.)
+- Independent build and test
+- Clear module boundaries
+- Avoid dependency conflicts
 
-### 3. 统一的构建系统
+### 3. Unified Build System
 
-根目录的 `Makefile` 提供统一的构建入口，但每个子项目也可以独立构建。
+The `Makefile` in the root directory provides a unified build entry point, but each sub-project can also be built independently.
 
-## 模块划分
+## Module Division
 
-| 项目 | Module 路径 | Go 版本 | 主要依赖 |
-|------|------------|---------|---------|
+| Project | Module Path | Go Version | Main Dependencies |
+|---------|------------|------------|------------------|
 | **complik** | `github.com/bearslyricattack/CompliK/complik` | 1.24.5 | k8s.io v0.33.4, gorm, go-rod |
 | **block-controller** | `github.com/bearslyricattack/CompliK/block-controller` | 1.24.5 | k8s.io v0.34.0, controller-runtime v0.22.1 |
 | **procscan** | `github.com/bearslyricattack/CompliK/procscan` | 1.24.5 | k8s.io v0.33.4, prometheus client |
 
-## 统一构建系统（Makefile）
+## Unified Build System (Makefile)
 
-根目录的 `Makefile` 提供对三个子项目的统一管理。
+The `Makefile` in the root directory provides unified management for the three sub-projects.
 
-### 查看所有可用命令
+### View All Available Commands
 
 ```bash
 make help
 ```
 
-### 构建命令
+### Build Commands
 
 ```bash
-# 构建所有项目
+# Build all projects
 make build-all
 
-# 单独构建各项目
-make build-complik           # CompliK 平台
+# Build individual projects
+make build-complik           # CompliK platform
 make build-block-controller  # Block Controller
 make build-procscan         # ProcScan
 
-# 清理所有构建产物
+# Clean all build artifacts
 make clean-all
 ```
 
-### 测试命令
+### Test Commands
 
 ```bash
-# 运行所有项目的测试
+# Run tests for all projects
 make test-all
 
-# 单独测试各项目
+# Test individual projects
 make test-complik
 make test-block-controller
 make test-procscan
 ```
 
-### 开发工具命令
+### Development Tool Commands
 
 ```bash
-# 整理所有项目的依赖
+# Tidy dependencies for all projects
 make tidy-all
 
-# 格式化所有项目的代码
+# Format code for all projects
 make fmt-all
 
-# 运行 go vet 检查
+# Run go vet checks
 make vet-all
 ```
 
-### Docker 镜像构建
+### Docker Image Build
 
 ```bash
-# 构建 Docker 镜像
+# Build Docker images
 make docker-build-complik
 make docker-build-block-controller
 make docker-build-procscan
 ```
 
-### Kubernetes 部署
+### Kubernetes Deployment
 
 ```bash
-# 部署所有项目到 Kubernetes
+# Deploy all projects to Kubernetes
 make deploy-all
 ```
 
-## 各子项目独立使用
+## Independent Usage of Each Sub-project
 
-每个子项目都可以完全独立地构建、测试和部署。
+Each sub-project can be built, tested, and deployed completely independently.
 
 ### CompliK
 
@@ -234,27 +294,27 @@ go build -o bin/procscan cmd/procscan/main.go
 ./bin/procscan --config=config.yaml
 ```
 
-## 项目间集成
+## Inter-project Integration
 
-虽然三个子项目在代码上完全独立（无相互引用），但在运行时可以协同工作：
+Although the three sub-projects are completely independent in code (no cross-references), they can work together at runtime:
 
-### 威胁响应流程
+### Threat Response Workflow
 
 ```
-1. ProcScan 检测到威胁进程
+1. ProcScan detects a threat process
    ↓
-   给 namespace 打标签: "block.clawcloud.run/locked=true"
+   Labels the namespace: "block.clawcloud.run/locked=true"
 
-2. Block Controller 监听到标签变化
+2. Block Controller listens to label changes
    ↓
-   自动封禁 namespace（缩容、限制资源、隔离网络）
+   Automatically blocks namespace (scale down, limit resources, isolate network)
 
-3. CompliK 收集安全事件
+3. CompliK collects security events
    ↓
-   发送告警通知（飞书、钉钉、Email）
+   Sends alert notifications (Feishu, DingTalk, Email)
 ```
 
-### 推荐部署架构
+### Recommended Deployment Architecture
 
 ```
 ┌─────────────────────────────────────────┐
@@ -263,69 +323,69 @@ go build -o bin/procscan cmd/procscan/main.go
 │  ┌────────────────────────────────────┐ │
 │  │  complik (Deployment)              │ │
 │  │  Replicas: 2                       │ │
-│  │  - 合规检测                         │ │
-│  │  - 服务发现                         │ │
-│  │  - 告警通知                         │ │
+│  │  - Compliance detection            │ │
+│  │  - Service discovery               │ │
+│  │  - Alert notifications             │ │
 │  └────────────────────────────────────┘ │
 │                                          │
 │  ┌────────────────────────────────────┐ │
 │  │  block-controller (Deployment)     │ │
 │  │  Replicas: 1                       │ │
-│  │  - 监听 BlockRequest CRD           │ │
-│  │  - 命名空间生命周期管理             │ │
+│  │  - Listen to BlockRequest CRD      │ │
+│  │  - Namespace lifecycle management  │ │
 │  └────────────────────────────────────┘ │
 │                                          │
 │  ┌────────────────────────────────────┐ │
 │  │  procscan (DaemonSet)              │ │
-│  │  每个节点运行一个实例               │ │
-│  │  - 扫描节点上的容器进程             │ │
-│  │  - 实时威胁检测                     │ │
+│  │  One instance per node             │ │
+│  │  - Scan container processes        │ │
+│  │  - Real-time threat detection      │ │
 │  └────────────────────────────────────┘ │
 │                                          │
 └─────────────────────────────────────────┘
 ```
 
-## 开发工作流
+## Development Workflow
 
-### 1. 克隆仓库
+### 1. Clone Repository
 
 ```bash
 git clone https://github.com/bearslyricattack/CompliK.git
 cd CompliK
 ```
 
-### 2. 构建所有项目
+### 2. Build All Projects
 
 ```bash
 make build-all
 ```
 
-### 3. 修改某个子项目
+### 3. Modify a Sub-project
 
 ```bash
-# 进入子项目目录
-cd complik  # 或 block-controller, procscan
+# Enter sub-project directory
+cd complik  # or block-controller, procscan
 
-# 修改代码
+# Modify code
 vim cmd/complik/main.go
 
-# 构建并测试
+# Build and test
 go build -o bin/manager cmd/complik/main.go
 ./bin/manager
 ```
 
-### 4. 整理依赖
+### 4. Tidy Dependencies
 
 ```bash
-# 在子项目目录中
+# In sub-project directory
 go mod tidy
 
-# 或在根目录统一整理所有项目
+# Or tidy all projects from root directory
 cd ..
 make tidy-all
 ```
 
-### 5. 提交代码
+### 5. Commit Code
 
 ```bash
 git add .
@@ -333,23 +393,23 @@ git commit -m "feat(complik): add new feature"
 git push origin main
 ```
 
-## 依赖管理注意事项
+## Dependency Management Notes
 
-### 1. 不要跨项目引用
+### 1. Do Not Cross-reference Projects
 
-**错误示例**：
+**Incorrect Example**:
 ```go
-// 在 block-controller 中引用 complik 的代码（❌ 不要这样做）
+// Referencing complik code in block-controller (❌ Don't do this)
 import "github.com/bearslyricattack/CompliK/complik/pkg/logger"
 ```
 
-**正确做法**：
-- 每个子项目保持独立
-- 如需共享代码，考虑创建独立的共享库
+**Correct Approach**:
+- Keep each sub-project independent
+- If code sharing is needed, consider creating an independent shared library
 
-### 2. 使用 go.work (可选)
+### 2. Use go.work (Optional)
 
-如果需要在本地同时开发多个子项目，可以创建 `go.work`：
+If you need to develop multiple sub-projects locally simultaneously, you can create `go.work`:
 
 ```bash
 go work init
@@ -358,91 +418,91 @@ go work use block-controller
 go work use procscan
 ```
 
-### 3. 定期运行 tidy-all
+### 3. Run tidy-all Regularly
 
 ```bash
 make tidy-all
 ```
 
-## 迁移说明
+## Migration Guide
 
-### 从旧结构迁移
+### Migrating from Old Structure
 
-**旧结构** (v1.x):
+**Old Structure** (v1.x):
 ```
 CompliK/
-├── go.mod                    # CompliK 代码直接在根目录
+├── go.mod                    # CompliK code directly in root directory
 ├── cmd/complik/
 ├── internal/
 ├── pkg/
-├── procscan/                 # procscan 作为子目录
+├── procscan/                 # procscan as subdirectory
 │   └── go.mod
-└── block-controller/         # block-controller 作为子目录
+└── block-controller/         # block-controller as subdirectory
     └── go.mod
 ```
 
-**新结构** (v2.0):
+**New Structure** (v2.0):
 ```
 CompliK/
-├── complik/                  # CompliK 也变成了子项目
+├── complik/                  # CompliK also became a sub-project
 │   └── go.mod
-├── block-controller/         # 保持为子项目
+├── block-controller/         # Remains as sub-project
 │   └── go.mod
-└── procscan/                 # 保持为子项目
+└── procscan/                 # Remains as sub-project
     └── go.mod
 ```
 
-**主要变更**：
-1. CompliK 主项目代码移动到 `complik/` 子目录
-2. 模块路径从 `github.com/bearslyricattack/CompliK` 改为 `github.com/bearslyricattack/CompliK/complik`
-3. 所有 import 路径相应更新
-4. Makefile 调整为统一管理三个平等的子项目
+**Main Changes**:
+1. CompliK main project code moved to `complik/` subdirectory
+2. Module path changed from `github.com/bearslyricattack/CompliK` to `github.com/bearslyricattack/CompliK/complik`
+3. All import paths updated accordingly
+4. Makefile adjusted to uniformly manage three equal sub-projects
 
-### 旧代码备份
+### Old Code Backup
 
-- `procscan.old.backup/` - 原 CompliK 项目中的旧 procscan 代码
-- 确认不需要后可删除：`rm -rf procscan.old.backup`
+- `procscan.old.backup/` - Old procscan code from original CompliK project
+- Can be deleted after confirmation: `rm -rf procscan.old.backup`
 
-## 常见问题
+## FAQ
 
-### Q: 为什么要让主项目也变成子项目？
+### Q: Why make the main project also a sub-project?
 
-**A**: 为了保持架构的一致性和清晰性：
-- 三个项目在结构上完全平等
-- 更清晰的模块边界
-- 更容易理解和维护
-- 符合 Monorepo 的最佳实践
+**A**: For architectural consistency and clarity:
+- Three projects are completely equal in structure
+- Clearer module boundaries
+- Easier to understand and maintain
+- Follows Monorepo best practices
 
-### Q: import 路径变长了，会有影响吗？
+### Q: Import paths became longer, will there be any impact?
 
-**A**: 影响很小：
-- 只是路径多了一层 `/complik`、`/block-controller`、`/procscan`
-- 编译速度、运行性能没有任何影响
-- IDE 的自动补全依然正常工作
+**A**: Impact is minimal:
+- Just one more level in path: `/complik`, `/block-controller`, `/procscan`
+- No impact on compilation speed or runtime performance
+- IDE auto-completion still works normally
 
-### Q: 如何添加新的子项目？
+### Q: How to add a new sub-project?
 
 **A**:
-1. 在根目录创建新的子项目目录
-2. 初始化独立的 go.mod
+1. Create new sub-project directory in root
+2. Initialize independent go.mod
    ```bash
    mkdir newproject
    cd newproject
    go mod init github.com/bearslyricattack/CompliK/newproject
    ```
-3. 创建标准的 Go 项目结构（cmd/, internal/, pkg/）
-4. 在根 Makefile 中添加构建目标
-5. 更新 README.md 和 MONOREPO.md
+3. Create standard Go project structure (cmd/, internal/, pkg/)
+4. Add build targets in root Makefile
+5. Update README.md and MONOREPO.md
 
-### Q: 构建失败怎么办？
+### Q: What to do if build fails?
 
-**A**: 常见问题排查：
-1. 确保 Go 版本 >= 1.24.5
-2. 运行 `make tidy-all` 更新所有依赖
-3. 检查 import 路径是否正确（应包含 `/complik`、`/block-controller` 或 `/procscan`）
-4. 查看具体错误日志
+**A**: Common troubleshooting:
+1. Ensure Go version >= 1.24.5
+2. Run `make tidy-all` to update all dependencies
+3. Check if import paths are correct (should include `/complik`, `/block-controller`, or `/procscan`)
+4. Review specific error logs
 
-### Q: 如何单独发布某个子项目的 Docker 镜像？
+### Q: How to release Docker image for a single sub-project?
 
 **A**:
 ```bash
@@ -451,16 +511,16 @@ docker build -t <registry>/<project>:<tag> .
 docker push <registry>/<project>:<tag>
 ```
 
-或使用 Makefile：
+Or use Makefile:
 ```bash
 make docker-build-complik
 make docker-build-block-controller
 make docker-build-procscan
 ```
 
-## CI/CD 集成
+## CI/CD Integration
 
-### GitHub Actions 示例
+### GitHub Actions Example
 
 ```yaml
 name: Build All Projects
@@ -496,26 +556,82 @@ jobs:
       - run: make build-procscan
 ```
 
-## 维护和支持
+## 📚 Documentation
 
-- **项目负责人**: @bearslyricattack
-- **Issue 提交**: 在 GitHub Issues 中使用标签区分不同子项目
-  - `complik`: CompliK 平台相关问题
-  - `block-controller`: Block Controller 相关问题
-  - `procscan`: ProcScan 相关问题
-  - `monorepo`: Monorepo 架构相关问题
+Each component has comprehensive documentation:
 
-## 版本历史
+- **[CompliK Platform](complik/README.md)** - Plugin architecture, configuration, deployment
+- **[CompliK Logging](complik/docs/LOGGING.md)** - Advanced logging system documentation
+- **[CompliK Security](complik/docs/SECURITY.md)** - Security configuration guide
+- **[Block Controller](block-controller/README.md)** - CRD usage, kubectl plugin, architecture
+- **[ProcScan](procscan/README.md)** - Configuration, rules, deployment
+- **[ProcScan Metrics](procscan/docs/PROMETHEUS_METRICS.md)** - Complete metrics reference
+- **[Keyword Analyzer](analyze/README.md)** - Database setup, customization, troubleshooting
 
-- **v2.0.0** (2025-11-24) - 完全平等的三项目 Monorepo 架构
-  - CompliK 主项目也改为子项目结构
-  - 三个子项目完全平等
-  - 更新所有模块路径和 import 路径
-  - 统一的构建系统
+## 🤝 Contributing
 
-- **v1.x.x** - 混合结构（CompliK 在根目录，block-controller 和 procscan 作为子目录）
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for:
+
+- Code of conduct
+- Development setup
+- Contribution workflow
+- Coding standards
+- Pull request process
+
+## 📄 License
+
+Copyright 2025 CompliK Authors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+See [LICENSE](LICENSE) for the full license text.
+
+## 🙏 Acknowledgments
+
+- Built with [Kubernetes](https://kubernetes.io/)
+- Powered by [Go](https://go.dev/)
+- Inspired by cloud-native security best practices
+
+## 📞 Support
+
+- **Issues**: [GitHub Issues](https://github.com/bearslyricattack/CompliK/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/bearslyricattack/CompliK/discussions)
+- **Labels**: Use labels to identify which component your issue relates to
+  - `complik` - CompliK platform issues
+  - `block-controller` - Block Controller issues
+  - `procscan` - ProcScan issues
+  - `analyze` - Keyword Analyzer issues
+  - `monorepo` - Repository structure issues
+  - `documentation` - Documentation improvements
+
+## 📋 Version History
+
+### v2.0.0 (2025-11-24)
+- Completely equal three-project Monorepo architecture
+- CompliK main project changed to sub-project structure
+- All sub-projects are now independent and equal
+- Updated all module paths and import paths
+- Unified build system with Makefile
+- Apache 2.0 license applied to all components
+- Full English documentation and internationalization
+
+### v1.x.x
+- Hybrid structure (CompliK in root directory)
+- Block-controller and procscan as subdirectories
 
 ---
 
-**最后更新**: 2025-11-24
-**文档版本**: v2.0.0
+**Project Status**: Active Development
+**Kubernetes Compatibility**: 1.19+
+**Go Version**: 1.24+
+**Last Updated**: 2025-11-26

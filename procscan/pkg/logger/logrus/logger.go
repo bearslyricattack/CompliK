@@ -1,16 +1,31 @@
+// Copyright 2025 CompliK Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package logrus provides a simplified wrapper around the logrus logging library.
 package logrus
 
 import (
 	"github.com/sirupsen/logrus"
 )
 
-// Logger 简化的日志器
+// Logger is a simplified logger wrapper
 type Logger struct {
 	logger *logrus.Logger
 	entry  *logrus.Entry
 }
 
-// NewLogger 创建新的 logrus 日志器
+// NewLogger creates a new logrus logger instance
 func NewLogger() *Logger {
 	l := logrus.New()
 	l.SetFormatter(&logrus.JSONFormatter{})
@@ -22,32 +37,32 @@ func NewLogger() *Logger {
 	}
 }
 
-// Debug 输出调试日志
+// Debug outputs debug level log
 func (l *Logger) Debug(msg string) {
 	l.entry.Debug(msg)
 }
 
-// Info 输出信息日志
+// Info outputs info level log
 func (l *Logger) Info(msg string) {
 	l.entry.Info(msg)
 }
 
-// Warn 输出警告日志
+// Warn outputs warning level log
 func (l *Logger) Warn(msg string) {
 	l.entry.Warn(msg)
 }
 
-// Error 输出错误日志
+// Error outputs error level log
 func (l *Logger) Error(msg string) {
 	l.entry.Error(msg)
 }
 
-// Fatal 输出致命错误日志并退出
+// Fatal outputs fatal error log and exits
 func (l *Logger) Fatal(msg string) {
 	l.entry.Fatal(msg)
 }
 
-// WithField 添加单个字段
+// WithField adds a single field to the log entry
 func (l *Logger) WithField(key string, value interface{}) *Logger {
 	return &Logger{
 		logger: l.logger,
@@ -55,7 +70,7 @@ func (l *Logger) WithField(key string, value interface{}) *Logger {
 	}
 }
 
-// WithFields 添加多个字段
+// WithFields adds multiple fields to the log entry
 func (l *Logger) WithFields(fields map[string]interface{}) *Logger {
 	return &Logger{
 		logger: l.logger,
@@ -63,7 +78,7 @@ func (l *Logger) WithFields(fields map[string]interface{}) *Logger {
 	}
 }
 
-// WithError 添加错误字段
+// WithError adds an error field to the log entry
 func (l *Logger) WithError(err error) *Logger {
 	return &Logger{
 		logger: l.logger,
@@ -71,7 +86,7 @@ func (l *Logger) WithError(err error) *Logger {
 	}
 }
 
-// SetLevel 设置日志级别
+// SetLevel sets the log level
 func (l *Logger) SetLevel(level string) {
 	logLevel, err := logrus.ParseLevel(level)
 	if err != nil {
@@ -80,7 +95,7 @@ func (l *Logger) SetLevel(level string) {
 	l.logger.SetLevel(logLevel)
 }
 
-// GetLevel 获取当前日志级别
+// GetLevel returns the current log level
 func (l *Logger) GetLevel() string {
 	return l.logger.GetLevel().String()
 }

@@ -1,3 +1,20 @@
+// Copyright 2025 CompliK Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package service implements a discovery plugin that monitors Kubernetes NodePort Service
+// resources using informers. It detects changes to NodePort services and publishes discovery
+// events containing service endpoints accessible via node IPs and ports.
 package service
 
 import (
@@ -306,7 +323,7 @@ func (p *ServicePlugin) getServiceDiscoveryInfo(
 	}
 	nodes, err := k8s.ClientSet.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("获取节点列表失败: %w", err)
+		return nil, fmt.Errorf("failed to get node list: %w", err)
 	}
 	if len(nodes.Items) == 0 {
 		return []models.DiscoveryInfo{}, nil
@@ -333,7 +350,7 @@ func (p *ServicePlugin) getServiceDiscoveryInfo(
 	}
 	if nodeIP == "" {
 		p.log.Error("Unable to get node IP address")
-		return nil, errors.New("无法获取节点IP地址")
+		return nil, errors.New("unable to get node IP address")
 	}
 
 	p.log.Debug("Found node IP", logger.Fields{
@@ -390,7 +407,7 @@ func (p *ServicePlugin) getPodInfo(service *corev1.Service) (int, bool, error) {
 	}
 	labelSelector, err := metav1.LabelSelectorAsSelector(&selector)
 	if err != nil {
-		return 0, false, fmt.Errorf("构建标签选择器失败: %w", err)
+		return 0, false, fmt.Errorf("failed to build label selector: %w", err)
 	}
 	pods, err := k8s.ClientSet.CoreV1().
 		Pods(service.Namespace).
@@ -398,7 +415,7 @@ func (p *ServicePlugin) getPodInfo(service *corev1.Service) (int, bool, error) {
 			LabelSelector: labelSelector.String(),
 		})
 	if err != nil {
-		return 0, false, fmt.Errorf("获取Pod列表失败: %w", err)
+		return 0, false, fmt.Errorf("failed to get Pod list: %w", err)
 	}
 	totalCount := len(pods.Items)
 	activeCount := 0

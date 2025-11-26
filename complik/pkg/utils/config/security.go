@@ -1,3 +1,19 @@
+// Copyright 2025 CompliK Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package config provides secure configuration management with support for
+// environment variables and encrypted values.
 package config
 
 import (
@@ -12,9 +28,10 @@ import (
 	"strings"
 )
 
-// GetSecureValue 获取安全配置值，支持环境变量和加密值
+// GetSecureValue retrieves a secure configuration value, supporting both
+// environment variable references (${VAR_NAME}) and encrypted values (ENC(...))
 func GetSecureValue(value string) (string, error) {
-	// 检查是否是环境变量引用
+	// Check if this is an environment variable reference
 	if strings.HasPrefix(value, "${") && strings.HasSuffix(value, "}") {
 		envVar := strings.TrimSuffix(strings.TrimPrefix(value, "${"), "}")
 		envValue := os.Getenv(envVar)
@@ -24,17 +41,17 @@ func GetSecureValue(value string) (string, error) {
 		return envValue, nil
 	}
 
-	// 检查是否是加密值
+	// Check if this is an encrypted value
 	if strings.HasPrefix(value, "ENC(") && strings.HasSuffix(value, ")") {
 		encValue := strings.TrimSuffix(strings.TrimPrefix(value, "ENC("), ")")
 		return DecryptValue(encValue)
 	}
 
-	// 普通值直接返回
+	// Return plain value directly
 	return value, nil
 }
 
-// EncryptValue 加密配置值
+// EncryptValue encrypts a configuration value using AES-GCM
 func EncryptValue(plaintext string) (string, error) {
 	key := getEncryptionKey()
 
@@ -57,7 +74,7 @@ func EncryptValue(plaintext string) (string, error) {
 	return base64.StdEncoding.EncodeToString(ciphertext), nil
 }
 
-// DecryptValue 解密配置值
+// DecryptValue decrypts a configuration value using AES-GCM
 func DecryptValue(ciphertext string) (string, error) {
 	key := getEncryptionKey()
 
@@ -90,18 +107,18 @@ func DecryptValue(ciphertext string) (string, error) {
 	return "", nil
 }
 
-// getEncryptionKey 从环境变量获取加密密钥
+// getEncryptionKey retrieves the encryption key from environment variables
 func getEncryptionKey() []byte {
 	key := os.Getenv("COMPLIK_ENCRYPTION_KEY")
 	if key == "" {
-		// 使用默认密钥（仅用于开发环境）
+		// Use default key (for development only - DO NOT use in production)
 		key = "development-key-do-not-use-prod!"
 	}
 
-	// 确保密钥长度为32字节（AES-256）
+	// Ensure key length is 32 bytes (AES-256)
 	keyBytes := []byte(key)
 	if len(keyBytes) < 32 {
-		// 填充到32字节
+		// Pad to 32 bytes
 		padded := make([]byte, 32)
 		copy(padded, keyBytes)
 		return padded

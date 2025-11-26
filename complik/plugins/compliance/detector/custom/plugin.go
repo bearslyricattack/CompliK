@@ -1,3 +1,21 @@
+// Copyright 2025 CompliK Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package custom provides a compliance detector plugin that uses custom keyword rules
+// stored in a MySQL database to detect potentially illegal or non-compliant content.
+// The plugin periodically refreshes keyword rules from the database and uses an AI-powered
+// content reviewer to analyze collected website content against these rules.
 package custom
 
 import (
@@ -88,7 +106,7 @@ func (p *CustomPlugin) loadConfig(setting string) error {
 
 	if setting == "" {
 		p.log.Error("Configuration cannot be empty")
-		return errors.New("配置不能为空")
+		return errors.New("configuration cannot be empty")
 	}
 
 	var configFromJSON CustomConfig
@@ -101,19 +119,19 @@ func (p *CustomPlugin) loadConfig(setting string) error {
 	}
 
 	if configFromJSON.Host == "" {
-		return errors.New("host 配置不能为空")
+		return errors.New("host configuration cannot be empty")
 	}
 	if configFromJSON.Port == "" {
-		return errors.New("port 配置不能为空")
+		return errors.New("port configuration cannot be empty")
 	}
 	if configFromJSON.Username == "" {
-		return errors.New("username 配置不能为空")
+		return errors.New("username configuration cannot be empty")
 	}
 	if configFromJSON.Password == "" {
-		return errors.New("password 配置不能为空")
+		return errors.New("password configuration cannot be empty")
 	}
 	if configFromJSON.APIKey == "" {
-		return errors.New("APIKey 配置不能为空")
+		return errors.New("APIKey configuration cannot be empty")
 	}
 
 	p.customConfig.Host = configFromJSON.Host
@@ -190,7 +208,7 @@ func (p *CustomPlugin) Start(
 		p.log.Error("Failed to load configuration", logger.Fields{
 			"error": err.Error(),
 		})
-		return fmt.Errorf("加载配置失败: %w", err)
+		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
 	p.log.Debug("Initializing database connection")
@@ -198,7 +216,7 @@ func (p *CustomPlugin) Start(
 		p.log.Error("Failed to initialize database", logger.Fields{
 			"error": err.Error(),
 		})
-		return fmt.Errorf("初始化数据库失败: %w", err)
+		return fmt.Errorf("failed to initialize database: %w", err)
 	}
 	p.reviewer = utils.NewContentReviewer(
 		p.log,
@@ -347,15 +365,15 @@ func (p *CustomPlugin) initDB() error {
 		Logger: gormLogger.New(
 			log.New(os.Stdout, "\r\n", log.LstdFlags),
 			gormLogger.Config{
-				SlowThreshold: 3 * time.Second,  // 慢查询阈值设为1秒
-				LogLevel:      gormLogger.Error, // 只显示错误日志
-				Colorful:      false,            // 关闭颜色输出
+				SlowThreshold: 3 * time.Second,  // Slow query threshold set to 3 seconds
+				LogLevel:      gormLogger.Error, // Show error logs only
+				Colorful:      false,            // Disable color output
 			},
 		),
 	}
 	db, err := gorm.Open(mysql.Open(serverDSN), dbConfig)
 	if err != nil {
-		return fmt.Errorf("连接 MySQL 服务器失败: %w", err)
+		return fmt.Errorf("failed to connect to MySQL server: %w", err)
 	}
 	err = db.Exec(
 		fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s CHARACTER SET %s COLLATE %s_unicode_ci",
@@ -364,19 +382,19 @@ func (p *CustomPlugin) initDB() error {
 			p.customConfig.Charset),
 	).Error
 	if err != nil {
-		return fmt.Errorf("创建数据库失败: %w", err)
+		return fmt.Errorf("failed to create database: %w", err)
 	}
 	dbDSN := p.buildDSN(true)
 	db, err = gorm.Open(mysql.Open(dbDSN), dbConfig)
 	if err != nil {
-		return fmt.Errorf("连接到数据库失败: %w", err)
+		return fmt.Errorf("failed to connect to database: %w", err)
 	}
 	p.db = db
 	tableName := db.NamingStrategy.TableName("CustomKeywordRule")
 
 	err = db.AutoMigrate(&utils.CustomKeywordRule{})
 	if err != nil {
-		return fmt.Errorf("创建表失败: %w", err)
+		return fmt.Errorf("failed to create table: %w", err)
 	}
 	var tableExists bool
 	err = db.Raw("SELECT COUNT(*) > 0 FROM information_schema.tables WHERE table_schema = ? AND table_name = ?",
@@ -392,17 +410,17 @@ func (p *CustomPlugin) initDB() error {
 	var count int64
 	err = db.Model(&utils.CustomKeywordRule{}).Count(&count).Error
 	if err != nil {
-		return fmt.Errorf("查询数据数量失败: %w", err)
+		return fmt.Errorf("failed to query data count: %w", err)
 	}
 	if count == 0 {
 		sampleRule := utils.CustomKeywordRule{
 			Type:        "malware",
 			Keywords:    strings.Join([]string{"virus", "trojan", "malware", "backdoor"}, ","),
-			Description: "恶意软件检测规则",
+			Description: "Malware detection rule",
 		}
 		err = db.Create(&sampleRule).Error
 		if err != nil {
-			return fmt.Errorf("插入示例数据失败: %w", err)
+			return fmt.Errorf("failed to insert sample data: %w", err)
 		}
 		var newCount int64
 		db.Model(&utils.CustomKeywordRule{}).Count(&newCount)

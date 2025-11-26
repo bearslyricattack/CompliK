@@ -1,5 +1,5 @@
 /*
-Copyright 2025 gitlayzer.
+Copyright 2025 CompliK Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package cmd implements the kubectl-block subcommands.
 package cmd
 
 import (
@@ -31,7 +32,7 @@ import (
 	"github.com/bearslyricattack/CompliK/block-controller/api/v1"
 )
 
-// NewListCommand 创建 list 命令
+// NewListCommand creates the list command
 func NewListCommand(kubeConfig clientcmd.ClientConfig) *cobra.Command {
 	opts := NewCommandOptions(kubeConfig)
 
@@ -62,7 +63,7 @@ current status, target namespaces, and other relevant information.`,
 		RunE: opts.runList,
 	}
 
-	// 添加参数
+	// Add flags
 	cmd.Flags().StringVarP(&opts.namespace, "namespace", "n", "", "The namespace to search (default: all namespaces)")
 	cmd.Flags().StringVarP(&opts.status, "status", "s", "", "Filter by status (active, locked)")
 	cmd.Flags().StringVarP(&opts.namespaceTarget, "namespace-target", "t", "", "Filter by target namespace")
@@ -81,26 +82,26 @@ var (
 )
 
 func (o *CommandOptions) runList(cmd *cobra.Command, args []string) error {
-	// 初始化
+	// Initialize
 	if err := o.Init(); err != nil {
 		return err
 	}
 
-	// 获取 BlockRequest 列表
+	// Get BlockRequest list
 	blockRequests, err := o.listBlockRequests()
 	if err != nil {
 		return err
 	}
 
-	// 过滤结果
+	// Filter results
 	filteredRequests := o.filterBlockRequests(blockRequests)
 
-	// 应用限制
+	// Apply limit
 	if limit > 0 && len(filteredRequests) > limit {
 		filteredRequests = filteredRequests[:limit]
 	}
 
-	// 输出结果
+	// Output results
 	if len(filteredRequests) == 0 {
 		fmt.Println("ℹ️  No BlockRequests found")
 		return nil
@@ -109,11 +110,11 @@ func (o *CommandOptions) runList(cmd *cobra.Command, args []string) error {
 	return o.outputBlockRequests(filteredRequests)
 }
 
-// listBlockRequests 获取 BlockRequest 列表
+// listBlockRequests gets the BlockRequest list
 func (o *CommandOptions) listBlockRequests() ([]*v1.BlockRequest, error) {
 	ctx := context.TODO()
 
-	// 确定搜索范围
+	// Determine search scope
 	var namespace string
 	if o.namespace != "" {
 		namespace = o.namespace
@@ -121,10 +122,10 @@ func (o *CommandOptions) listBlockRequests() ([]*v1.BlockRequest, error) {
 		namespace = ""
 	}
 
-	// 获取 BlockRequest 列表
+	// Get BlockRequest list
 	var blockRequests []*v1.BlockRequest
 	if namespace == "" {
-		// 搜索所有 namespace
+		// Search all namespaces
 		namespaces, err := o.client.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
 		if err != nil {
 			return nil, err
@@ -139,7 +140,7 @@ func (o *CommandOptions) listBlockRequests() ([]*v1.BlockRequest, error) {
 			blockRequests = append(blockRequests, requests...)
 		}
 	} else {
-		// 搜索特定 namespace
+		// Search specific namespace
 		var err error
 		blockRequests, err = o.listBlockRequestsInNamespace(namespace)
 		if err != nil {
@@ -150,11 +151,11 @@ func (o *CommandOptions) listBlockRequests() ([]*v1.BlockRequest, error) {
 	return blockRequests, nil
 }
 
-// listBlockRequestsInNamespace 获取特定 namespace 中的 BlockRequest
+// listBlockRequestsInNamespace gets BlockRequests in a specific namespace
 func (o *CommandOptions) listBlockRequestsInNamespace(namespace string) ([]*v1.BlockRequest, error) {
 	ctx := context.TODO()
 
-	// 获取 BlockRequest 列表
+	// Get BlockRequest list
 	var result *v1.BlockRequestList
 	err := o.blockClient.Get().
 		Namespace(namespace).
@@ -174,17 +175,17 @@ func (o *CommandOptions) listBlockRequestsInNamespace(namespace string) ([]*v1.B
 	return blockRequests, nil
 }
 
-// filterBlockRequests 过滤 BlockRequest
+// filterBlockRequests filters BlockRequests
 func (o *CommandOptions) filterBlockRequests(requests []*v1.BlockRequest) []*v1.BlockRequest {
 	var filtered []*v1.BlockRequest
 
 	for _, req := range requests {
-		// 状态过滤
+		// Filter by status
 		if status != "" && req.Spec.Action != status {
 			continue
 		}
 
-		// 目标 namespace 过滤
+		// Filter by target namespace
 		if namespaceTarget != "" {
 			found := false
 			for _, ns := range req.Spec.NamespaceNames {
@@ -204,7 +205,7 @@ func (o *CommandOptions) filterBlockRequests(requests []*v1.BlockRequest) []*v1.
 	return filtered
 }
 
-// outputBlockRequests 输出 BlockRequest 列表
+// outputBlockRequests outputs the BlockRequest list
 func (o *CommandOptions) outputBlockRequests(requests []*v1.BlockRequest) error {
 	switch opts.output {
 	case "json":
@@ -216,15 +217,15 @@ func (o *CommandOptions) outputBlockRequests(requests []*v1.BlockRequest) error 
 	}
 }
 
-// outputBlockRequestsTable 以表格形式输出
+// outputBlockRequestsTable outputs in table format
 func (o *CommandOptions) outputBlockRequestsTable(requests []*v1.BlockRequest) error {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 	defer w.Flush()
 
-	// 表头
+	// Table header
 	fmt.Fprintln(w, "NAMESPACE\tNAME\tACTION\tTARGETS\tAGE\tSTATUS")
 
-	// 数据行
+	// Data rows
 	for _, req := range requests {
 		targets := strings.Join(req.Spec.NamespaceNames, ",")
 		if len(targets) > 20 {
@@ -244,7 +245,7 @@ func (o *CommandOptions) outputBlockRequestsTable(requests []*v1.BlockRequest) e
 		)
 	}
 
-	// 如果显示详细信息
+	// Show detailed information if requested
 	if showDetails && len(requests) == 1 {
 		req := requests[0]
 		fmt.Fprintf(w, "\nDetailed Information:\n")
@@ -269,7 +270,7 @@ func (o *CommandOptions) outputBlockRequestsTable(requests []*v1.BlockRequest) e
 	return nil
 }
 
-// outputBlockRequestsJSON 以 JSON 格式输出
+// outputBlockRequestsJSON outputs in JSON format
 func (o *CommandOptions) outputBlockRequestsJSON(requests []*v1.BlockRequest) error {
 	data, err := json.MarshalIndent(requests, "", "  ")
 	if err != nil {
@@ -280,7 +281,7 @@ func (o *CommandOptions) outputBlockRequestsJSON(requests []*v1.BlockRequest) er
 	return nil
 }
 
-// outputBlockRequestsYAML 以 YAML 格式输出
+// outputBlockRequestsYAML outputs in YAML format
 func (o *CommandOptions) outputBlockRequestsYAML(requests []*v1.BlockRequest) error {
 	data, err := yaml.Marshal(requests)
 	if err != nil {
@@ -291,13 +292,13 @@ func (o *CommandOptions) outputBlockRequestsYAML(requests []*v1.BlockRequest) er
 	return nil
 }
 
-// getBlockRequestStatus 获取 BlockRequest 状态
+// getBlockRequestStatus gets the BlockRequest status
 func getBlockRequestStatus(req *v1.BlockRequest) string {
 	if len(req.Status.Conditions) == 0 {
 		return "Unknown"
 	}
 
-	// 返回最新的状态
+	// Return the latest status
 	for i := len(req.Status.Conditions) - 1; i >= 0; i-- {
 		condition := req.Status.Conditions[i]
 		if condition.Type == "Ready" || condition.Type == "Processed" {
@@ -308,7 +309,7 @@ func getBlockRequestStatus(req *v1.BlockRequest) string {
 	return "Unknown"
 }
 
-// formatAge 格式化时间
+// formatAge formats the time
 func formatAge(t time.Time) string {
 	if t.IsZero() {
 		return "unknown"

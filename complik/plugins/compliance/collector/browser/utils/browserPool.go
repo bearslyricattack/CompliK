@@ -1,3 +1,20 @@
+// Copyright 2025 CompliK Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package utils provides a browser pool implementation for managing headless browser instances.
+// The pool supports concurrent access, automatic instance expiration, and graceful cleanup.
+// It includes a wait queue mechanism to handle requests when the pool is at capacity.
 package utils
 
 import (
@@ -21,10 +38,10 @@ type BrowserInstance struct {
 
 type BrowserPool struct {
 	instances []*BrowserInstance
-	mu        sync.RWMutex // 使用读写锁优化并发
+	mu        sync.RWMutex // Read-write lock for optimized concurrency
 	maxSize   int
 	maxAge    time.Duration
-	waitQueue chan chan *BrowserInstance // 等待队列
+	waitQueue chan chan *BrowserInstance // Wait queue for requests when pool is full
 	closed    bool
 	log       logger.Logger
 }
@@ -34,7 +51,7 @@ func NewBrowserPool(maxSize int, maxAge time.Duration) *BrowserPool {
 		instances: make([]*BrowserInstance, 0, maxSize),
 		maxSize:   maxSize,
 		maxAge:    maxAge,
-		waitQueue: make(chan chan *BrowserInstance, 100), // 缓冲队列
+		waitQueue: make(chan chan *BrowserInstance, 100), // Buffered queue
 		log:       logger.GetLogger().WithField("component", "browser_pool"),
 	}
 
@@ -43,7 +60,7 @@ func NewBrowserPool(maxSize int, maxAge time.Duration) *BrowserPool {
 		"max_age_minutes": maxAge.Minutes(),
 	})
 
-	// 启动后台清理协程
+	// Start background cleanup goroutine
 	go pool.backgroundCleanup()
 	return pool
 }
@@ -87,11 +104,11 @@ func (p *BrowserPool) Get(ctx context.Context) (*BrowserInstance, error) {
 			return instance, nil
 		case <-ctx.Done():
 			p.log.Warn("Timeout waiting for browser instance")
-			return nil, errors.New("等待浏览器实例超时")
+			return nil, errors.New("timeout waiting for browser instance")
 		}
 	default:
 		p.log.Error("Browser pool full and wait queue full")
-		return nil, errors.New("浏览器池已满，无法创建新实例")
+		return nil, errors.New("browser pool is full, cannot create new instance")
 	}
 }
 
@@ -109,15 +126,15 @@ func (p *BrowserPool) Put(instance *BrowserInstance) {
 		return
 	}
 
-	// 检查是否有等待者
+	// Check if there are any waiters
 	select {
 	case waitChan := <-p.waitQueue:
-		// 直接分配给等待者
+		// Assign directly to waiter
 		instance.InUse = true
 		waitChan <- instance
 		return
 	default:
-		// 没有等待者，标记为可用
+		// No waiters, mark as available
 		instance.InUse = false
 	}
 }
@@ -137,7 +154,7 @@ func (p *BrowserPool) createInstance() (*BrowserInstance, error) {
 		p.log.Error("Failed to launch browser", logger.Fields{
 			"error": err.Error(),
 		})
-		return nil, fmt.Errorf("启动浏览器失败: %w", err)
+		return nil, fmt.Errorf("failed to launch browser: %w", err)
 	}
 
 	browser := rod.New().
@@ -229,7 +246,7 @@ func (p *BrowserPool) backgroundCleanup() {
 	}
 }
 
-// Close 关闭浏览器池
+// Close closes the browser pool and cleans up all instances.
 func (p *BrowserPool) Close() {
 	p.log.Info("Closing browser pool")
 
@@ -243,12 +260,12 @@ func (p *BrowserPool) Close() {
 		"instance_count": len(instances),
 	})
 
-	// 清理所有实例
+	// Clean up all instances
 	for _, instance := range instances {
 		go p.cleanupInstance(instance)
 	}
 
-	// 关闭等待队列
+	// Close wait queue
 	close(p.waitQueue)
 
 	p.log.Info("Browser pool closed")
