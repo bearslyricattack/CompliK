@@ -1,63 +1,63 @@
-# CompliK 日志系统文档
+# CompliK Logging System Documentation
 
-## 概述
+## Overview
 
-CompliK 使用统一的结构化日志系统，支持多级别日志、性能监控、日志轮转等功能。
+CompliK uses a unified structured logging system that supports multiple log levels, performance monitoring, log rotation, and other features.
 
-## 日志级别
+## Log Levels
 
-系统支持以下日志级别（从低到高）：
+The system supports the following log levels (from low to high):
 
-- **DEBUG**: 详细调试信息
-- **INFO**: 一般信息
-- **WARN**: 警告信息
-- **ERROR**: 错误信息
-- **FATAL**: 致命错误（会导致程序退出）
+- **DEBUG**: Detailed debugging information
+- **INFO**: General information
+- **WARN**: Warning information
+- **ERROR**: Error information
+- **FATAL**: Fatal errors (will cause program exit)
 
-## 环境变量配置
+## Environment Variable Configuration
 
-通过环境变量可以灵活配置日志行为：
+Log behavior can be flexibly configured through environment variables:
 
 ```bash
-# 日志级别 (DEBUG, INFO, WARN, ERROR, FATAL)
+# Log level (DEBUG, INFO, WARN, ERROR, FATAL)
 export COMPLIK_LOG_LEVEL=INFO
 
-# 日志格式 (text 或 json)
+# Log format (text or json)
 export COMPLIK_LOG_FORMAT=text
 
-# 是否显示颜色 (true 或 false)
+# Whether to display colors (true or false)
 export COMPLIK_LOG_COLORED=true
 
-# 是否显示调用位置 (true 或 false)
+# Whether to display caller location (true or false)
 export COMPLIK_LOG_CALLER=true
 
-# 日志文件路径（不设置则输出到控制台）
+# Log file path (outputs to console if not set)
 export COMPLIK_LOG_FILE=/var/log/complik/app.log
 
-# 日志文件最大大小（字节）
+# Maximum log file size (bytes)
 export COMPLIK_LOG_MAX_SIZE=104857600  # 100MB
 
-# 保留的备份文件数量
+# Number of backup files to retain
 export COMPLIK_LOG_MAX_BACKUPS=10
 
-# 日志文件保留天数
+# Log file retention days
 export COMPLIK_LOG_MAX_AGE=30
 ```
 
-## 使用示例
+## Usage Examples
 
-### 基础用法
+### Basic Usage
 
 ```go
 import "github.com/bearslyricattack/CompliK/pkg/logger"
 
-// 初始化日志系统
+// Initialize the logging system
 logger.Init()
 
-// 获取日志实例
+// Get logger instance
 log := logger.GetLogger()
 
-// 记录不同级别的日志
+// Log messages at different levels
 log.Debug("This is a debug message")
 log.Info("Application started")
 log.Warn("Low memory warning")
@@ -65,76 +65,76 @@ log.Error("Failed to connect to database")
 log.Fatal("Critical error, shutting down")
 ```
 
-### 结构化日志
+### Structured Logging
 
 ```go
-// 添加字段
+// Add fields
 log.Info("User login", logger.Fields{
     "user_id": 12345,
     "ip": "192.168.1.1",
     "method": "OAuth",
 })
 
-// 链式调用
+// Chain calls
 log.WithField("request_id", "abc-123").
     WithField("user", "john").
     Info("Processing request")
 
-// 添加错误信息
+// Add error information
 err := doSomething()
 if err != nil {
     log.WithError(err).Error("Operation failed")
 }
 ```
 
-### 上下文日志
+### Context Logging
 
 ```go
-// 创建带上下文的日志
+// Create logger with context
 ctx := context.WithValue(context.Background(), "request_id", "xyz-789")
 contextLog := log.WithContext(ctx)
 
-// 自动包含上下文信息
+// Automatically includes context information
 contextLog.Info("Processing request")
-// 输出: 2024-01-01 12:00:00 [INFO] Processing request | request_id=xyz-789
+// Output: 2024-01-01 12:00:00 [INFO] Processing request | request_id=xyz-789
 ```
 
-### 性能追踪
+### Performance Tracing
 
 ```go
-// 追踪操作执行时间
+// Trace operation execution time
 err := logger.TraceOperation(ctx, "database_query", func() error {
-    // 执行数据库查询
+    // Execute database query
     return db.Query()
 })
 
-// 函数追踪
+// Function tracing
 func ProcessData() {
     defer logger.TraceFunc("ProcessData")()
-    // 函数逻辑
+    // Function logic
 }
 ```
 
-### 性能监控
+### Performance Monitoring
 
 ```go
-// 初始化性能监控（每分钟报告一次）
+// Initialize performance monitoring (report every minute)
 logger.InitMetrics(1 * time.Minute)
 
-// 在程序退出时停止监控
+// Stop monitoring when program exits
 defer logger.StopMetrics()
 ```
 
-## 日志输出格式
+## Log Output Formats
 
-### 文本格式（默认）
+### Text Format (Default)
 
 ```
 2024-01-01 12:00:00.123 [INFO ] [main.go:42] Application started | version=1.0.0, env=production
 2024-01-01 12:00:01.456 [ERROR] [db.go:156] Database connection failed | error=connection timeout, retry=3
 ```
 
-### JSON格式
+### JSON Format
 
 ```json
 {
@@ -148,72 +148,72 @@ defer logger.StopMetrics()
 }
 ```
 
-## 日志轮转
+## Log Rotation
 
-当配置了日志文件输出时，系统会自动进行日志轮转：
+When log file output is configured, the system automatically performs log rotation:
 
-1. **按大小轮转**: 当日志文件超过指定大小时
-2. **按时间轮转**: 每天自动轮转
-3. **自动清理**: 删除超过保留期限的旧日志文件
+1. **Rotation by Size**: When the log file exceeds the specified size
+2. **Rotation by Time**: Automatic daily rotation
+3. **Automatic Cleanup**: Delete old log files exceeding the retention period
 
-轮转后的文件命名格式：
+Rotated file naming format:
 ```
-app.log                    # 当前日志文件
-app-20240101-120000.log    # 轮转的历史文件
+app.log                    # Current log file
+app-20240101-120000.log    # Rotated historical files
 app-20240101-000000.log
 ```
 
-## 性能指标
+## Performance Metrics
 
-系统会自动收集并记录以下性能指标：
+The system automatically collects and logs the following performance metrics:
 
-### 系统指标
-- 内存使用量
-- Goroutine 数量
-- GC 暂停时间
-- 运行时间
+### System Metrics
+- Memory usage
+- Goroutine count
+- GC pause time
+- Uptime
 
-### 操作指标
-- 操作执行次数
-- 平均执行时间
-- 最小/最大执行时间
-- 错误率
-- 成功率
+### Operation Metrics
+- Operation execution count
+- Average execution time
+- Minimum/maximum execution time
+- Error rate
+- Success rate
 
-示例输出：
+Example output:
 ```
 2024-01-01 12:00:00 [INFO] System metrics | memory_mb=45, goroutines=25, gc_pause_ms=2, uptime_minutes=60
 2024-01-01 12:00:00 [INFO] Operation metrics | operation=db_query, count=1000, avg_ms=5, success_rate=99.5%
 ```
 
-## 最佳实践
+## Best Practices
 
-### 1. 日志级别使用建议
+### 1. Log Level Usage Guidelines
 
-- **DEBUG**: 仅在开发和调试时使用
-- **INFO**: 记录正常的业务流程
-- **WARN**: 记录潜在问题但不影响功能
-- **ERROR**: 记录错误但程序可以继续运行
-- **FATAL**: 仅在必须终止程序时使用
+- **DEBUG**: Use only during development and debugging
+- **INFO**: Log normal business flow
+- **WARN**: Log potential issues that don't affect functionality
+- **ERROR**: Log errors but the program can continue running
+- **FATAL**: Use only when the program must be terminated
 
-### 2. 结构化日志
+### 2. Structured Logging
 
-始终使用结构化字段而不是字符串拼接：
+Always use structured fields instead of string concatenation:
 
 ```go
-// ✅ 推荐
+// ✅ Recommended
 log.Info("User action", logger.Fields{
     "user_id": userID,
     "action": "login",
 })
 
-// ❌ 不推荐
+// ❌ Not recommended
 log.Info(fmt.Sprintf("User %d performed login", userID))
 ```
 
-### 3. 错误处理
+### 3. Error Handling
 
-总是记录错误的完整上下文：
+Always log the complete context of errors:
 
 ```go
 if err := service.Process(); err != nil {
@@ -225,22 +225,22 @@ if err := service.Process(); err != nil {
 }
 ```
 
-### 4. 性能考虑
+### 4. Performance Considerations
 
-- 在生产环境设置适当的日志级别（通常是 INFO）
-- 使用异步日志写入避免阻塞主流程
-- 定期清理旧日志文件
-- 考虑使用 JSON 格式便于日志分析工具处理
+- Set appropriate log levels in production environments (usually INFO)
+- Use asynchronous log writing to avoid blocking the main flow
+- Regularly clean up old log files
+- Consider using JSON format for easier processing by log analysis tools
 
-### 5. 安全考虑
+### 5. Security Considerations
 
-- 不要记录敏感信息（密码、密钥、个人信息等）
-- 使用字段过滤敏感数据
-- 确保日志文件有适当的访问权限
+- Do not log sensitive information (passwords, keys, personal information, etc.)
+- Use field filtering for sensitive data
+- Ensure log files have appropriate access permissions
 
-## 集成示例
+## Integration Examples
 
-### Docker 配置
+### Docker Configuration
 
 ```dockerfile
 ENV COMPLIK_LOG_LEVEL=INFO
@@ -265,7 +265,7 @@ data:
   COMPLIK_LOG_CALLER: "true"
 ```
 
-### systemd 服务
+### systemd Service
 
 ```ini
 [Service]
@@ -274,23 +274,23 @@ Environment="COMPLIK_LOG_FILE=/var/log/complik/app.log"
 Environment="COMPLIK_LOG_MAX_SIZE=104857600"
 ```
 
-## 故障排查
+## Troubleshooting
 
-### 日志不输出
+### Logs Not Outputting
 
-1. 检查日志级别设置是否正确
-2. 确认日志文件路径有写权限
-3. 验证环境变量是否正确设置
+1. Check if the log level is set correctly
+2. Verify that the log file path has write permissions
+3. Validate that environment variables are set correctly
 
-### 性能问题
+### Performance Issues
 
-1. 降低日志级别（如从 DEBUG 改为 INFO）
-2. 使用异步日志写入
-3. 增加日志文件轮转频率
-4. 考虑使用专门的日志收集服务
+1. Lower the log level (e.g., from DEBUG to INFO)
+2. Use asynchronous log writing
+3. Increase log file rotation frequency
+4. Consider using a dedicated log collection service
 
-### 日志文件过大
+### Log Files Too Large
 
-1. 配置合理的轮转策略
-2. 减少不必要的 DEBUG 日志
-3. 定期归档历史日志
+1. Configure a reasonable rotation strategy
+2. Reduce unnecessary DEBUG logs
+3. Regularly archive historical logs

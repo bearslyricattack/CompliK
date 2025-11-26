@@ -1,80 +1,80 @@
-# 修复 unlock-timestamp 注解清理问题
+# Fix unlock-timestamp Annotation Cleanup Issue
 
-## 问题描述
+## Problem Description
 
-当手动将 namespace 的 `clawcloud.run/status` 标签设置为 `active` 时，`clawcloud.run/unlock-timestamp` 注解没有被自动清理，导致注解仍然存在。
+When manually setting the `clawcloud.run/status` label of a namespace to `active`, the `clawcloud.run/unlock-timestamp` annotation is not automatically cleaned up, causing the annotation to remain.
 
-## 问题原因
+## Root Cause
 
-优化架构主要通过 BlockRequest 事件驱动，直接的标签变更可能不会触发控制器的协调循环来清理注解。
+The optimized architecture is primarily driven by BlockRequest events. Direct label changes may not trigger the controller's reconciliation loop to clean up annotations.
 
-## 解决方案
+## Solutions
 
-### 方案1：升级到 v0.1.5（推荐）
+### Solution 1: Upgrade to v0.1.5 (Recommended)
 
-v0.1.5 版本增强了扫描器的日志输出和注解清理逻辑：
+Version v0.1.5 enhances the scanner's log output and annotation cleanup logic:
 
 ```bash
-# 升级到修复版本
+# Upgrade to the fixed version
 kubectl apply -f deploy/block/deployment-simple.yaml
 ```
 
-升级后，扫描器会：
-1. 检测到 `active` 状态的 namespace
-2. 详细日志输出注解清理过程
-3. 自动清理 `unlock-timestamp` 注解
+After upgrading, the scanner will:
+1. Detect namespaces with `active` status
+2. Output detailed logs of the annotation cleanup process
+3. Automatically clean up the `unlock-timestamp` annotation
 
-### 方案2：手动清理（立即解决）
+### Solution 2: Manual Cleanup (Immediate Resolution)
 
-使用提供的清理脚本：
+Use the provided cleanup script:
 
 ```bash
-# 运行清理脚本
+# Run the cleanup script
 ./scripts/cleanup-annotations.sh
 ```
 
-或手动清理：
+Or clean up manually:
 
 ```bash
-# 查找有问题的 namespace
+# Find problematic namespaces
 kubectl get namespaces -o custom-columns=NAME:.metadata.name | xargs -I {} sh -c 'kubectl get namespace {} -o jsonpath="{.metadata.annotations.clawcloud\.run/unlock-timestamp}" && echo " {}"'
 
-# 手动清理特定 namespace
+# Manually clean up a specific namespace
 kubectl annotate namespace your-namespace clawcloud.run/unlock-timestamp-
 ```
 
-### 方案3：使用 kubectl 一键命令
+### Solution 3: Use kubectl One-line Command
 
 ```bash
-# 清理所有状态为 active 但仍有 unlock-timestamp 注解的 namespace
+# Clean up all namespaces that have active status but still have unlock-timestamp annotation
 kubectl get namespaces -o json | \
   jq -r '.items[] | select(.metadata.labels."clawcloud.run/status" == "active" and .metadata.annotations."clawcloud.run/unlock-timestamp") | .metadata.name' | \
   xargs -I {} kubectl annotate namespace {} clawcloud.run/unlock-timestamp-
 ```
 
-## 验证修复
+## Verification
 
-升级后，查看日志确认注解被清理：
+After upgrading, check the logs to confirm annotations were cleaned up:
 
 ```bash
 kubectl logs -n block-system deployment/block-controller | grep "unlock-timestamp"
 ```
 
-应该看到类似日志：
+You should see logs similar to:
 ```
 "namespace is active, handling unlock" {"hasUnlockTimestamp": true}
 "removing unlock-timestamp annotation"
 "successfully removed unlock-timestamp annotation"
 ```
 
-## 预防措施
+## Preventive Measures
 
-1. **使用 BlockRequest CRD**：推荐通过 BlockRequest 进行封禁/解封，而不是直接修改标签
-2. **定期检查**：可以定期运行清理脚本作为预防措施
-3. **监控日志**：关注扫描器的日志输出
+1. **Use BlockRequest CRD**: It is recommended to use BlockRequest for blocking/unblocking instead of directly modifying labels
+2. **Regular Checks**: You can run the cleanup script periodically as a preventive measure
+3. **Monitor Logs**: Pay attention to the scanner's log output
 
-## 版本信息
+## Version Information
 
-- **修复版本**：v0.1.5
-- **影响版本**：v0.1.2 - v0.1.4
-- **修复内容**：增强注解清理逻辑和日志输出
+- **Fixed Version**: v0.1.5
+- **Affected Versions**: v0.1.2 - v0.1.4
+- **Fix Details**: Enhanced annotation cleanup logic and log output

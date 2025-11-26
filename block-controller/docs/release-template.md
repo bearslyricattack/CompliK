@@ -1,136 +1,136 @@
-# 版本发布模板
+# Version Release Template
 
-使用此模板来创建标准的版本发布说明。
+Use this template to create standardized version release notes.
 
-## 基本信息
+## Basic Information
 
-**版本**: v0.1.6
-**发布日期**: 2025-XX-XX
-**发布类型**: Patch / Minor / Major
+**Version**: v0.1.6
+**Release Date**: 2025-XX-XX
+**Release Type**: Patch / Minor / Major
 
-## 📝 变更摘要
+## 📝 Change Summary
 
-### 🆕 新增功能 (Added)
-- [ ] 功能描述
-- [ ] 另一个功能
+### 🆕 Added
+- [ ] Feature description
+- [ ] Another feature
 
-### 🔄 功能变更 (Changed)
-- [ ] 变更描述
-- [ ] 配置项调整
+### 🔄 Changed
+- [ ] Change description
+- [ ] Configuration adjustments
 
-### 🐛 问题修复 (Fixed)
-- [ ] 问题描述
-- [ ] 修复方案
+### 🐛 Fixed
+- [ ] Issue description
+- [ ] Fix solution
 
-### 🔒 安全修复 (Security)
-- [ ] 安全问题描述
-- [ ] 修复措施
+### 🔒 Security
+- [ ] Security issue description
+- [ ] Fix measures
 
-### 🗑️ 功能移除 (Removed)
-- [ ] 移除的功能说明
+### 🗑️ Removed
+- [ ] Removed feature description
 
-### ⚠️ 功能弃用 (Deprecated)
-- [ ] 弃用的功能说明
-- [ ] 替代方案
+### ⚠️ Deprecated
+- [ ] Deprecated feature description
+- [ ] Alternative solution
 
-## 🚀 安装和升级
+## 🚀 Installation and Upgrade
 
-### 新安装
+### Fresh Installation
 ```bash
-# 克隆仓库
+# Clone repository
 git clone https://github.com/gitlayzer/block-controller.git
 cd block-controller
 
-# 部署
+# Deploy
 kubectl apply -f deploy/block/
 ```
 
-### 升级
+### Upgrade
 ```bash
-# 备份当前配置
+# Backup current configuration
 kubectl get blockrequests --all-namespaces -o yaml > backup-br.yaml
 
-# 升级到新版本
+# Upgrade to new version
 kubectl apply -f deploy/block/
 
-# 验证升级
+# Verify upgrade
 kubectl logs -n block-system deployment/block-controller
 ```
 
-## 📋 变更详情
+## 📋 Change Details
 
-### 核心功能变更
-[描述核心功能的具体变更]
+### Core Feature Changes
+[Describe specific changes to core features]
 
-### API 变更
-[如果有 API 变更，详细说明]
+### API Changes
+[If there are API changes, explain in detail]
 
-### 配置变更
-[如果配置有变更，说明迁移步骤]
+### Configuration Changes
+[If configuration has changed, explain migration steps]
 
-### 性能改进
-[性能相关的改进]
+### Performance Improvements
+[Performance-related improvements]
 
-## 🧪 测试
+## 🧪 Testing
 
-### 测试覆盖
-- [ ] 单元测试: ✅ XX/YY (XX%)
-- [ ] 集成测试: ✅ 通过
-- [ ] E2E 测试: ✅ 通过
-- [ ] 性能测试: ✅ 通过
+### Test Coverage
+- [ ] Unit tests: ✅ XX/YY (XX%)
+- [ ] Integration tests: ✅ Passed
+- [ ] E2E tests: ✅ Passed
+- [ ] Performance tests: ✅ Passed
 
-### 兼容性
+### Compatibility
 - [ ] Kubernetes: 1.24+
-- [ ] Go 版本: 1.24.x
-- [ ] 向后兼容: ✅ 是 / ❌ 否
+- [ ] Go version: 1.24.x
+- [ ] Backward compatible: ✅ Yes / ❌ No
 
-## 🔗 相关链接
+## 🔗 Related Links
 
-- **Docker 镜像**: `layzer/block-controller:v0.1.6`
-- **GitHub Release**: [链接]
-- **文档**: [链接]
-- **变更日志**: [链接]
+- **Docker Image**: `layzer/block-controller:v0.1.6`
+- **GitHub Release**: [Link]
+- **Documentation**: [Link]
+- **Changelog**: [Link]
 
-## 📊 已知问题
+## 📊 Known Issues
 
-- [ ] 问题描述
-- [ ] 影响
-- [ ] 解决方案
+- [ ] Issue description
+- [ ] Impact
+- [ ] Solution
 
-## 🙏 致谢
+## 🙏 Acknowledgments
 
-感谢以下贡献者：
-- @contributor1 - 贡献描述
-- @contributor2 - 贡献描述
+Thanks to the following contributors:
+- @contributor1 - Contribution description
+- @contributor2 - Contribution description
 
-## 📞 支持
+## 📞 Support
 
-- 📧 邮件: support@example.com
-- 💬 讨论: [GitHub Discussions](链接)
-- 🐛 问题报告: [GitHub Issues](链接)
-
----
-
-## 发布检查清单
-
-### 代码质量
-- [ ] 代码审查完成
-- [ ] 测试通过
-- [ ] 文档更新
-- [ ] CHANGELOG 更新
-
-### 构建和部署
-- [ ] Docker 镜像构建
-- [ ] 多架构支持测试
-- [ ] 安全扫描通过
-- [ ] 部署测试验证
-
-### 发布准备
-- [ ] 版本号确认
-- [ ] 发布说明撰写
-- [ ] GitHub Release 创建
-- [ ] 社区通知发送
+- 📧 Email: support@example.com
+- 💬 Discussion: [GitHub Discussions](Link)
+- 🐛 Issue Report: [GitHub Issues](Link)
 
 ---
 
-*注意: 这是一个模板文件，请根据实际版本情况进行修改。*
+## Release Checklist
+
+### Code Quality
+- [ ] Code review completed
+- [ ] Tests passed
+- [ ] Documentation updated
+- [ ] CHANGELOG updated
+
+### Build and Deployment
+- [ ] Docker image built
+- [ ] Multi-architecture support tested
+- [ ] Security scan passed
+- [ ] Deployment testing verified
+
+### Release Preparation
+- [ ] Version number confirmed
+- [ ] Release notes written
+- [ ] GitHub Release created
+- [ ] Community notification sent
+
+---
+
+*Note: This is a template file, please modify according to actual version details.*

@@ -1,528 +1,528 @@
-# kubectl-block CLI 使用指南
+# kubectl-block CLI User Guide
 
-## 目录
+## Table of Contents
 
-1. [简介](#简介)
-2. [安装](#安装)
-3. [快速开始](#快速开始)
-4. [命令详解](#命令详解)
-5. [使用场景](#使用场景)
-6. [最佳实践](#最佳实践)
-7. [故障排除](#故障排除)
-8. [高级用法](#高级用法)
+1. [Introduction](#introduction)
+2. [Installation](#installation)
+3. [Quick Start](#quick-start)
+4. [Command Reference](#command-reference)
+5. [Use Cases](#use-cases)
+6. [Best Practices](#best-practices)
+7. [Troubleshooting](#troubleshooting)
+8. [Advanced Usage](#advanced-usage)
 
-## 简介
+## Introduction
 
-kubectl-block 是一个强大的 Kubernetes 命名空间生命周期管理工具，通过与 block-controller 配合，提供简单易用的命令来锁定、解锁和监控命名空间。
+kubectl-block is a powerful Kubernetes namespace lifecycle management tool that works with block-controller to provide simple and easy-to-use commands for locking, unlocking, and monitoring namespaces.
 
-### 主要特性
+### Key Features
 
-- 🔒 **命名空间锁定**：一键锁定命名空间，自动缩减工作负载
-- 🔓 **命名空间解锁**：恢复命名空间到活跃状态
-- 📊 **状态监控**：实时查看命名空间状态和剩余锁定时间
-- 🎯 **灵活定位**：支持按名称、选择器或批量操作
-- 🚀 **安全预览**：干运行模式预览操作影响
-- 📝 **操作审计**：详细的操作记录和原因追踪
+- 🔒 **Namespace Locking**: Lock namespaces with one command, automatically scaling down workloads
+- 🔓 **Namespace Unlocking**: Restore namespaces to active state
+- 📊 **Status Monitoring**: Real-time view of namespace status and remaining lock time
+- 🎯 **Flexible Targeting**: Support for selection by name, selector, or batch operations
+- 🚀 **Safe Preview**: Dry-run mode to preview operation impact
+- 📝 **Operation Auditing**: Detailed operation logs and reason tracking
 
-### 工作原理
+### How It Works
 
 ```
-用户使用 kubectl-block CLI
+User uses kubectl-block CLI
         ↓
-    更新 Namespace 标签
+    Update Namespace labels
         ↓
-block-controller 监听标签变化
+block-controller watches for label changes
         ↓
-    执行相应操作：
-  - 缩减工作负载
-  - 应用资源配额
-  - 设置过期时间
+    Execute corresponding actions:
+  - Scale down workloads
+  - Apply resource quotas
+  - Set expiration time
 ```
 
-## 安装
+## Installation
 
-### 方式一：从源码编译
+### Method 1: Build from Source
 
 ```bash
-# 克隆项目
+# Clone the project
 git clone https://github.com/gitlayzer/block-controller.git
 cd block-controller/cmd/kubectl-block
 
-# 编译
+# Build
 make build
 
-# 安装到系统路径
+# Install to system path
 make install
 ```
 
-### 方式二：下载预编译二进制
+### Method 2: Download Pre-compiled Binary
 
 ```bash
-# 下载对应平台的二进制文件
+# Download the binary for your platform
 wget https://github.com/gitlayzer/block-controller/releases/latest/download/kubectl-block-linux-amd64.tar.gz
 tar -xzf kubectl-block-linux-amd64.tar.gz
 
-# 安装
+# Install
 sudo mv kubectl-block /usr/local/bin/
 ```
 
-### 方式三：使用 Homebrew (macOS)
+### Method 3: Using Homebrew (macOS)
 
 ```bash
-# 添加 tap
+# Add tap
 brew tap gitlayzer/block-controller
 
-# 安装
+# Install
 brew install kubectl-block
 ```
 
-### 验证安装
+### Verify Installation
 
 ```bash
 kubectl-block --help
 kubectl-block version
 ```
 
-## 快速开始
+## Quick Start
 
-### 基础使用流程
+### Basic Usage Flow
 
 ```bash
-# 1. 查看所有命名空间状态
+# 1. View all namespace statuses
 kubectl block status --all
 
-# 2. 锁定一个命名空间
-kubectl block lock my-namespace --reason="维护窗口"
+# 2. Lock a namespace
+kubectl block lock my-namespace --reason="Maintenance window"
 
-# 3. 查看锁定状态
+# 3. Check lock status
 kubectl block status my-namespace
 
-# 4. 解锁命名空间
-kubectl block unlock my-namespace --reason="维护完成"
+# 4. Unlock namespace
+kubectl block unlock my-namespace --reason="Maintenance completed"
 ```
 
-### 常用命令示例
+### Common Command Examples
 
 ```bash
-# 锁定开发环境所有命名空间
+# Lock all namespaces in dev environment
 kubectl block lock --selector=environment=dev --duration=24h
 
-# 批量解锁所有已锁定的命名空间
+# Batch unlock all locked namespaces
 kubectl block unlock --all-locked
 
-# 查看所有锁定的命名空间
+# View all locked namespaces
 kubectl block status --locked-only
 ```
 
-## 命令详解
+## Command Reference
 
-### 全局参数
+### Global Parameters
 
-所有命令都支持以下全局参数：
+All commands support the following global parameters:
 
 ```bash
---dry-run          # 预览操作，不实际执行
---kubeconfig       # 指定 kubeconfig 文件路径
--n, --namespace    # 指定默认命名空间
--v, --verbose      # 启用详细输出
--h, --help         # 显示帮助信息
+--dry-run          # Preview operation without executing
+--kubeconfig       # Specify kubeconfig file path
+-n, --namespace    # Specify default namespace
+-v, --verbose      # Enable verbose output
+-h, --help         # Show help information
 ```
 
-### lock 命令
+### lock Command
 
-锁定一个或多个命名空间，添加 `clawcloud.run/status=locked` 标签。
+Lock one or more namespaces by adding the `clawcloud.run/status=locked` label.
 
-#### 语法
+#### Syntax
 
 ```bash
 kubectl block lock <namespace-name> [flags]
 ```
 
-#### 主要参数
+#### Main Parameters
 
-| 参数 | 简写 | 类型 | 默认值 | 说明 |
+| Parameter | Short | Type | Default | Description |
 |------|------|------|--------|------|
-| `--duration` | `-d` | duration | 24h | 锁定时长 |
-| `--reason` | `-r` | string | "Manual operation via kubectl-block" | 锁定原因 |
-| `--force` | | bool | false | 跳过确认提示 |
-| `--selector` | `-l` | string | | 标签选择器 |
-| `--all` | | bool | false | 锁定所有命名空间（排除系统命名空间） |
+| `--duration` | `-d` | duration | 24h | Lock duration |
+| `--reason` | `-r` | string | "Manual operation via kubectl-block" | Lock reason |
+| `--force` | | bool | false | Skip confirmation prompt |
+| `--selector` | `-l` | string | | Label selector |
+| `--all` | | bool | false | Lock all namespaces (excluding system namespaces) |
 
-#### 使用示例
+#### Usage Examples
 
 ```bash
-# 1. 锁定单个命名空间
+# 1. Lock a single namespace
 kubectl block lock production
 
-# 2. 锁定并指定时长和原因
+# 2. Lock with specified duration and reason
 kubectl block lock staging \
   --duration=48h \
-  --reason="版本发布前的准备工作"
+  --reason="Preparation work before release"
 
-# 3. 锁定所有开发环境命名空间
+# 3. Lock all dev environment namespaces
 kubectl block lock --selector=environment=dev
 
-# 4. 锁定所有非系统命名空间
+# 4. Lock all non-system namespaces
 kubectl block lock --all --force
 
-# 5. 预览锁定操作
+# 5. Preview lock operation
 kubectl block lock --selector=team=backend --dry-run
 ```
 
-#### 时长格式支持
+#### Duration Format Support
 
 ```bash
---duration=24h     # 24小时
---duration=7d      # 7天
---duration=2h30m   # 2小时30分钟
---duration=0       # 永久锁定
---duration=permanent # 永久锁定
+--duration=24h     # 24 hours
+--duration=7d      # 7 days
+--duration=2h30m   # 2 hours and 30 minutes
+--duration=0       # Permanent lock
+--duration=permanent # Permanent lock
 ```
 
-### unlock 命令
+### unlock Command
 
-解锁一个或多个命名空间，将状态标签改为 `active`。
+Unlock one or more namespaces by changing the status label to `active`.
 
-#### 语法
+#### Syntax
 
 ```bash
 kubectl block unlock <namespace-name> [flags]
 ```
 
-#### 主要参数
+#### Main Parameters
 
-| 参数 | 类型 | 默认值 | 说明 |
+| Parameter | Type | Default | Description |
 |------|------|--------|------|
-| `--reason` | string | "Manual operation via kubectl-block" | 解锁原因 |
-| `--force` | bool | false | 跳过确认提示 |
-| `--selector` | string | | 标签选择器 |
-| `--all-locked` | bool | false | 解锁所有已锁定的命名空间 |
+| `--reason` | string | "Manual operation via kubectl-block" | Unlock reason |
+| `--force` | bool | false | Skip confirmation prompt |
+| `--selector` | string | | Label selector |
+| `--all-locked` | bool | false | Unlock all locked namespaces |
 
-#### 使用示例
+#### Usage Examples
 
 ```bash
-# 1. 解锁单个命名空间
+# 1. Unlock a single namespace
 kubectl block unlock production
 
-# 2. 解锁并说明原因
+# 2. Unlock with reason
 kubectl block unlock staging \
-  --reason="发布完成，恢复正常运行"
+  --reason="Release completed, resume normal operation"
 
-# 3. 解锁所有已锁定的命名空间
+# 3. Unlock all locked namespaces
 kubectl block unlock --all-locked
 
-# 4. 解锁特定团队的命名空间
+# 4. Unlock specific team's namespaces
 kubectl block unlock --selector=team=frontend
 
-# 5. 强制解锁（跳过确认）
+# 5. Force unlock (skip confirmation)
 kubectl block unlock production --force
 ```
 
-### status 命令
+### status Command
 
-显示命名空间的当前状态，包括锁定状态和剩余锁定时间。
+Display the current status of namespaces, including lock status and remaining lock time.
 
-#### 语法
+#### Syntax
 
 ```bash
 kubectl block status [namespace-name] [flags]
 ```
 
-#### 主要参数
+#### Main Parameters
 
-| 参数 | 简写 | 类型 | 默认值 | 说明 |
+| Parameter | Short | Type | Default | Description |
 |------|------|------|--------|------|
-| `--all` | | bool | false | 显示所有命名空间状态 |
-| `--locked-only` | | bool | false | 只显示锁定的命名空间 |
-| `--details` | `-D` | bool | false | 显示详细信息 |
+| `--all` | | bool | false | Show status of all namespaces |
+| `--locked-only` | | bool | false | Show only locked namespaces |
+| `--details` | `-D` | bool | false | Show detailed information |
 
-#### 使用示例
+#### Usage Examples
 
 ```bash
-# 1. 查看特定命名空间状态
+# 1. View specific namespace status
 kubectl block status production
 
-# 2. 查看所有命名空间状态
+# 2. View all namespace statuses
 kubectl block status --all
 
-# 3. 只查看锁定的命名空间
+# 3. View only locked namespaces
 kubectl block status --locked-only
 
-# 4. 查看详细信息
+# 4. View detailed information
 kubectl block status production --details
 
-# 5. 按选择器查看状态
+# 5. View status by selector
 kubectl block status --selector=environment=prod
 ```
 
-#### 输出格式
+#### Output Format
 
-status 命令的输出包含以下列：
+The status command output contains the following columns:
 
 ```
-NAMESPACE    STATUS    REMAINING    REASON    WORKLOADS
-production   🔒 locked  2h15m        维护中     3
-staging      🔓 active  -            -         5
-dev          🔒 locked  expired      测试完成   2
+NAMESPACE    STATUS    REMAINING    REASON         WORKLOADS
+production   🔒 locked  2h15m        Under maint.   3
+staging      🔓 active  -            -              5
+dev          🔒 locked  expired      Testing done   2
 ```
 
-- **NAMESPACE**: 命名空间名称
-- **STATUS**: 当前状态（🔒 locked / 🔓 active）
-- **REMAINING**: 剩余锁定时间
-- **REASON**: 锁定原因
-- **WORKLOADS**: 工作负载数量
+- **NAMESPACE**: Namespace name
+- **STATUS**: Current status (🔒 locked / 🔓 active)
+- **REMAINING**: Remaining lock time
+- **REASON**: Lock reason
+- **WORKLOADS**: Number of workloads
 
-## 使用场景
+## Use Cases
 
-### 场景1：维护窗口
+### Scenario 1: Maintenance Window
 
 ```bash
 #!/bin/bash
-# 维护前准备
-echo "🔒 开始维护准备..."
+# Pre-maintenance preparation
+echo "🔒 Starting maintenance preparation..."
 
-# 1. 锁定生产环境
+# 1. Lock production environment
 kubectl block lock production \
   --duration=4h \
-  --reason="数据库维护" \
+  --reason="Database maintenance" \
   --force
 
-# 2. 确认状态
+# 2. Confirm status
 kubectl block status production
 
-# 3. 等待维护完成
-echo "⏳ 维护进行中..."
+# 3. Wait for maintenance completion
+echo "⏳ Maintenance in progress..."
 
-# 4. 维护完成后解锁
+# 4. Unlock after maintenance
 kubectl block unlock production \
-  --reason="数据库维护完成"
+  --reason="Database maintenance completed"
 
-echo "✅ 维护完成！"
+echo "✅ Maintenance completed!"
 ```
 
-### 场景2：环境管理
+### Scenario 2: Environment Management
 
 ```bash
-# 工作日锁定开发环境
+# Lock dev environment during off-hours
 kubectl block lock --selector=environment=dev \
   --duration=16h \
-  --reason="非工作时间锁定"
+  --reason="Off-hours lockdown"
 
-# 周末解锁所有开发环境
+# Unlock all dev environments on weekends
 kubectl block unlock --selector=environment=dev \
-  --reason="周末开发时间"
+  --reason="Weekend development time"
 
-# 检查所有环境状态
+# Check all environment statuses
 kubectl block status --all
 ```
 
-### 场景3：安全事件响应
+### Scenario 3: Security Incident Response
 
 ```bash
 #!/bin/bash
-# 安全事件响应流程
+# Security incident response workflow
 
-# 1. 快速锁定可疑命名空间
+# 1. Quickly lock suspicious namespace
 kubectl block lock suspicious-namespace \
   --force \
-  --reason="安全事件调查"
+  --reason="Security incident investigation"
 
-# 2. 锁定相关环境
+# 2. Lock related environments
 kubectl block lock --selector=team=affected-team \
   --duration=24h \
-  --reason="安全事件影响评估"
+  --reason="Security incident impact assessment"
 
-# 3. 查看当前状态
+# 3. View current status
 kubectl block status --locked-only
 
-# 4. 事件处理后解锁
+# 4. Unlock after incident handling
 kubectl block unlock suspicious-namespace \
-  --reason="安全事件处理完成"
+  --reason="Security incident resolved"
 ```
 
-### 场景4：成本控制
+### Scenario 4: Cost Control
 
 ```bash
-# 非工作时间锁定非生产环境
+# Lock non-production environments during off-hours
 kubectl block lock --selector="environment in (dev,staging)" \
   --duration=64h \
-  --reason="周末成本控制"
+  --reason="Weekend cost control"
 
-# 查看节省的成本
+# View cost savings
 kubectl block status --locked-only
 
-# 工作日开始时解锁
+# Unlock at start of business day
 kubectl block unlock --selector="environment in (dev,staging)" \
-  --reason="工作日开始"
+  --reason="Business day started"
 ```
 
-## 最佳实践
+## Best Practices
 
-### 1. 操作前检查
+### 1. Pre-Operation Checks
 
 ```bash
-# 操作前总是先查看当前状态
+# Always check current status before operations
 kubectl block status --all
 
-# 使用 dry-run 预览操作影响
+# Use dry-run to preview operation impact
 kubectl block lock --selector=environment=dev --dry-run
 ```
 
-### 2. 明确的操作原因
+### 2. Clear Operation Reasons
 
 ```bash
-# ✅ 好的做法：明确说明原因
+# ✅ Good practice: Clear reason
 kubectl block lock production \
-  --reason="v2.1.0版本发布 - 数据库迁移"
+  --reason="v2.1.0 release - database migration"
 
-# ❌ 避免使用模糊的原因
-kubectl block lock production --reason="维护"
+# ❌ Avoid vague reasons
+kubectl block lock production --reason="Maintenance"
 ```
 
-### 3. 合理的锁定时长
+### 3. Reasonable Lock Duration
 
 ```bash
-# ✅ 短期维护：明确的时间
-kubectl block lock production --duration=2h --reason="补丁更新"
+# ✅ Short-term maintenance: Specific time
+kubectl block lock production --duration=2h --reason="Patch update"
 
-# ✅ 长期项目：明确的时间范围
-kubectl block lock dev --duration=3d --reason="架构重构"
+# ✅ Long-term project: Clear timeframe
+kubectl block lock dev --duration=3d --reason="Architecture refactoring"
 
-# ❌ 避免过长的锁定时间
-kubectl block lock production --duration=30d --reason="长期维护"
+# ❌ Avoid excessively long lock times
+kubectl block lock production --duration=30d --reason="Long-term maintenance"
 ```
 
-### 4. 批量操作的谨慎使用
+### 4. Careful Batch Operations
 
 ```bash
-# ✅ 先预览，再执行
+# ✅ Preview first, then execute
 kubectl block lock --selector=environment=dev --dry-run
 kubectl block lock --selector=environment=dev
 
-# ✅ 记录批量操作
-echo "$(date): 锁定所有dev环境" >> /var/log/kubectl-block.log
-kubectl block lock --selector=environment=dev --reason="批量维护"
+# ✅ Log batch operations
+echo "$(date): Locking all dev environments" >> /var/log/kubectl-block.log
+kubectl block lock --selector=environment=dev --reason="Batch maintenance"
 ```
 
-### 5. 监控和审计
+### 5. Monitoring and Auditing
 
 ```bash
-# 定期检查锁定的命名空间
+# Regularly check locked namespaces
 kubectl block status --locked-only
 
-# 创建监控脚本
+# Create monitoring script
 #!/bin/bash
 while true; do
   kubectl block status --locked-only | grep "expired" && \
-  echo "发现已过期的锁定，需要处理"
+  echo "Found expired locks, need handling"
   sleep 300
 done
 ```
 
-## 故障排除
+## Troubleshooting
 
-### 常见问题
+### Common Issues
 
-#### 1. 连接错误
+#### 1. Connection Error
 
 ```bash
 Error: invalid configuration: no configuration has been provided
 ```
 
-**解决方案：**
+**Solution:**
 ```bash
-# 检查 kubectl 配置
+# Check kubectl configuration
 kubectl config current-context
 
-# 指定正确的 kubeconfig
+# Specify correct kubeconfig
 kubectl block status --all --kubeconfig=/path/to/config
 
-# 设置环境变量
+# Set environment variable
 export KUBECONFIG=$HOME/.kube/config
 ```
 
-#### 2. 权限错误
+#### 2. Permission Error
 
 ```bash
 Error: namespaces "production" is forbidden: User "developer" cannot patch namespace
 ```
 
-**解决方案：**
+**Solution:**
 ```bash
-# 检查当前用户权限
+# Check current user permissions
 kubectl auth can-i patch namespaces
 kubectl auth can-i get namespaces
 
-# 联系管理员分配权限
-# 需要的权限：
+# Contact administrator for permissions
+# Required permissions:
 # - namespaces: get, list, patch, update
 # - deployments: get, list, patch, update
 # - statefulsets: get, list, patch, update
 # - resourcequotas: get, list, create, delete
 ```
 
-#### 3. 命名空间不存在
+#### 3. Namespace Not Found
 
 ```bash
 Error: namespaces "nonexistent" not found
 ```
 
-**解决方案：**
+**Solution:**
 ```bash
-# 查看可用的命名空间
+# View available namespaces
 kubectl get namespaces
 
-# 使用正确的命名空间名称
+# Use correct namespace name
 kubectl block status correct-namespace-name
 ```
 
-#### 4. 选择器无匹配
+#### 4. Selector No Match
 
 ```bash
 ℹ️  No namespaces found
 ```
 
-**解决方案：**
+**Solution:**
 ```bash
-# 检查命名空间的标签
+# Check namespace labels
 kubectl get namespaces --show-labels
 
-# 使用正确的选择器
+# Use correct selector
 kubectl block lock --selector=environment=development
 ```
 
-### 调试技巧
+### Debugging Tips
 
-#### 1. 使用详细输出
+#### 1. Use Verbose Output
 
 ```bash
 kubectl block status --all --verbose
 ```
 
-#### 2. 预览操作
+#### 2. Preview Operations
 
 ```bash
 kubectl block lock production --dry-run --verbose
 ```
 
-#### 3. 检查命名空间详情
+#### 3. Check Namespace Details
 
 ```bash
 kubectl get namespace production -o yaml
 ```
 
-#### 4. 手动检查标签
+#### 4. Manually Check Labels
 
 ```bash
 kubectl get namespace production --show-labels
 kubectl get namespace production -o jsonpath='{.metadata.labels}'
 ```
 
-## 高级用法
+## Advanced Usage
 
-### 1. 自动化脚本
+### 1. Automation Scripts
 
-#### 维护自动化脚本
+#### Maintenance Automation Script
 
 ```bash
 #!/bin/bash
@@ -532,100 +532,100 @@ set -e
 
 NAMESPACE=$1
 DURATION=${2:-4h}
-REASON=${3:-"计划维护"}
+REASON=${3:-"Scheduled maintenance"}
 
 if [ -z "$NAMESPACE" ]; then
-    echo "用法: $0 <namespace> [duration] [reason]"
+    echo "Usage: $0 <namespace> [duration] [reason]"
     exit 1
 fi
 
-echo "🔒 开始维护流程：$NAMESPACE"
+echo "🔒 Starting maintenance workflow: $NAMESPACE"
 
-# 检查当前状态
-echo "📊 检查当前状态..."
+# Check current status
+echo "📊 Checking current status..."
 kubectl block status "$NAMESPACE"
 
-# 锁定命名空间
-echo "🔒 锁定命名空间..."
+# Lock namespace
+echo "🔒 Locking namespace..."
 kubectl block lock "$NAMESPACE" \
     --duration="$DURATION" \
     --reason="$REASON" \
     --force
 
-# 等待用户确认维护完成
-echo "⏳ 维护进行中，完成后按任意键继续..."
+# Wait for user to confirm maintenance completion
+echo "⏳ Maintenance in progress, press any key when done..."
 read -n 1 -s
 
-# 解锁命名空间
-echo "🔓 解锁命名空间..."
+# Unlock namespace
+echo "🔓 Unlocking namespace..."
 kubectl block unlock "$NAMESPACE" \
-    --reason="维护完成" \
+    --reason="Maintenance completed" \
     --force
 
-echo "✅ 维护流程完成！"
+echo "✅ Maintenance workflow completed!"
 ```
 
-### 2. 监控脚本
+### 2. Monitoring Scripts
 
-#### 锁定状态监控
+#### Lock Status Monitoring
 
 ```bash
 #!/bin/bash
 # monitor.sh
 
-echo "📊 命名空间锁定状态报告"
+echo "📊 Namespace Lock Status Report"
 echo "========================"
-echo "时间: $(date)"
+echo "Time: $(date)"
 echo
 
-# 显示所有锁定状态
+# Display all lock statuses
 kubectl block status --locked-only
 
 echo
-echo "⏰ 即将过期的锁定："
+echo "⏰ Locks expiring soon:"
 kubectl block status --all | grep -E "(expired|[0-9]+m|[0-9]+s)"
 
 echo
-echo "📈 统计信息："
+echo "📈 Statistics:"
 TOTAL_LOCKED=$(kubectl block status --locked-only | wc -l)
-echo "当前锁定数量: $TOTAL_LOCKED"
+echo "Currently locked: $TOTAL_LOCKED"
 ```
 
-### 3. 定时任务
+### 3. Scheduled Tasks
 
-#### 自动解锁过期命名空间
+#### Auto-unlock Expired Namespaces
 
 ```bash
 #!/bin/bash
 # auto-unlock-expired.sh
 
-# 查找并解锁已过期的命名空间
+# Find and unlock expired namespaces
 kubectl block status --all | grep "expired" | while read line; do
     namespace=$(echo $line | awk '{print $1}')
-    echo "🔓 自动解锁过期命名空间: $namespace"
+    echo "🔓 Auto-unlocking expired namespace: $namespace"
     kubectl block unlock "$namespace" \
-        --reason="自动解锁：锁定已过期" \
+        --reason="Auto-unlock: lock expired" \
         --force
 done
 ```
 
-#### 定时任务配置
+#### Cron Job Configuration
 
 ```bash
-# 添加到 crontab
-# 每小时检查过期锁定
+# Add to crontab
+# Check for expired locks every hour
 0 * * * * /path/to/auto-unlock-expired.sh
 
-# 每天早上9点解锁开发环境
-0 9 * * 1-5 /path/to/kubectl-block unlock --selector=environment=dev --reason="工作时间开始" --force
+# Unlock dev environment at 9 AM on weekdays
+0 9 * * 1-5 /path/to/kubectl-block unlock --selector=environment=dev --reason="Business hours started" --force
 
-# 每天晚上7点锁定开发环境
-0 19 * * 1-5 /path/to/kubectl-block lock --selector=environment=dev --duration=14h --reason="非工作时间" --force
+# Lock dev environment at 7 PM on weekdays
+0 19 * * 1-5 /path/to/kubectl-block lock --selector=environment=dev --duration=14h --reason="Off-hours" --force
 ```
 
-### 4. 集成到 CI/CD
+### 4. CI/CD Integration
 
-#### GitLab CI 示例
+#### GitLab CI Example
 
 ```yaml
 stages:
@@ -636,30 +636,30 @@ stages:
 deploy_production:
   stage: deploy
   script:
-    - echo "部署到生产环境..."
-    # 部署逻辑
+    - echo "Deploying to production..."
+    # Deployment logic
 
 lock_production:
   stage: lock
   script:
-    - echo "锁定生产环境进行维护..."
+    - echo "Locking production for maintenance..."
     - kubectl block lock production \
         --duration=2h \
-        --reason="CI/CD部署维护"
+        --reason="CI/CD deployment maintenance"
   when: manual
 
 unlock_production:
   stage: unlock
   script:
-    - echo "解锁生产环境..."
+    - echo "Unlocking production..."
     - kubectl block unlock production \
-        --reason="CI/CD部署完成"
+        --reason="CI/CD deployment completed"
   when: manual
 ```
 
-### 5. 多集群管理
+### 5. Multi-Cluster Management
 
-#### 多集群配置脚本
+#### Multi-Cluster Configuration Script
 
 ```bash
 #!/bin/bash
@@ -673,57 +673,57 @@ CLUSTERS=(
 )
 
 for env in "${!CLUSTERS[@]}"; do
-    echo "📊 检查环境: $env"
+    echo "📊 Checking environment: $env"
     KUBECONFIG="${CLUSTERS[$env]}" kubectl block status --locked-only
     echo "------------------------"
 done
 ```
 
-### 6. 自定义输出格式
+### 6. Custom Output Formats
 
-#### JSON 输出处理
+#### JSON Output Processing
 
 ```bash
-# 输出 JSON 格式并处理
+# Output JSON format and process
 kubectl block status --all --output=json | jq '.[] | select(.status=="locked")'
 
-# 生成报告
+# Generate report
 kubectl block status --all --output=json | \
   jq -r '.[] | "\(.name):\(.status):\(.remaining)"' > status-report.txt
 ```
 
-### 7. 与其他工具集成
+### 7. Integration with Other Tools
 
-#### 结合 kubectl 使用
+#### Using with kubectl
 
 ```bash
-# 查看锁定命名空间的详细信息
+# View detailed information for locked namespaces
 for ns in $(kubectl get namespaces -l clawcloud.run/status=locked -o jsonpath='{.items[*].metadata.name}'); do
-    echo "📊 命名空间: $ns"
+    echo "📊 Namespace: $ns"
     kubectl get pods -n $ns
     kubectl get deployments -n $ns
     echo "---"
 done
 ```
 
-#### 结合 Helm 使用
+#### Using with Helm
 
 ```bash
-# 锁定命名空间，更新 Helm chart，然后解锁
-kubectl block lock my-app --reason="Helm更新"
+# Lock namespace, update Helm chart, then unlock
+kubectl block lock my-app --reason="Helm update"
 helm upgrade my-app ./my-chart --namespace my-app
-kubectl block unlock my-app --reason="Helm更新完成"
+kubectl block unlock my-app --reason="Helm update completed"
 ```
 
-## 总结
+## Summary
 
-kubectl-block CLI 提供了一个强大而直观的界面来管理 Kubernetes 命名空间的生命周期。通过合理使用其功能，可以有效控制资源使用、简化维护流程、提高运维效率。
+kubectl-block CLI provides a powerful and intuitive interface for managing Kubernetes namespace lifecycles. By using its features properly, you can effectively control resource usage, simplify maintenance workflows, and improve operational efficiency.
 
-记住关键原则：
-- **安全第一**：使用 dry-run 预览操作
-- **明确原因**：为每个操作提供清晰的说明
-- **合理时长**：设置适当的锁定时间
-- **及时监控**：定期检查命名空间状态
-- **自动运维**：结合脚本实现自动化管理
+Remember the key principles:
+- **Safety First**: Use dry-run to preview operations
+- **Clear Reasons**: Provide clear explanations for each operation
+- **Reasonable Duration**: Set appropriate lock times
+- **Timely Monitoring**: Regularly check namespace status
+- **Automated Operations**: Combine with scripts for automated management
 
-通过遵循这些指南和最佳实践，您可以充分利用 kubectl-block 的功能，确保 Kubernetes 环境的安全和高效运行。
+By following these guidelines and best practices, you can fully leverage kubectl-block's capabilities to ensure safe and efficient operation of your Kubernetes environment.

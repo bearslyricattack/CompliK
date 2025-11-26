@@ -6,31 +6,31 @@ metadata:
   namespace: block-system
 data:
   config.yaml: |
-    # 扫描器自身配置
+    # Scanner configuration
     scanner:
       proc_path: "/host/proc"
       scan_interval: "100s"
       log_level: "info"
 
-    # 自动化动作配置
+    # Automated actions configuration
     actions:
       label:
         enabled: true
         data:
           clawcloud.run/status: "locked"
       forceDelete:
-        enabled: true # 默认关闭，保证安全
+        enabled: true # Disabled by default to ensure security
 
-    # 通知渠道配置
+    # Notification channel configuration
     notifications:
       lark:
         webhook: "https://open.feishu.cn/open-apis/bot/v2/hook/de0df867-9457-49be-a747-e01274a319cc"
 
-    # 检测规则配置
+    # Detection rules configuration
     detectionRules:
       blacklist:
         processes:
-          - "^miner$" # 精确匹配 miner
+          - "^miner$" # Exact match for miner
           - "^xmrig$"
           - "^xmrig-vrl$"
           - "^argosb$"

@@ -32,7 +32,7 @@ spec:
         app.kubernetes.io/name: block-controller
         app.kubernetes.io/version: v0.1.2
     spec:
-      # 指定运行在 amd64 架构上
+      # Specify running on amd64 architecture
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -106,7 +106,7 @@ spec:
           periodSeconds: 10
           timeoutSeconds: 5
           failureThreshold: 30
-        # 优化资源配置 - 基于我们的性能测试
+        # Optimized resource configuration - Based on our performance testing
         resources:
           limits:
             cpu: 1000m

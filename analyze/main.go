@@ -180,9 +180,9 @@ func (ka *KeywordAnalyzer) AnalyzeKeywords(keywords []string, topN int) []Keywor
 func GetChineseFont() (*truetype.Font, error) {
 	fontPaths := []string{
 		// Windows fonts
-		"C:/Windows/Fonts/simhei.ttf", // SimHei (黑体)
-		"C:/Windows/Fonts/msyh.ttc",   // Microsoft YaHei (微软雅黑)
-		"C:/Windows/Fonts/simsun.ttc", // SimSun (宋体)
+		"C:/Windows/Fonts/simhei.ttf", // SimHei (SimHei)
+		"C:/Windows/Fonts/msyh.ttc",   // Microsoft YaHei (Microsoft YaHei)
+		"C:/Windows/Fonts/simsun.ttc", // SimSun (SimSun)
 		// Linux fonts
 		"/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
 		"/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",

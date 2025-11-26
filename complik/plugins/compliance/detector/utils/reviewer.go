@@ -433,14 +433,6 @@ type Compliance struct {
 	Explanation string `json:"explanation"`
 }
 
-type APIResponse struct {
-	Choices []struct {
-		Message struct {
-			Content string `json:"content"`
-		} `json:"message"`
-	} `json:"choices"`
-}
-
 var ReviewResultSchema = map[string]any{
 	"type": "json_schema",
 	"json_schema": map[string]any{

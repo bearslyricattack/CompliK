@@ -1,248 +1,248 @@
-# kubectl-block 快速参考卡
+# kubectl-block Quick Reference Card
 
-## 安装
+## Installation
 
 ```bash
-# 从源码编译
+# Compile from source
 git clone https://github.com/gitlayzer/block-controller.git
 cd block-controller/cmd/kubectl-block
 make install
 
-# 或下载二进制
+# Or download binary
 wget https://github.com/gitlayzer/block-controller/releases/latest/download/kubectl-block-linux-amd64.tar.gz
 tar -xzf kubectl-block-linux-amd64.tar.gz
 sudo mv kubectl-block /usr/local/bin/
 ```
 
-## 常用命令
+## Common Commands
 
-### 🔒 锁定操作
+### 🔒 Lock Operations
 
 ```bash
-# 锁定单个命名空间
+# Lock a single namespace
 kubectl block lock my-namespace
 
-# 带时长和原因的锁定
-kubectl block lock my-namespace --duration=24h --reason="维护窗口"
+# Lock with duration and reason
+kubectl block lock my-namespace --duration=24h --reason="Maintenance window"
 
-# 锁定所有开发环境
+# Lock all development environments
 kubectl block lock --selector=environment=dev
 
-# 锁定所有命名空间
+# Lock all namespaces
 kubectl block lock --all --force
 
-# 预览锁定操作
+# Preview lock operation
 kubectl block lock --selector=team=backend --dry-run
 ```
 
-### 🔓 解锁操作
+### 🔓 Unlock Operations
 
 ```bash
-# 解锁单个命名空间
+# Unlock a single namespace
 kubectl block unlock my-namespace
 
-# 解锁所有已锁定的命名空间
+# Unlock all locked namespaces
 kubectl block unlock --all-locked
 
-# 按选择器解锁
+# Unlock by selector
 kubectl block unlock --selector=environment=dev
 
-# 强制解锁（跳过确认）
+# Force unlock (skip confirmation)
 kubectl block unlock my-namespace --force
 ```
 
-### 📊 状态查看
+### 📊 Status View
 
 ```bash
-# 查看特定命名空间
+# View specific namespace
 kubectl block status my-namespace
 
-# 查看所有命名空间
+# View all namespaces
 kubectl block status --all
 
-# 只查看锁定的命名空间
+# View locked namespaces only
 kubectl block status --locked-only
 
-# 查看详细信息
+# View detailed information
 kubectl block status my-namespace --details
 ```
 
-## 时长格式
+## Duration Format
 
-| 格式 | 说明 | 示例 |
+| Format | Description | Example |
 |------|------|------|
-| `h` | 小时 | `24h` (24小时) |
-| `d` | 天 | `7d` (7天) |
-| `m` | 分钟 | `30m` (30分钟) |
-| `h+m` | 小时+分钟 | `2h30m` (2小时30分钟) |
-| `0` 或 `permanent` | 永久 | `0` 或 `permanent` |
+| `h` | Hours | `24h` (24 hours) |
+| `d` | Days | `7d` (7 days) |
+| `m` | Minutes | `30m` (30 minutes) |
+| `h+m` | Hours + Minutes | `2h30m` (2 hours 30 minutes) |
+| `0` or `permanent` | Permanent | `0` or `permanent` |
 
-## 常用场景
+## Common Scenarios
 
-### 维护流程
+### Maintenance Workflow
 ```bash
-# 1. 锁定
-kubectl block lock production --duration=4h --reason="数据库维护"
+# 1. Lock
+kubectl block lock production --duration=4h --reason="Database maintenance"
 
-# 2. 检查状态
+# 2. Check status
 kubectl block status production
 
-# 3. 解锁
-kubectl block unlock production --reason="维护完成"
+# 3. Unlock
+kubectl block unlock production --reason="Maintenance completed"
 ```
 
-### 环境管理
+### Environment Management
 ```bash
-# 工作日锁定开发环境
-kubectl block lock --selector=environment=dev --duration=16h --reason="工作时间"
+# Lock development environment during business hours
+kubectl block lock --selector=environment=dev --duration=16h --reason="Business hours"
 
-# 周末解锁
-kubectl block unlock --selector=environment=dev --reason="周末开发"
+# Unlock for weekend
+kubectl block unlock --selector=environment=dev --reason="Weekend development"
 ```
 
-### 紧急响应
+### Emergency Response
 ```bash
-# 快速锁定
-kubectl block lock suspicious-namespace --force --reason="安全调查"
+# Quick lock
+kubectl block lock suspicious-namespace --force --reason="Security investigation"
 
-# 批量锁定相关环境
-kubectl block lock --selector=team=affected --duration=24h --reason="安全事件"
+# Batch lock related environments
+kubectl block lock --selector=team=affected --duration=24h --reason="Security incident"
 ```
 
-## 标签说明
+## Label Descriptions
 
-kubectl-block 使用以下标签和注解：
+kubectl-block uses the following labels and annotations:
 
-| 标签/注解 | 说明 | 值 |
+| Label/Annotation | Description | Value |
 |-----------|------|-----|
-| `clawcloud.run/status` | 命名空间状态 | `locked` / `active` |
-| `clawcloud.run/lock-reason` | 锁定原因 | 用户定义的文本 |
-| `clawcloud.run/unlock-timestamp` | 解锁时间 | RFC3339 格式时间 |
-| `clawcloud.run/lock-operator` | 锁定操作者 | `kubectl-block` |
+| `clawcloud.run/status` | Namespace status | `locked` / `active` |
+| `clawcloud.run/lock-reason` | Lock reason | User-defined text |
+| `clawcloud.run/unlock-timestamp` | Unlock timestamp | RFC3339 format time |
+| `clawcloud.run/lock-operator` | Lock operator | `kubectl-block` |
 
-## 输出图标
+## Output Icons
 
-| 图标 | 状态 | 含义 |
+| Icon | Status | Meaning |
 |------|------|------|
-| 🔒 | locked | 命名空间已锁定 |
-| 🔓 | active | 命名空间活跃 |
-| ✅ | success | 操作成功 |
-| ❌ | failed | 操作失败 |
-| ⚠️ | warning | 警告信息 |
-| ℹ️ | info | 信息提示 |
+| 🔒 | locked | Namespace is locked |
+| 🔓 | active | Namespace is active |
+| ✅ | success | Operation succeeded |
+| ❌ | failed | Operation failed |
+| ⚠️ | warning | Warning message |
+| ℹ️ | info | Information notice |
 
-## 全局参数
+## Global Parameters
 
-| 参数 | 说明 |
+| Parameter | Description |
 |------|------|
-| `--dry-run` | 预览操作，不实际执行 |
-| `--kubeconfig` | 指定 kubeconfig 文件 |
-| `-n, --namespace` | 指定命名空间 |
-| `-v, --verbose` | 详细输出 |
-| `-h, --help` | 显示帮助 |
+| `--dry-run` | Preview operation without executing |
+| `--kubeconfig` | Specify kubeconfig file |
+| `-n, --namespace` | Specify namespace |
+| `-v, --verbose` | Verbose output |
+| `-h, --help` | Show help |
 
-## 故障排除
+## Troubleshooting
 
-### 连接问题
+### Connection Issues
 ```bash
-# 检查配置
+# Check configuration
 kubectl config current-context
 
-# 指定配置文件
+# Specify config file
 kubectl block status --all --kubeconfig=/path/to/config
 ```
 
-### 权限问题
+### Permission Issues
 ```bash
-# 检查权限
+# Check permissions
 kubectl auth can-i patch namespaces
 
-# 需要的权限
+# Required permissions
 # namespaces: get, list, patch, update
 # deployments: get, list, patch, update
 # statefulsets: get, list, patch, update
 # resourcequotas: get, list, create, delete
 ```
 
-### 调试技巧
+### Debugging Tips
 ```bash
-# 详细输出
+# Verbose output
 kubectl block status --all --verbose
 
-# 预览操作
+# Preview operation
 kubectl block lock production --dry-run --verbose
 
-# 检查标签
+# Check labels
 kubectl get namespaces --show-labels
 ```
 
-## 常用选择器
+## Common Selectors
 
 ```bash
-# 按环境
+# By environment
 --selector=environment=dev
 --selector=environment in (dev,staging)
 
-# 按团队
+# By team
 --selector=team=backend
 --selector=team!=frontend
 
-# 按应用
+# By application
 --selector=app=microservice
 
-# 组合选择器
+# Combined selectors
 --selector="environment=dev,team=backend"
 ```
 
-## 脚本示例
+## Script Examples
 
-### 批量维护脚本
+### Batch Maintenance Script
 ```bash
 #!/bin/bash
 ENVIRONMENTS=("dev" "staging" "qa")
 
 for env in "${ENVIRONMENTS[@]}"; do
-    echo "处理环境: $env"
+    echo "Processing environment: $env"
     kubectl block lock --selector=environment=$env \
         --duration=8h \
-        --reason="周末维护" \
+        --reason="Weekend maintenance" \
         --force
 done
 ```
 
-### 状态监控脚本
+### Status Monitoring Script
 ```bash
 #!/bin/bash
-echo "锁定状态报告 $(date)"
+echo "Lock Status Report $(date)"
 kubectl block status --locked-only
 echo
-echo "即将过期："
+echo "Expiring soon:"
 kubectl block status --all | grep -E "[0-9]+m|[0-9]+s|expired"
 ```
 
-## 最佳实践
+## Best Practices
 
-1. **操作前预览**：始终使用 `--dry-run` 预览操作
-2. **明确原因**：为所有操作提供清晰的 `--reason`
-3. **合理时长**：设置适当的 `--duration`
-4. **定期检查**：使用 `kubectl block status --locked-only` 监控
-5. **批量谨慎**：批量操作前先测试单个命名空间
+1. **Preview Before Action**: Always use `--dry-run` to preview operations
+2. **Clear Reasons**: Provide clear `--reason` for all operations
+3. **Reasonable Duration**: Set appropriate `--duration`
+4. **Regular Checks**: Monitor using `kubectl block status --locked-only`
+5. **Batch Operations Carefully**: Test on a single namespace before batch operations
 
-## 获取帮助
+## Getting Help
 
 ```bash
-# 主帮助
+# Main help
 kubectl block --help
 
-# 命令帮助
+# Command help
 kubectl block lock --help
 kubectl block unlock --help
 kubectl block status --help
 
-# 示例
+# Examples
 kubectl block lock --help
 ```
 
 ---
 
-**提示**: 将此卡片保存为书签或打印出来，方便日常快速查阅！
+**Tip**: Save this card as a bookmark or print it out for quick daily reference!

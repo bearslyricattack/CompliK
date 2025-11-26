@@ -1,5 +1,5 @@
-# Block Controller v0.1.2 - 优化版本的 Deployment 配置
-# 支持超大规模 namespace (10万+) 的内存高效事件驱动架构
+# Block Controller v0.1.2 - Optimized Deployment Configuration
+# Supports ultra-large scale namespaces (100,000+) with memory-efficient event-driven architecture
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -18,7 +18,7 @@ spec:
       labels:
         app.kubernetes.io/name: block-controller
     spec:
-      # 安全配置 - 优化版本
+      # Security configuration - Optimized version
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532
@@ -26,38 +26,38 @@ spec:
         fsGroup: 65532
         seccompProfile:
           type: RuntimeDefault
-      # 服务账户
+      # Service account
       serviceAccountName: controller-manager
-      # 容器配置 - 优化版本
+      # Container configuration - Optimized version
       containers:
       - name: manager
         image: layzer/block-controller:v0.1.5
         imagePullPolicy: IfNotPresent
-        # 启动命令和参数 - 基于性能测试的优化配置
+        # Startup command and arguments - Optimized based on performance testing
         command:
         - /manager
         args:
-        # 基础配置
+        # Basic configuration
         - --leader-elect=false
         - --health-probe-bind-address=:8081
         - --metrics-bind-address=:8443
         - --metrics-secure=true
-        # 日志配置 - 生产环境级别
+        # Log configuration - Production level
         - --zap-devel=false
         - --zap-log-level=info
-        # 内存优化配置 - 基于我们的性能测试结果
+        # Memory optimization configuration - Based on performance test results
         - --max-memory-mb=1024
         - --max-concurrent-reconciles=20
         - --worker-count=10
-        # 扫描间隔优化 - 减少不必要的轮询
+        # Scan interval optimization - Reduce unnecessary polling
         - --fast-scan-interval=5m
         - --slow-scan-interval=1h
         - --scan-batch-size=1000
-        # 锁定时间配置
+        # Lock duration configuration
         - --lock-duration=168h
-        # Webhook 配置
+        # Webhook configuration
         - --web-hook-enable=true
-        # 环境变量 - 优化版本
+        # Environment variables - Optimized version
         env:
         - name: POD_NAME
           valueFrom:
@@ -79,7 +79,7 @@ spec:
           value: "info"
         - name: LOG_DEVEL
           value: "false"
-        # 端口配置
+        # Port configuration
         ports:
         - name: healthz
           containerPort: 8081
@@ -87,7 +87,7 @@ spec:
         - name: metrics
           containerPort: 8443
           protocol: TCP
-        # 健康检查 - 优化配置
+        # Health checks - Optimized configuration
         startupProbe:
           httpGet:
             path: /healthz
@@ -112,7 +112,7 @@ spec:
           periodSeconds: 10
           timeoutSeconds: 3
           failureThreshold: 3
-        # 资源配置 - 基于性能测试结果
+        # Resource configuration - Based on performance test results
         resources:
           requests:
             cpu: 500m
@@ -120,20 +120,20 @@ spec:
           limits:
             cpu: 1000m
             memory: 1Gi
-        # 安全配置
+        # Security configuration
         securityContext:
           readOnlyRootFilesystem: true
           allowPrivilegeEscalation: false
           capabilities:
             drop:
             - "ALL"
-        # 卷挂载
+        # Volume mounts
         volumeMounts:
         - name: tmp
           mountPath: /tmp
         - name: var-run
           mountPath: /var/run
-      # 卷配置
+      # Volume configuration
       volumes:
       - name: tmp
         emptyDir:
@@ -141,7 +141,7 @@ spec:
       - name: var-run
         emptyDir:
           sizeLimit: 50Mi
-      # 容忍配置 - 支持在控制平面运行
+      # Tolerations configuration - Support running on control plane
       tolerations:
       - key: node-role.kubernetes.io/master
         operator: Exists
@@ -152,6 +152,6 @@ spec:
       - key: CriticalAddonsOnly
         operator: Exists
         effect: NoSchedule
-      # 优雅关闭配置
+      # Graceful shutdown configuration
       terminationGracePeriodSeconds: 30
       restartPolicy: Always

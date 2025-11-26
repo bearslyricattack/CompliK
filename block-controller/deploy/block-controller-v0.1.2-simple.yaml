@@ -1,5 +1,5 @@
-# Block Controller v0.1.2 - 简化部署配置
-# 适用于没有 Prometheus Operator 的环境
+# Block Controller v0.1.2 - Simplified Deployment Configuration
+# For environments without Prometheus Operator
 
 ---
 apiVersion: v1

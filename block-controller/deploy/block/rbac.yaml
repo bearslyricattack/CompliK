@@ -1,5 +1,5 @@
-# Block Controller v0.1.2 - 优化版本的 RBAC 配置
-# 支持超大规模 namespace (10万+) 的内存高效事件驱动架构
+# Block Controller v0.1.2 - Optimized RBAC Configuration
+# Supports ultra-large scale namespaces (100,000+) with memory-efficient event-driven architecture
 
 ---
 # ServiceAccount
@@ -11,7 +11,7 @@ metadata:
   labels:
     app.kubernetes.io/name: block-controller
 ---
-# Leader Election Role (保持不变)
+# Leader Election Role (unchanged)
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -52,7 +52,7 @@ rules:
   - create
   - patch
 ---
-# Main Controller Role - 优化版本
+# Main Controller Role - Optimized version
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -60,49 +60,49 @@ metadata:
   labels:
     app.kubernetes.io/name: block-controller
 rules:
-# 命名空间权限 - 扩展
+# Namespace permissions - Extended
 - apiGroups: [""]
   resources: ["namespaces", "namespaces/finalizers"]
   verbs: ["get", "list", "watch", "update", "patch"]
-# ResourceQuota 权限 - 扩展
+# ResourceQuota permissions - Extended
 - apiGroups: [""]
   resources: ["resourcequotas"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-# 工作负载权限 - 保持完整
+# Workload permissions - Keep complete
 - apiGroups: ["apps"]
   resources: ["deployments", "statefulsets", "replicasets"]
   verbs: ["get", "list", "watch", "update", "patch"]
-# ReplicationController 权限
+# ReplicationController permissions
 - apiGroups: [""]
   resources: ["replicationcontrollers"]
   verbs: ["get", "list", "watch", "update", "patch"]
-# CronJob 权限
+# CronJob permissions
 - apiGroups: ["batch"]
   resources: ["cronjobs"]
   verbs: ["get", "list", "watch", "update", "patch"]
-# Pod 权限 - 扩展支持删除
+# Pod permissions - Extended to support deletion
 - apiGroups: [""]
   resources: ["pods"]
   verbs: ["get", "list", "watch", "delete"]
-# BlockRequest 权限 - 保持完整
+# BlockRequest permissions - Keep complete
 - apiGroups: ["core.clawcloud.run"]
   resources: ["blockrequests", "blockrequests/status", "blockrequests/finalizers"]
   verbs: ["get", "list", "watch", "update", "patch"]
-# 事件权限 - 新增
+# Event permissions - Added
 - apiGroups: [""]
   resources: ["events"]
   verbs: ["create", "patch"]
-# 节点权限 - 新增 (健康检查)
+# Node permissions - Added (health checks)
 - apiGroups: [""]
   resources: ["nodes"]
   verbs: ["get", "list"]
-# 服务权限 - 新增 (指标服务)
+# Service permissions - Added (metrics service)
 - apiGroups: [""]
   resources: ["services", "endpoints"]
   verbs: ["get", "list", "create", "update", "patch"]
 
 ---
-# BlockRequest Admin Role - 保持不变
+# BlockRequest Admin Role - unchanged
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -124,7 +124,7 @@ rules:
   - get
 
 ---
-# BlockRequest Editor Role - 保持不变
+# BlockRequest Editor Role - unchanged
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -152,7 +152,7 @@ rules:
   - get
 
 ---
-# BlockRequest Viewer Role - 保持不变
+# BlockRequest Viewer Role - unchanged
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -176,7 +176,7 @@ rules:
   - get
 
 ---
-# Metrics Auth Role - 保持不变
+# Metrics Auth Role - unchanged
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -196,7 +196,7 @@ rules:
   - create
 
 ---
-# Metrics Reader Role - 保持不变
+# Metrics Reader Role - unchanged
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -207,7 +207,7 @@ rules:
   verbs:
   - get
 ---
-# Leader Election RoleBinding - 保持不变
+# Leader Election RoleBinding - unchanged
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
@@ -225,7 +225,7 @@ subjects:
   name: controller-manager
   namespace: block-system
 ---
-# Main Controller RoleBinding - 保持不变
+# Main Controller RoleBinding - unchanged
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -242,7 +242,7 @@ subjects:
   namespace: block-system
 
 ---
-# Metrics Auth RoleBinding - 保持不变
+# Metrics Auth RoleBinding - unchanged
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:

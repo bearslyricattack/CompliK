@@ -1,3 +1,17 @@
+// Copyright 2025 CompliK Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package controller
 
 import (
@@ -66,7 +80,7 @@ func BenchmarkNamespaceIndex(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		// 批量更新索引
+		// 批量Update index
 		for j := 0; j < 1000; j++ {
 			idx := (i*1000 + j) % len(testNamespaces)
 			status := "active"
@@ -114,7 +128,7 @@ func BenchmarkMemoryUsage(b *testing.B) {
 	controller := NewMemoryEfficientController(fakeClient, scheme, 512) // 512MB limit
 	ctx := context.Background()
 
-	// 强制 GC 以获得准确的内存基线
+	// Force GC 以获得准确的内存基线
 	runtime.GC()
 	var baselineMem runtime.MemStats
 	runtime.ReadMemStats(&baselineMem)
@@ -401,7 +415,7 @@ func TestScalability(t *testing.T) {
 			var initialMem runtime.MemStats
 			runtime.ReadMemStats(&initialMem)
 
-			// 处理命名空间
+			// Process namespace
 			startTime := time.Now()
 			for i := 0; i < tc.namespaceCount; i++ {
 				req := ctrl.Request{

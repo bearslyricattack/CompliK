@@ -1,19 +1,19 @@
-# 镜像配置
+# Image configuration
 image:
   repository: layzer/sealos-procscan
   pullPolicy: Always
   tag: "v0.0.2-alpha-6"
 
-# 命名空间
+# Namespace
 namespace: sealos
 
-# ServiceAccount 配置
+# ServiceAccount configuration
 serviceAccount:
   create: true
   name: process-scanner
   automountServiceAccountToken: true
 
-# RBAC 配置
+# RBAC configuration
 rbac:
   create: true
   clusterRole:
@@ -21,7 +21,7 @@ rbac:
   clusterRoleBinding:
     name: process-scanner
 
-# DaemonSet 配置
+# DaemonSet configuration
 daemonset:
   name: proc-scan
   labels:
@@ -31,16 +31,16 @@ daemonset:
     app: process-scanner
     version: v1.0.0
 
-  # 主机网络和 PID
+  # Host network and PID
   hostNetwork: true
   hostPID: true
 
-  # 安全上下文
+  # Security context
   securityContext:
     privileged: true
     runAsUser: 0
 
-  # 资源限制
+  # Resource limits
   resources:
     limits:
       memory: 512Mi
@@ -49,7 +49,7 @@ daemonset:
       memory: 64Mi
       cpu: 50m
 
-# 配置文件
+# Configuration file
 config:
   scanner:
     proc_path: "/host/proc"

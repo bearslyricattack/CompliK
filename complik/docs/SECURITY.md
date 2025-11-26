@@ -1,22 +1,22 @@
-# CompliK 安全配置指南
+# CompliK Security Configuration Guide
 
-## 安全改进
+## Security Improvements
 
-### 1. 敏感信息保护
+### 1. Sensitive Information Protection
 
-#### 环境变量配置
-所有敏感信息应通过环境变量配置，而非明文存储在配置文件中。
+#### Environment Variable Configuration
+All sensitive information should be configured through environment variables rather than stored in plain text in configuration files.
 
 ```bash
-# 设置环境变量
+# Set environment variables
 export COMPLIK_ENCRYPTION_KEY="your-32-character-encryption-key"
 export DB_PASSWORD="your-secure-password"
 export LARK_WEBHOOK="your-webhook-url"
 export API_KEY="your-api-key"
 ```
 
-#### 配置文件使用环境变量
-在 `config.yml` 中使用环境变量引用：
+#### Using Environment Variables in Configuration Files
+Reference environment variables in `config.yml`:
 
 ```yaml
 settings: |
@@ -27,62 +27,62 @@ settings: |
   }
 ```
 
-### 2. 数据库安全
+### 2. Database Security
 
-- ✅ 已修复：SQL注入风险 - 使用参数化查询
-- ✅ 密码加密存储支持
-- ✅ 支持环境变量配置
+- ✅ Fixed: SQL injection risk - using parameterized queries
+- ✅ Password encryption storage support
+- ✅ Environment variable configuration support
 
-### 3. Kubernetes 安全
+### 3. Kubernetes Security
 
-- ✅ 已优化：移除不必要的特权模式
-- ✅ 使用最小权限原则
-- ✅ 仅添加必要的能力（如 SYS_PTRACE）
+- ✅ Optimized: Removed unnecessary privileged mode
+- ✅ Using principle of least privilege
+- ✅ Only adding necessary capabilities (e.g., SYS_PTRACE)
 
-### 4. 性能优化
+### 4. Performance Optimization
 
-#### EventBus 改进
-- ✅ 修复死锁风险
-- ✅ 非阻塞事件发布
-- ✅ 避免 goroutine 泄露
+#### EventBus Improvements
+- ✅ Fixed deadlock risks
+- ✅ Non-blocking event publishing
+- ✅ Preventing goroutine leaks
 
-#### 浏览器池优化
-- ✅ 使用读写锁提升并发性能
-- ✅ 实现等待队列机制
-- ✅ 后台自动清理过期实例
-- ✅ 优雅关闭机制
+#### Browser Pool Optimization
+- ✅ Using read-write locks to improve concurrent performance
+- ✅ Implemented waiting queue mechanism
+- ✅ Automatic cleanup of expired instances in background
+- ✅ Graceful shutdown mechanism
 
-### 5. 资源管理
+### 5. Resource Management
 
-- ✅ 实现优雅关闭
-- ✅ 自动清理过期资源
-- ✅ 防止资源泄露
+- ✅ Implemented graceful shutdown
+- ✅ Automatic cleanup of expired resources
+- ✅ Preventing resource leaks
 
-## 最佳实践
+## Best Practices
 
-### 生产环境配置
+### Production Environment Configuration
 
-1. **使用强加密密钥**
+1. **Use Strong Encryption Keys**
    ```bash
    export COMPLIK_ENCRYPTION_KEY=$(openssl rand -base64 32)
    ```
 
-2. **限制数据库权限**
-   - 为应用创建专用数据库用户
-   - 仅授予必要的权限
-   - 使用 SSL/TLS 连接
+2. **Restrict Database Permissions**
+   - Create dedicated database users for the application
+   - Grant only necessary permissions
+   - Use SSL/TLS connections
 
-3. **Kubernetes 部署**
-   - 使用 Secret 管理敏感信息
-   - 配置 NetworkPolicy 限制网络访问
-   - 使用 RBAC 控制权限
+3. **Kubernetes Deployment**
+   - Use Secret to manage sensitive information
+   - Configure NetworkPolicy to restrict network access
+   - Use RBAC to control permissions
 
-4. **监控和日志**
-   - 监控异常登录尝试
-   - 记录所有安全相关事件
-   - 定期审计日志
+4. **Monitoring and Logging**
+   - Monitor abnormal login attempts
+   - Log all security-related events
+   - Regular log audits
 
-### 配置示例
+### Configuration Example
 
 ```yaml
 # kubernetes secret
@@ -97,19 +97,19 @@ data:
   webhook-url: <base64-encoded-webhook>
 ```
 
-## 安全检查清单
+## Security Checklist
 
-- [ ] 所有密码使用环境变量
-- [ ] 数据库连接使用 SSL
-- [ ] 最小权限原则
-- [ ] 定期更新依赖
-- [ ] 启用安全日志
-- [ ] 配置防火墙规则
-- [ ] 使用 HTTPS/TLS
-- [ ] 定期安全审计
+- [ ] All passwords using environment variables
+- [ ] Database connections using SSL
+- [ ] Principle of least privilege
+- [ ] Regular dependency updates
+- [ ] Enable security logging
+- [ ] Configure firewall rules
+- [ ] Use HTTPS/TLS
+- [ ] Regular security audits
 
-## 报告安全问题
+## Reporting Security Issues
 
-如发现安全漏洞，请通过以下方式报告：
+If you discover a security vulnerability, please report it through the following methods:
 - Email: security@example.com
-- 不要在公开的 Issue 中报告安全问题
+- Do not report security issues in public Issues

@@ -8,7 +8,7 @@
 
 ## 🚀 Quick Links
 
-- **[Documentation](#documentation)** - Full documentation for all components
+- **[📚 Documentation Hub](DOCUMENTATION.md)** - Complete documentation index for all components
 - **[Installation](#installation)** - Quick start guides
 - **[Contributing](CONTRIBUTING.md)** - How to contribute
 - **[License](#license)** - Apache 2.0

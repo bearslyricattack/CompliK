@@ -1,139 +1,139 @@
 # =============================================================================
-# 🛡️ ProcScan 安全扫描器配置文件
+# ProcScan Security Scanner Configuration File
 # =============================================================================
-# 用于检测容器内的可疑进程活动并自动响应
+# Used to detect suspicious process activities in containers and respond automatically
 
 # =============================================================================
-# 🔍 扫描器核心配置 (Scanner)
+# Scanner Core Configuration (Scanner)
 # =============================================================================
 scanner:
-  # 进程文件系统路径 (容器中需要挂载宿主机的 /proc)
-  # 容器化部署时需要通过 volumeMounts 挂载宿主机的 /proc 目录
+  # Process filesystem path (container needs to mount host's /proc)
+  # When containerized, mount host's /proc directory via volumeMounts
   proc_path: "/host/proc"
-  # 扫描间隔时间 (推荐: 30s-300s)
-  # 过短会增加系统负载，过长可能延迟威胁检测
+  # Scan interval (recommended: 30s-300s)
+  # Too short increases system load, too long may delay threat detection
   scan_interval: "100s"
-  # 日志级别 (debug, info, warn, error)
-  # debug: 详细的调试信息，适合开发环境
-  # info:  一般信息，适合生产环境
-  # warn:  警告信息
-  # error: 仅错误信息
+  # Log level (debug, info, warn, error)
+  # debug: detailed debug info, suitable for development
+  # info:  general info, suitable for production
+  # warn:  warning messages
+  # error: error messages only
   log_level: "debug"
 # =============================================================================
-# ⚡ 自动化响应配置 (Actions)
+# Automated Response Configuration (Actions)
 # =============================================================================
 actions:
-  # 命名空间标签功能 (推荐启用)
-  # 当检测到威胁时，为命名空间添加标签，供外部控制器处理
+  # Namespace labeling feature (recommended to enable)
+  # When a threat is detected, add labels to the namespace for external controller processing
   label:
-    # 是否启用标签功能
+    # Whether to enable labeling
     enabled: false
-    # 标签数据 (将被添加到受影响的命名空间)
+    # Label data (will be added to affected namespaces)
     data:
-      # 安全状态标签 (主要标识)
+      # Security status label (main identifier)
       clawcloud.run/status: "locked"
 
 # =============================================================================
-# 📢 通知渠道配置 (Notifications)
+# Notification Channel Configuration (Notifications)
 # =============================================================================
 notifications:
-  # 飞书通知配置
+  # Lark (Feishu) notification configuration
   lark:
-    # 飞书机器人 Webhook URL (获取方式: 飞书群 -> 设置 -> 机器人 -> 自定义机器人)
-    # 留空则不发送飞书通知
+    # Lark bot webhook URL (How to get: Lark group -> Settings -> Bot -> Custom bot)
+    # Leave empty to disable Lark notifications
     webhook: "https://open.feishu.cn/open-apis/bot/v2/hook/de0df867-9457-49be-a747-e01274a319cc"
-    # HTTP 请求超时时间 (推荐: 10s-30s)
+    # HTTP request timeout (recommended: 10s-30s)
     timeout: "30s"
-    # 发送失败重试次数 (推荐: 1-3次)
+    # Retry count on send failure (recommended: 1-3 times)
     retry_count: 3
-  # 可用区配置
+  # Region configuration
   region: "hzh"
 
 # =============================================================================
-# 🔎 检测规则配置 (Detection Rules)
+# Detection Rules Configuration (Detection Rules)
 # =============================================================================
 detectionRules:
-  # 黑名单规则 (Blacklist)
-  # 匹配到黑名单规则的进程将被标记为威胁
+  # Blacklist rules (Blacklist)
+  # Processes matching blacklist rules will be marked as threats
   blacklist:
-    # 黑名单进程名 (支持正则表达式)
-    # 进程名完全匹配正则表达式的进程将被标记
+    # Blacklist process names (supports regex)
+    # Processes with names fully matching regex will be marked
     processes:
-      # 挖矿软件
-      - "^miner$"                    # miner 矿工程序
-      - "^xmrig$"                    # XMRig 门罗币挖矿程序
-      - "^xmrig-vrl$"                # XMRig 变体
-      - "^argosb$"                   # Argos 挖矿程序
-      - "^asd$"                      # 未知挖矿程序
-      - "^kdevtmpfsi$"               # Kinsing 挖矿程序
-      - "^kinsing$"                  # Kinsing 挖矿程序
-      - "^crypto-miner$"             # 通用加密货币挖矿程序
-      - "^ccminer$"                  # ccminer 挖矿程序
-      - "^cpuminer$"                 # cpuminer 挖矿程序
-      - "^bfgminer$"                  # bfgminer 挖矿程序
-      - "^nsgminer$"                  # nsgminer 挖矿程序
-      - "^teamredminer$"             # Team Red Miner 挖矿程序
-      - "^nbminer$"                  # NBMiner 挖矿程序
-      - "^t-rex$"                    # T-Rex 挖矿程序
-      # 反向Shell和后门程序
-      - "^bash.*reverse.*shell"      # bash 反向shell
-      - "^nc.*-l.*-p"                # netcat 监听模式
-      - "^socat.*TCP-LISTEN"          # socat 端口转发
-      - "^python.*socket.*"          # Python socket 编程
-      - "^perl.*socket.*"            # Perl socket 编程
-      # 其他恶意程序
-      - "^masscan$"                  # 端口扫描工具
-      - "^nmap$"                     # 网络扫描工具
-      - "^sqlmap$"                   # SQL注入工具
-      - "^nikto$"                    # Web漏洞扫描工具
-      - "^hydra$"                    # 暴力破解工具
+      # Mining software
+      - "^miner$"                    # miner mining program
+      - "^xmrig$"                    # XMRig Monero mining program
+      - "^xmrig-vrl$"                # XMRig variant
+      - "^argosb$"                   # Argos mining program
+      - "^asd$"                      # unknown mining program
+      - "^kdevtmpfsi$"               # Kinsing mining program
+      - "^kinsing$"                  # Kinsing mining program
+      - "^crypto-miner$"             # generic cryptocurrency mining program
+      - "^ccminer$"                  # ccminer mining program
+      - "^cpuminer$"                 # cpuminer mining program
+      - "^bfgminer$"                  # bfgminer mining program
+      - "^nsgminer$"                  # nsgminer mining program
+      - "^teamredminer$"             # Team Red Miner mining program
+      - "^nbminer$"                  # NBMiner mining program
+      - "^t-rex$"                    # T-Rex mining program
+      # Reverse shells and backdoor programs
+      - "^bash.*reverse.*shell"      # bash reverse shell
+      - "^nc.*-l.*-p"                # netcat listening mode
+      - "^socat.*TCP-LISTEN"          # socat port forwarding
+      - "^python.*socket.*"          # Python socket programming
+      - "^perl.*socket.*"            # Perl socket programming
+      # Other malicious programs
+      - "^masscan$"                  # port scanning tool
+      - "^nmap$"                     # network scanning tool
+      - "^sqlmap$"                   # SQL injection tool
+      - "^nikto$"                    # web vulnerability scanning tool
+      - "^hydra$"                    # brute force tool
 
-    # 黑名单命令关键词 (支持字符串匹配，非正则)
-    # 进程命令行包含以下关键词的将被标记
+    # Blacklist command keywords (supports string matching, not regex)
+    # Processes with command line containing these keywords will be marked
     keywords:
-      # 挖矿相关关键词
-      - "stratum+tcp"                # 挖矿协议
-      - "pool."                      # 挖矿池地址
-      - "monero"                     # 门罗币
-      - "cryptonight"                # CryptoNight算法
-      - "ethash"                     # Ethash算法
-      - "scrypt"                     # Scrypt算法
-      - "wallet"                     # 钱包地址
-      - "donate-level"               # 捐赠级别
-      # 网络攻击关键词
-      - "reverse shell"              # 反向shell
-      - "bind shell"                 # 绑定shell
-      - "port scan"                  # 端口扫描
-      - "ddos"                       # DDoS攻击
-      - "botnet"                     # 僵尸网络
-      # 其他可疑关键词
-      - "password"                   # 密码相关
-      - "shadow"                     # 系统密码文件
-      - "/etc/passwd"                # 系统用户文件
-      - "/etc/shadow"                # 系统密码文件
+      # Mining-related keywords
+      - "stratum+tcp"                # mining protocol
+      - "pool."                      # mining pool address
+      - "monero"                     # Monero
+      - "cryptonight"                # CryptoNight algorithm
+      - "ethash"                     # Ethash algorithm
+      - "scrypt"                     # Scrypt algorithm
+      - "wallet"                     # wallet address
+      - "donate-level"               # donation level
+      # Network attack keywords
+      - "reverse shell"              # reverse shell
+      - "bind shell"                 # bind shell
+      - "port scan"                  # port scanning
+      - "ddos"                       # DDoS attack
+      - "botnet"                     # botnet
+      # Other suspicious keywords
+      - "password"                   # password related
+      - "shadow"                     # system password file
+      - "/etc/passwd"                # system user file
+      - "/etc/shadow"                # system password file
       - "rootkit"                    # Rootkit
-      - "backdoor"                   # 后门程序
+      - "backdoor"                   # backdoor program
 
-  # 白名单规则 (Whitelist)
-  # 匹配到白名单规则的进程将被忽略，即使匹配黑名单
+  # Whitelist rules (Whitelist)
+  # Processes matching whitelist rules will be ignored, even if they match blacklist
   whitelist:
-    # 白名单进程名 (支持正则表达式)
-    # 系统关键进程，误报率较高，建议加入白名单
+    # Whitelist process names (supports regex)
+    # Critical system processes with high false positive rate, recommended to add to whitelist
     processes:
-      # Kubernetes 系统组件
-      - "^kubelet$"                  # Kubelet 节点代理
-      - "^kube-proxy$"               # Kube-proxy 网络代理
-      - "^containerd$"               # containerd 容器运行时
+      # Kubernetes system components
+      - "^kubelet$"                  # Kubelet node agent
+      - "^kube-proxy$"               # Kube-proxy network proxy
+      - "^containerd$"               # containerd container runtime
       - "^containerd-shim$"          # containerd shim
-      - "^dockerd$"                  # Docker 守护进程
-      - "^docker-proxy$"            # Docker 网络代理
-      - "^runc$"                     # runc 容器运行时
+      - "^dockerd$"                  # Docker daemon
+      - "^docker-proxy$"            # Docker network proxy
+      - "^runc$"                     # runc container runtime
       - "^crictl$"                   # containerd CLI
       - "^nerdctl$"                  # containerd CLI
 
-      # 系统关键进程
-      - "^init$"                     # 系统初始化进程 (PID 1)
-      - "^systemd$"                  # systemd 系统管理器
+      # Critical system processes
+      - "^init$"                     # system initialization process (PID 1)
+      - "^systemd$"                  # systemd system manager
       - "^bash$"                     # Bash shell
       - "^sh$"                       # Shell
       - "^zsh$"                      # Zsh shell
@@ -143,145 +143,145 @@ detectionRules:
       - "^csh$"                      # C Shell
       - "^fish$"                     # Fish shell
       - "^busybox$"                  # BusyBox
-      - "^coreutils$"                # GNU核心工具集
-      - "^util-linux$"               # Linux实用工具
-      - "^procps$"                   # 进程工具集 (ps, top等)
+      - "^coreutils$"                # GNU core utilities
+      - "^util-linux$"               # Linux utility tools
+      - "^procps$"                   # process tools (ps, top, etc.)
 
-      # 监控和日志相关
-      - "^prometheus-node-exporter$" # Prometheus节点导出器
-      - "^fluentd$"                  # Fluentd 日志收集器
-      - "^filebeat$"                 # Filebeat 日志收集器
-      - "^metricbeat$"               # Metricbeat 指标收集器
-      - "^jaeger-agent$"             # Jaeger链路追踪代理
-      - "^istio-proxy$"              # Istio边车代理
-      - "^envoy$"                    # Envoy代理
-      - "^linkerd-proxy$"            # Linkerd代理
+      # Monitoring and logging related
+      - "^prometheus-node-exporter$" # Prometheus node exporter
+      - "^fluentd$"                  # Fluentd log collector
+      - "^filebeat$"                 # Filebeat log collector
+      - "^metricbeat$"               # Metricbeat metrics collector
+      - "^jaeger-agent$"             # Jaeger tracing agent
+      - "^istio-proxy$"              # Istio sidecar proxy
+      - "^envoy$"                    # Envoy proxy
+      - "^linkerd-proxy$"            # Linkerd proxy
 
-      # 应用程序框架
-      - "^java$"                     # Java应用程序
-      - "^node$"                     # Node.js应用程序
+      # Application frameworks
+      - "^java$"                     # Java application
+      - "^node$"                     # Node.js application
       - "^npm$"                      # Node Package Manager
       - "^yarn$"                     # Yarn Package Manager
-      - "^python$"                   # Python应用程序
+      - "^python$"                   # Python application
       - "^pip$"                      # Python Package Installer
-      - "^go$"                       # Go应用程序
-      - "^java$"                     # Java虚拟机
-      - "^nginx$"                    # Nginx Web服务器
-      - "^apache$"                   # Apache Web服务器
-      - "^httpd$"                    # HTTP守护进程
-      - "^redis-server$"             # Redis服务器
-      - "^mysqld$"                   # MySQL服务器
-      - "^postgres$"                 # PostgreSQL服务器
-      - "^mongodb$"                  # MongoDB服务器
+      - "^go$"                       # Go application
+      - "^java$"                     # Java Virtual Machine
+      - "^nginx$"                    # Nginx web server
+      - "^apache$"                   # Apache web server
+      - "^httpd$"                    # HTTP daemon
+      - "^redis-server$"             # Redis server
+      - "^mysqld$"                   # MySQL server
+      - "^postgres$"                 # PostgreSQL server
+      - "^mongodb$"                  # MongoDB server
 
-    # 白名单命令关键词 (支持字符串匹配)
-    # 进程命令行包含以下关键词的将被忽略
+    # Whitelist command keywords (supports string matching)
+    # Processes with command line containing these keywords will be ignored
     commands:
-      # 系统维护命令
-      - "apt-get"                    # APT包管理器
-      - "yum"                        # YUM包管理器
-      - "dnf"                        # DNF包管理器
-      - "pacman"                     # Pacman包管理器
-      - "systemctl"                  # systemd 控制命令
-      - "service"                    # 服务控制命令
-      - "journalctl"                 # systemd 日志命令
+      # System maintenance commands
+      - "apt-get"                    # APT package manager
+      - "yum"                        # YUM package manager
+      - "dnf"                        # DNF package manager
+      - "pacman"                     # Pacman package manager
+      - "systemctl"                  # systemd control command
+      - "service"                    # service control command
+      - "journalctl"                 # systemd journal command
 
-      # 开发工具命令
-      - "git"                        # Git版本控制
-      - "make"                       # Make构建工具
-      - "cmake"                      # CMake构建工具
-      - "gcc"                        # GCC编译器
-      - "g++"                        # G++编译器
-      - "mvn"                        # Maven构建工具
-      - "gradle"                     # Gradle构建工具
-      - "npm"                        # Node.js包管理器
-      - "pip"                        # Python包管理器
-      - "docker"                     # Docker命令
+      # Development tools commands
+      - "git"                        # Git version control
+      - "make"                       # Make build tool
+      - "cmake"                      # CMake build tool
+      - "gcc"                        # GCC compiler
+      - "g++"                        # G++ compiler
+      - "mvn"                        # Maven build tool
+      - "gradle"                     # Gradle build tool
+      - "npm"                        # Node.js package manager
+      - "pip"                        # Python package manager
+      - "docker"                     # Docker command
 
-      # 监控和日志命令
+      # Monitoring and logging commands
       - "kubectl"                    # Kubernetes CLI
-      - "helm"                       # Helm包管理器
-      - "kustomize"                  # Kustomize配置管理
+      - "helm"                       # Helm package manager
+      - "kustomize"                  # Kustomize configuration management
       - "istioctl"                   # Istio CLI
       - "linkerd"                    # Linkerd CLI
 
-    # 白名单命名空间 (支持正则表达式)
-    # 在这些命名空间中的进程将被忽略
+    # Whitelist namespaces (supports regex)
+    # Processes in these namespaces will be ignored
     namespaces:
-      # Kubernetes 系统命名空间
-      - "^kube-system$"              # Kubernetes系统组件
-      - "^kube-public$"              # Kubernetes公共资源
-      - "^kube-node-lease$"          # Kubernetes节点租约
-      - "^istio-system$"             # Istio服务网格
-      - "^linkerd$"                  # Linkerd服务网格
-      - "^gatekeeper-system$"        # Gatekeeper策略执行器
-      - "^cert-manager$"             # cert-manager证书管理
-      - "^nginx-ingress$"             # NGINX Ingress控制器
-      - "^traefik$"                  # Traefik Ingress控制器
-      - "^prometheus-operator$"      # Prometheus操作器
-      - "^monitoring$"               # 监控系统
-      - "^logging$"                  # 日志系统
-      - "^kubevirt$"                 # Kubevirt虚拟化
-      - "^rook-ceph$"                # Rook Ceph存储
+      # Kubernetes system namespaces
+      - "^kube-system$"              # Kubernetes system components
+      - "^kube-public$"              # Kubernetes public resources
+      - "^kube-node-lease$"          # Kubernetes node lease
+      - "^istio-system$"             # Istio service mesh
+      - "^linkerd$"                  # Linkerd service mesh
+      - "^gatekeeper-system$"        # Gatekeeper policy enforcer
+      - "^cert-manager$"             # cert-manager certificate management
+      - "^nginx-ingress$"             # NGINX Ingress controller
+      - "^traefik$"                  # Traefik Ingress controller
+      - "^prometheus-operator$"      # Prometheus operator
+      - "^monitoring$"               # monitoring system
+      - "^logging$"                  # logging system
+      - "^kubevirt$"                 # Kubevirt virtualization
+      - "^rook-ceph$"                # Rook Ceph storage
 
-      # 应用系统命名空间
-      - "^default$"                  # 默认命名空间
+      # Application system namespaces
+      - "^default$"                  # default namespace
       - "^ingress-nginx$"            # NGINX Ingress
       - "^kube-dns$"                 # CoreDNS
 
-    # 白名单Pod名称 (支持正则表达式)
-    # 这些Pod的进程将被忽略
+    # Whitelist Pod names (supports regex)
+    # Processes in these Pods will be ignored
     podNames:
-      # 系统Pod
+      # System Pods
       - "^coredns-.*"                # CoreDNS Pod
       - "^etcd-.*"                   # etcd Pod
       - "^kube-apiserver-.*"         # Kubernetes API Server
-      - "^kube-controller-manager-.*" # 控制器管理器
-      - "^kube-scheduler-.*"         # 调度器
-      - "^kube-proxy-.*"             # 网络代理
-      - "^fluentd-.*"                # Fluentd日志收集器
-      - "^node-exporter-.*"          # 节点导出器
-      - "^prometheus-.*"             # Prometheus监控
-      - "^grafana-.*"                # Grafana可视化
-      - "^alertmanager-.*"           # 告警管理器
+      - "^kube-controller-manager-.*" # Controller manager
+      - "^kube-scheduler-.*"         # Scheduler
+      - "^kube-proxy-.*"             # Network proxy
+      - "^fluentd-.*"                # Fluentd log collector
+      - "^node-exporter-.*"          # Node exporter
+      - "^prometheus-.*"             # Prometheus monitoring
+      - "^grafana-.*"                # Grafana visualization
+      - "^alertmanager-.*"           # Alert manager
 
-      # 网络相关Pod
-      - "^nginx-ingress-controller-.*" # NGINX Ingress控制器
-      - "^traefik-.*"                # Traefik反向代理
-      - "^envoy-.*"                  # Envoy代理
-      - "^istio-proxy-.*"           # Istio边车代理
+      # Network-related Pods
+      - "^nginx-ingress-controller-.*" # NGINX Ingress controller
+      - "^traefik-.*"                # Traefik reverse proxy
+      - "^envoy-.*"                  # Envoy proxy
+      - "^istio-proxy-.*"           # Istio sidecar proxy
 
-      # 应用Pod
+      # Application Pods
       - "^jenkins-.*"                # Jenkins CI/CD
       - "^gitlab-runner-.*"          # GitLab Runner
-      - "^elasticsearch-.*"          # Elasticsearch搜索引擎
-      - "^kibana-.*"                 # Kibana可视化
-      - "^logstash-.*"               # Logstash日志处理
-      - "^redis-.*"                  # Redis缓存
-      - "^postgresql-.*"             # PostgreSQL数据库
-      - "^mysql-.*"                  # MySQL数据库
-      - "^mongodb-.*"                # MongoDB数据库
+      - "^elasticsearch-.*"          # Elasticsearch search engine
+      - "^kibana-.*"                 # Kibana visualization
+      - "^logstash-.*"               # Logstash log processing
+      - "^redis-.*"                  # Redis cache
+      - "^postgresql-.*"             # PostgreSQL database
+      - "^mysql-.*"                  # MySQL database
+      - "^mongodb-.*"                # MongoDB database
 
 # =============================================================================
-# 📝 配置文件说明
+# Configuration File Description
 # =============================================================================
 #
-# 使用方法:
-# 1. 将此配置文件挂载到 Pod 中的 /app/config.yaml
-# 2. 或通过环境变量 APROCSCAN_CONFIG_PATH 指定配置文件路径
-# 3. 或通过环境变量逐个覆盖配置项
+# Usage:
+# 1. Mount this config file to /app/config.yaml in the Pod
+# 2. Or specify config file path via APROCSCAN_CONFIG_PATH environment variable
+# 3. Or override config items individually via environment variables
 #
-# 环境变量覆盖规则:
-# - PROCSCAN_SCANNER_PROC_PATH: 覆盖 scanner.proc_path
-# - PROCSCAN_SCANNER_SCAN_INTERVAL: 覆盖 scanner.scan_interval
-# - PROCSCAN_SCANNER_LOG_LEVEL: 覆盖 scanner.log_level
-# - PROCSCAN_ACTIONS_LABEL_ENABLED: 覆盖 actions.label.enabled
-# - PROCSCAN_NOTIFICATIONS_LARK_WEBHOOK: 覆盖 notifications.lark.webhook
+# Environment variable override rules:
+# - PROCSCAN_SCANNER_PROC_PATH: override scanner.proc_path
+# - PROCSCAN_SCANNER_SCAN_INTERVAL: override scanner.scan_interval
+# - PROCSCAN_SCANNER_LOG_LEVEL: override scanner.log_level
+# - PROCSCAN_ACTIONS_LABEL_ENABLED: override actions.label.enabled
+# - PROCSCAN_NOTIFICATIONS_LARK_WEBHOOK: override notifications.lark.webhook
 #
-# 部署建议:
-# 1. 生产环境建议扫描间隔 60s-300s
-# 2. 开发测试环境可以设置较短间隔 30s
-# 3. 日志级别生产环境使用 info 或 warn
-# 4. 白名单规则需要根据实际环境调整
-# 5. 定期更新黑名单规则以应对新型威胁
+# Deployment recommendations:
+# 1. Production environment scan interval: 60s-300s
+# 2. Development/test environment can use shorter interval: 30s
+# 3. Production log level: info or warn
+# 4. Whitelist rules need to be adjusted based on actual environment
+# 5. Regularly update blacklist rules to address new threats
 # =============================================================================

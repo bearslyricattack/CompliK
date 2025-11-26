@@ -1,4 +1,4 @@
-# Service - 健康检查和指标服务
+# Service - Health checks and metrics service
 apiVersion: v1
 kind: Service
 metadata:

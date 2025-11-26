@@ -1,113 +1,113 @@
-# Block Controller 发展路线图
+# Block Controller Roadmap
 
-## 🎯 项目定位
+## 🎯 Project Positioning
 
-Block Controller 是一个专注于**大规模 Kubernetes 资源管理**的控制器，特别适合：
-- 云服务商的多租户环境
-- 企业级资源配额管理
-- 开发环境的生命周期管理
-- 成本控制和资源优化
+Block Controller is a controller focused on **large-scale Kubernetes resource management**, particularly suitable for:
+- Multi-tenant environments for cloud service providers
+- Enterprise-level resource quota management
+- Development environment lifecycle management
+- Cost control and resource optimization
 
-## 📅 发展路线图
+## 📅 Development Roadmap
 
-### 🚀 Phase 1: 用户体验提升 (v0.2.0 - 1个月)
+### 🚀 Phase 1: User Experience Enhancement (v0.2.0 - 1 Month)
 
-**目标**: 让工具更好用，更易集成
+**Goal**: Make the tool more user-friendly and easier to integrate
 
-#### 1.1 CLI 工具开发
+#### 1.1 CLI Tool Development
 ```bash
-# 核心命令
-kubectl block lock <namespace>     # 封禁 namespace
-kubectl block unlock <namespace>   # 解封 namespace
-kubectl block status <namespace>   # 查看状态
-kubectl block list                  # 列出所有 BlockRequest
-kubectl block cleanup               # 清理过期资源
+# Core commands
+kubectl block lock <namespace>     # Lock namespace
+kubectl block unlock <namespace>   # Unlock namespace
+kubectl block status <namespace>   # Check status
+kubectl block list                  # List all BlockRequests
+kubectl block cleanup               # Clean up expired resources
 
-# 高级命令
-kubectl block lock --duration=24h   # 设置封禁时长
-kubectl block lock --reason="维护中" # 添加原因
-kubectl block batch --file=ns.txt   # 批量操作
-kubectl block report                # 生成使用报告
+# Advanced commands
+kubectl block lock --duration=24h   # Set lock duration
+kubectl block lock --reason="Under maintenance" # Add reason
+kubectl block batch --file=ns.txt   # Batch operations
+kubectl block report                # Generate usage report
 ```
 
 #### 1.2 Web Dashboard
-- **概览页面**: namespace 状态总览
-- **操作界面**: 一键封禁/解封
-- **监控图表**: 资源使用统计
-- **日志查看**: 实时操作日志
-- **配置管理**: 策略配置界面
+- **Overview Page**: namespace status overview
+- **Operation Interface**: One-click lock/unlock
+- **Monitoring Charts**: Resource usage statistics
+- **Log Viewer**: Real-time operation logs
+- **Configuration Management**: Policy configuration interface
 
-#### 1.3 告警集成
+#### 1.3 Alert Integration
 ```yaml
-# Prometheus 告警规则
+# Prometheus alert rules
 groups:
 - name: block-controller
   rules:
   - alert: NamespaceLockedTooLong
     expr: block_controller_namespace_locked_hours > 72
     annotations:
-      summary: "Namespace {{ $labels.namespace }} 已封禁超过3天"
+      summary: "Namespace {{ $labels.namespace }} has been locked for over 3 days"
 
   - alert: HighResourceUsage
     expr: namespace_cpu_usage > 0.8
     annotations:
-      summary: "Namespace {{ $labels.namespace }} 资源使用率过高"
+      summary: "Namespace {{ $labels.namespace }} resource usage is too high"
 ```
 
-### 🔧 Phase 2: 策略智能化 (v0.3.0 - 2个月)
+### 🔧 Phase 2: Policy Intelligence (v0.3.0 - 2 Months)
 
-**目标**: 从手动管理转向智能策略
+**Goal**: Transition from manual management to intelligent policies
 
-#### 2.1 策略模板
+#### 2.1 Policy Templates
 ```yaml
 apiVersion: core.clawcloud.run/v1alpha1
 kind: BlockPolicy
 metadata:
   name: dev-environment-policy
 spec:
-  # 目标 namespace 选择器
+  # Target namespace selector
   selector:
     matchLabels:
       environment: dev
       team: "*"
 
-  # 自动封禁条件
+  # Auto-lock conditions
   autoLock:
-    # 资源使用率超过阈值
+    # Resource usage threshold
     resourceThreshold:
       cpu: 80%
       memory: 85%
-    # 无活动时间
+    # Idle time
     idleTime: "7d"
-    # 成本超限
+    # Cost limit
     costLimit: "100$/month"
 
-  # 自动解封条件
+  # Auto-unlock conditions
   autoUnlock:
-    # 工作时间
-    schedule: "0 9 * * 1-5"  # 工作日9点
-    # 成本下降到阈值以下
+    # Working hours
+    schedule: "0 9 * * 1-5"  # Weekdays at 9am
+    # Cost drops below threshold
     costBelow: "50$/month"
 
-  # 默认操作
+  # Default action
   defaultAction: "scale-to-zero"
 ```
 
-#### 2.2 成本管理集成
+#### 2.2 Cost Management Integration
 ```yaml
-# 成本感知的封禁策略
+# Cost-aware locking policy
 spec:
   costStrategy:
-    # 成本监控
+    # Cost monitoring
     enabled: true
     provider: "opencost"
 
-    # 成本阈值
+    # Cost thresholds
     thresholds:
       daily: "10$"
       monthly: "300$"
 
-    # 成本优化动作
+    # Cost optimization actions
     actions:
       - type: "scale-down-non-critical"
         target: "dev-*"
@@ -115,51 +115,51 @@ spec:
       - type: "delete-unused-pv"
 ```
 
-#### 2.3 智能调度
+#### 2.3 Smart Scheduling
 ```yaml
-# 基于资源使用模式的智能调度
+# Smart scheduling based on resource usage patterns
 spec:
   smartScheduling:
-    # 学习历史使用模式
+    # Learn historical usage patterns
     learningEnabled: true
     learningPeriod: "30d"
 
-    # 预测性扩缩容
+    # Predictive scaling
     predictiveScaling:
       enabled: true
       accuracy: 85%
 
-    # 工作负载感知
+    # Workload awareness
     workloadAware:
       criticalApps: ["nginx", "database"]
       batchJobs: "night-only"
 ```
 
-### 🏢 Phase 3: 企业级特性 (v0.4.0 - 3个月)
+### 🏢 Phase 3: Enterprise Features (v0.4.0 - 3 Months)
 
-**目标**: 满足企业级安全和合规需求
+**Goal**: Meet enterprise-level security and compliance requirements
 
-#### 3.1 多租户支持
+#### 3.1 Multi-Tenancy Support
 ```yaml
-# 租户管理
+# Tenant management
 apiVersion: core.clawcloud.run/v1alpha1
 kind: Tenant
 metadata:
   name: team-a
 spec:
-  # 租户资源配额
+  # Tenant resource quotas
   quotas:
     namespaces: 10
     cpu: "20"
     memory: "40Gi"
     storage: "100Gi"
 
-  # 租户管理员
+  # Tenant administrators
   admins:
     - user1@company.com
     - user2@company.com
 
-  # 租户策略
+  # Tenant policies
   policies:
     - name: "dev-policy"
       selector:
@@ -171,48 +171,48 @@ spec:
         environment: staging
 ```
 
-#### 3.2 审计和合规
+#### 3.2 Audit and Compliance
 ```yaml
-# 审计配置
+# Audit configuration
 apiVersion: core.clawcloud.run/v1alpha1
 kind: AuditPolicy
 metadata:
   name: enterprise-audit
 spec:
-  # 审计范围
+  # Audit scope
   scope:
     - "all-block-operations"
     - "policy-changes"
     - "cost-events"
 
-  # 审计存储
+  # Audit storage
   storage:
     type: "elasticsearch"
     retention: "7y"
 
-  # 合规检查
+  # Compliance checks
   compliance:
     standards:
       - "SOC2"
       - "GDPR"
-      - "等保2.0"
+      - "MLPS 2.0"
 
-    # 自动合规报告
+    # Automatic compliance reports
     autoReports:
-      schedule: "0 0 * * 0"  # 每周日
+      schedule: "0 0 * * 0"  # Every Sunday
       format: ["pdf", "json"]
       recipients: ["security@company.com"]
 ```
 
-#### 3.3 权限管理
+#### 3.3 Permission Management
 ```yaml
-# 细粒度权限控制
+# Fine-grained permission control
 apiVersion: core.clawcloud.run/v1alpha1
 kind: PermissionPolicy
 metadata:
   name: rbac-enhanced
 spec:
-  # 角色定义
+  # Role definitions
   roles:
     - name: "namespace-admin"
       permissions:
@@ -233,19 +233,19 @@ spec:
       scope: "all-namespaces"
 ```
 
-### 🌐 Phase 4: 生态集成 (v0.5.0 - 4个月)
+### 🌐 Phase 4: Ecosystem Integration (v0.5.0 - 4 Months)
 
-**目标**: 与云原生生态系统深度集成
+**Goal**: Deep integration with cloud-native ecosystem
 
-#### 4.1 Service Mesh 集成
+#### 4.1 Service Mesh Integration
 ```yaml
-# Istio 集成
+# Istio integration
 apiVersion: core.clawcloud.run/v1alpha1
 kind: MeshPolicy
 metadata:
   name: istio-integration
 spec:
-  # 网络策略
+  # Network policy
   networkPolicy:
     locked:
       - "deny-all-ingress"
@@ -254,7 +254,7 @@ spec:
     unlocked:
       - "allow-all-ingress"
 
-  # 流量管理
+  # Traffic management
   trafficManagement:
     locked:
       - "route-to-maintenance-page"
@@ -262,14 +262,14 @@ spec:
     unlocked:
       - "normal-routing"
 
-  # 安全策略
+  # Security policy
   securityPolicy:
     locked:
       - "enable-mtls"
       - "strict-auth-policy"
 ```
 
-#### 4.2 CI/CD 集成
+#### 4.2 CI/CD Integration
 ```yaml
 # GitHub Actions
 name: Auto Block Namespace
@@ -290,7 +290,7 @@ jobs:
 
       - name: Deploy to Production
         run: |
-          # 部署逻辑
+          # Deployment logic
 
       - uses: gitlayzer/block-controller-action@v1
         with:
@@ -298,7 +298,7 @@ jobs:
           action: "unlock"
 ```
 
-#### 4.3 监控生态
+#### 4.3 Monitoring Ecosystem
 ```yaml
 # Grafana Dashboard
 apiVersion: v1
@@ -326,19 +326,19 @@ data:
     }
 ```
 
-### 🤖 Phase 5: AI 驱动 (v0.6.0 - 6个月)
+### 🤖 Phase 5: AI-Driven (v0.6.0 - 6 Months)
 
-**目标**: 使用 AI/ML 提供智能化决策支持
+**Goal**: Use AI/ML to provide intelligent decision support
 
-#### 5.1 异常检测
+#### 5.1 Anomaly Detection
 ```yaml
-# AI 异常检测
+# AI anomaly detection
 apiVersion: core.clawcloud.run/v1alpha1
 kind: AnomalyDetection
 metadata:
   name: ai-anomaly-detector
 spec:
-  # 检测模型
+  # Detection models
   models:
     - name: "resource-anomaly"
       type: "isolation-forest"
@@ -348,12 +348,12 @@ spec:
       type: "arima"
       features: ["daily-cost", "usage-pattern"]
 
-  # 告警策略
+  # Alert strategy
   alerting:
     channels: ["slack", "email", "webhook"]
     severity: ["critical", "warning", "info"]
 
-  # 自动修复
+  # Auto-remediation
   autoRemediation:
     - condition: "resource-spike"
       action: "scale-down"
@@ -361,15 +361,15 @@ spec:
       action: "temporarily-lock"
 ```
 
-#### 5.2 预测分析
+#### 5.2 Predictive Analysis
 ```yaml
-# 预测性分析
+# Predictive analysis
 apiVersion: core.clawcloud.run/v1alpha1
 kind: PredictiveAnalysis
 metadata:
   name: resource-predictor
 spec:
-  # 预测模型
+  # Prediction models
   prediction:
     - metric: "resource-demand"
       model: "lstm"
@@ -379,7 +379,7 @@ spec:
       model: "prophet"
       horizon: "30d"
 
-  # 建议
+  # Recommendations
   recommendations:
     - type: "cost-optimization"
       confidence: 85%
@@ -388,64 +388,64 @@ spec:
       confidence: 90%
 ```
 
-## 📊 技术债务和优化
+## 📊 Technical Debt and Optimization
 
-### 架构演进
-- **v0.1.x**: 单体控制器
-- **v0.2.x**: 添加 CLI 和 Web UI
-- **v0.3.x**: 微服务化，策略引擎分离
-- **v0.4.x**: 插件化架构
-- **v0.5.x**: AI/ML 能力集成
+### Architecture Evolution
+- **v0.1.x**: Monolithic controller
+- **v0.2.x**: Add CLI and Web UI
+- **v0.3.x**: Microservices, separate policy engine
+- **v0.4.x**: Plugin-based architecture
+- **v0.5.x**: AI/ML capability integration
 
-### 性能目标
-| 指标 | 当前 | v0.2.0 | v0.3.0 | v0.4.0 | v0.5.0 |
+### Performance Targets
+| Metric | Current | v0.2.0 | v0.3.0 | v0.4.0 | v0.5.0 |
 |------|------|--------|--------|--------|--------|
-| 响应时间 | 5分钟 | 30秒 | 10秒 | 5秒 | 1秒 |
-| 支持规模 | 10万 | 50万 | 100万 | 500万 | 1000万 |
-| 内存使用 | 1GB | 2GB | 4GB | 8GB | 16GB |
-| API 调用 | -99.98% | -99.99% | -99.995% | -99.999% | -99.9999% |
+| Response Time | 5 min | 30s | 10s | 5s | 1s |
+| Scale Support | 100K | 500K | 1M | 5M | 10M |
+| Memory Usage | 1GB | 2GB | 4GB | 8GB | 16GB |
+| API Calls | -99.98% | -99.99% | -99.995% | -99.999% | -99.9999% |
 
-## 🎯 里程碑检查点
+## 🎯 Milestone Checkpoints
 
 ### Q1 2025 (v0.2.0)
-- [ ] CLI 工具发布
+- [ ] CLI tool release
 - [ ] Web Dashboard MVP
-- [ ] 基础告警集成
+- [ ] Basic alert integration
 
 ### Q2 2025 (v0.3.0)
-- [ ] 策略引擎实现
-- [ ] 成本管理功能
-- [ ] 智能调度 beta
+- [ ] Policy engine implementation
+- [ ] Cost management features
+- [ ] Smart scheduling beta
 
 ### Q3 2025 (v0.4.0)
-- [ ] 多租户支持
-- [ ] 企业级安全特性
-- [ ] 审计合规功能
+- [ ] Multi-tenancy support
+- [ ] Enterprise security features
+- [ ] Audit compliance features
 
 ### Q4 2025 (v0.5.0)
-- [ ] 生态集成完成
-- [ ] Service Mesh 支持
-- [ ] CI/CD 集成
+- [ ] Ecosystem integration complete
+- [ ] Service Mesh support
+- [ ] CI/CD integration
 
 ### Q1 2026 (v0.6.0)
-- [ ] AI/ML 能力
-- [ ] 预测分析
-- [ ] 自动化运维
+- [ ] AI/ML capabilities
+- [ ] Predictive analysis
+- [ ] Automated operations
 
-## 🤝 社区贡献
+## 🤝 Community Contribution
 
-### 贡献方式
-1. **代码贡献**: 核心功能开发
-2. **插件开发**: 生态集成
-3. **文档改进**: 用户指南
-4. **测试反馈**: 问题报告
-5. **使用案例**: 最佳实践分享
+### Contribution Methods
+1. **Code Contribution**: Core feature development
+2. **Plugin Development**: Ecosystem integration
+3. **Documentation Improvement**: User guides
+4. **Testing Feedback**: Issue reporting
+5. **Use Cases**: Best practice sharing
 
-### 激励机制
-- **贡献者榜**: GitHub 统计
-- **技术分享**: 社区活动
-- **企业合作**: 商业支持
+### Incentive Mechanisms
+- **Contributor Leaderboard**: GitHub statistics
+- **Technical Sharing**: Community events
+- **Enterprise Collaboration**: Commercial support
 
 ---
 
-这个路线图既保持了项目的核心技术优势，又逐步扩展了功能边界，确保每个阶段都能为用户创造实际价值。
+This roadmap maintains the project's core technical advantages while gradually expanding the feature boundaries, ensuring each phase creates real value for users.

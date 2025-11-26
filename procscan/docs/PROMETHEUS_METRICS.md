@@ -1,163 +1,163 @@
-# ProcScan Prometheus Metrics 指标文档
+# ProcScan Prometheus Metrics Documentation
 
-## 📊 完整指标清单
+## Complete Metrics List
 
-ProcScan 提供了全面的 Prometheus 监控指标，涵盖扫描器运行状态、性能表现、威胁检测和自动化响应等各个方面。
+ProcScan provides comprehensive Prometheus monitoring metrics, covering scanner operation status, performance metrics, threat detection, and automated response capabilities.
 
-### 1. 扫描器状态指标
+### 1. Scanner Status Metrics
 
-| 指标名称 | 类型 | 描述 | 用途 |
+| Metric Name | Type | Description | Purpose |
 |---------|------|------|------|
-| `procscan_scanner_running` | Gauge | 扫描器运行状态 (1=运行中, 0=停止) | 监控扫描器是否正常工作 |
-| `procscan_scanner_uptime_seconds` | Counter | 扫描器累计运行时间（秒） | 跟踪扫描器稳定性 |
+| `procscan_scanner_running` | Gauge | Scanner running status (1=running, 0=stopped) | Monitor whether the scanner is working normally |
+| `procscan_scanner_uptime_seconds` | Counter | Scanner cumulative uptime (seconds) | Track scanner stability |
 
-**使用场景：**
+**Usage Scenarios:**
 ```promql
-# 扫描器可用性检查
+# Scanner availability check
 procscan_scanner_running == 1
 
-# 扫描器运行时间监控
+# Scanner uptime monitoring
 procscan_scanner_uptime_seconds
 ```
 
-### 2. 扫描性能指标
+### 2. Scan Performance Metrics
 
-| 指标名称 | 类型 | 描述 | 用途 |
+| Metric Name | Type | Description | Purpose |
 |---------|------|------|------|
-| `procscan_scan_total` | Counter | 执行的扫描总次数 | 监控扫描频率 |
-| `procscan_scan_duration_seconds` | Histogram | 单次扫描耗时（秒） | 分析扫描性能瓶颈 |
-| `procscan_scan_errors_total` | Counter | 扫描错误总次数 | 监控扫描失败率 |
+| `procscan_scan_total` | Counter | Total number of scans performed | Monitor scan frequency |
+| `procscan_scan_duration_seconds` | Histogram | Single scan duration (seconds) | Analyze scan performance bottlenecks |
+| `procscan_scan_errors_total` | Counter | Total number of scan errors | Monitor scan failure rate |
 
-**使用场景：**
+**Usage Scenarios:**
 ```promql
-# 扫描频率
+# Scan frequency
 rate(procscan_scan_total[5m])
 
-# 扫描错误率
+# Scan error rate
 rate(procscan_scan_errors_total[5m]) / rate(procscan_scan_total[5m])
 
-# 扫描耗时分析
+# Scan duration analysis
 histogram_quantile(0.50, rate(procscan_scan_duration_seconds_bucket[5m]))  # P50
 histogram_quantile(0.95, rate(procscan_scan_duration_seconds_bucket[5m]))  # P95
 histogram_quantile(0.99, rate(procscan_scan_duration_seconds_bucket[5m]))  # P99
 ```
 
-### 3. 威胁检测指标
+### 3. Threat Detection Metrics
 
-| 指标名称 | 类型 | 描述 | 标签 | 用途 |
+| Metric Name | Type | Description | Labels | Purpose |
 |---------|------|------|------|------|
-| `procscan_threats_detected_total` | Counter | 检测到的威胁总数 | - | 跟踪整体威胁情况 |
-| `procscan_threats_by_type` | Counter | 按威胁类型分类的数量 | `threat_type` | 分析威胁类型分布 |
-| `procscan_threats_by_severity` | Counter | 按严重程度分类的数量 | `severity` | 评估威胁严重性 |
+| `procscan_threats_detected_total` | Counter | Total number of threats detected | - | Track overall threat situation |
+| `procscan_threats_by_type` | Counter | Number of threats by type | `threat_type` | Analyze threat type distribution |
+| `procscan_threats_by_severity` | Counter | Number of threats by severity | `severity` | Assess threat severity |
 
-**标签说明：**
-- `threat_type`: 威胁类型（如：cryptocurrency-mining, malware, suspicious-process）
-- `severity`: 严重程度（如：critical, high, medium, low, info）
+**Label Descriptions:**
+- `threat_type`: Threat type (e.g., cryptocurrency-mining, malware, suspicious-process)
+- `severity`: Severity level (e.g., critical, high, medium, low, info)
 
-**使用场景：**
+**Usage Scenarios:**
 ```promql
-# 威胁检测趋势
+# Threat detection trends
 increase(procscan_threats_detected_total[1h])
 
-# 按类型统计威胁
+# Top threats by type
 topk(10, sum by (threat_type) (rate(procscan_threats_by_type[5m])))
 
-# 高严重性威胁监控
+# High severity threat monitoring
 procscan_threats_by_severity{severity=~"critical|high"}
 
-# 威胁严重程度分布
+# Threat severity distribution
 sum by (severity) (procscan_threats_by_severity)
 ```
 
-### 4. 进程分析指标
+### 4. Process Analysis Metrics
 
-| 指标名称 | 类型 | 描述 | 标签 | 用途 |
+| Metric Name | Type | Description | Labels | Purpose |
 |---------|------|------|------|------|
-| `procscan_processes_analyzed_total` | Counter | 已分析的进程总数 | - | 监控分析工作量 |
-| `procscan_suspicious_processes_total` | Counter | 发现的可疑进程总数 | - | 跟踪安全事件 |
-| `procscan_suspicious_processes_by_namespace` | Gauge | 各命名空间的可疑进程数 | `namespace` | 按命名空间分析 |
+| `procscan_processes_analyzed_total` | Counter | Total number of processes analyzed | - | Monitor analysis workload |
+| `procscan_suspicious_processes_total` | Counter | Total number of suspicious processes found | - | Track security incidents |
+| `procscan_suspicious_processes_by_namespace` | Gauge | Number of suspicious processes per namespace | `namespace` | Analyze by namespace |
 
-**标签说明：**
-- `namespace`: Kubernetes 命名空间名称
+**Label Descriptions:**
+- `namespace`: Kubernetes namespace name
 
-**使用场景：**
+**Usage Scenarios:**
 ```promql
-# 进程分析速率
+# Process analysis rate
 rate(procscan_processes_analyzed_total[5m])
 
-# 可疑进程趋势
+# Suspicious process trends
 increase(procscan_suspicious_processes_total[1h])
 
-# 按命名空间分析可疑进程
+# Top suspicious processes by namespace
 topk(10, procscan_suspicious_processes_by_namespace)
 
-# 可疑进程最多的命名空间
+# Namespaces with most suspicious processes
 sort_desc(sum(procscan_suspicious_processes_by_namespace) by (namespace))
 ```
 
-### 5. 响应动作指标
+### 5. Response Action Metrics
 
-| 指标名称 | 类型 | 描述 | 用途 |
+| Metric Name | Type | Description | Purpose |
 |---------|------|------|------|
-| `procscan_label_actions_total` | Counter | 标签操作尝试次数 | 监控自动化响应频率 |
-| `procscan_label_actions_success_total` | Counter | 标签操作成功次数 | 评估自动化响应成功率 |
+| `procscan_label_actions_total` | Counter | Number of label action attempts | Monitor automated response frequency |
+| `procscan_label_actions_success_total` | Counter | Number of successful label actions | Evaluate automated response success rate |
 
-**使用场景：**
+**Usage Scenarios:**
 ```promql
-# 自动化响应频率
+# Automated response frequency
 rate(procscan_label_actions_total[5m])
 
-# 标签操作成功率
+# Label action success rate
 procscan_label_actions_success_total / procscan_label_actions_total
 
-# 标签操作失败率
+# Label action failure rate
 rate(procscan_label_actions_total - procscan_label_actions_success_total[5m])
 ```
 
-### 6. 通知指标
+### 6. Notification Metrics
 
-| 指标名称 | 类型 | 描述 | 用途 |
+| Metric Name | Type | Description | Purpose |
 |---------|------|------|------|
-| `procscan_notifications_sent_total` | Counter | 成功发送的通知总数 | 监控通知系统 |
-| `procscan_notifications_failed_total` | Counter | 发送失败的通知总数 | 监控通知系统健康度 |
+| `procscan_notifications_sent_total` | Counter | Total number of notifications sent successfully | Monitor notification system |
+| `procscan_notifications_failed_total` | Counter | Total number of failed notifications | Monitor notification system health |
 
-**使用场景：**
+**Usage Scenarios:**
 ```promql
-# 通知发送速率
+# Notification sending rate
 rate(procscan_notifications_sent_total[5m])
 
-# 通知失败率
+# Notification failure rate
 rate(procscan_notifications_failed_total[5m]) /
   (rate(procscan_notifications_sent_total[5m]) + rate(procscan_notifications_failed_total[5m]))
 
-# 通知系统健康度
+# Notification system health
 procscan_notifications_failed_total == 0
 ```
 
-### 7. 系统性能指标
+### 7. System Performance Metrics
 
-| 指标名称 | 类型 | 描述 | 用途 |
+| Metric Name | Type | Description | Purpose |
 |---------|------|------|------|
-| `procscan_memory_usage_bytes` | Gauge | 当前内存使用量（字节） | 监控内存消耗 |
-| `procscan_cpu_usage_percent` | Gauge | 当前CPU使用率（百分比） | 监控CPU消耗 |
+| `procscan_memory_usage_bytes` | Gauge | Current memory usage (bytes) | Monitor memory consumption |
+| `procscan_cpu_usage_percent` | Gauge | Current CPU usage (percentage) | Monitor CPU consumption |
 
-**使用场景：**
+**Usage Scenarios:**
 ```promql
-# 内存使用监控（MB）
+# Memory usage monitoring (MB)
 procscan_memory_usage_bytes / (1024 * 1024)
 
-# CPU使用率监控
+# CPU usage monitoring
 procscan_cpu_usage_percent
 
-# 内存使用趋势
+# Memory usage trends
 rate(procscan_memory_usage_bytes[5m])
 ```
 
-## 🎯 生产环境推荐查询
+## Recommended Production Queries
 
-### 健康检查查询
+### Health Check Queries
 ```promql
-# 扫描器整体健康状态
+# Overall scanner health status
 (
   procscan_scanner_running == 1
   and rate(procscan_scan_errors_total[5m]) < 0.1
@@ -165,48 +165,48 @@ rate(procscan_memory_usage_bytes[5m])
   and procscan_cpu_usage_percent < 80
 )
 
-# 服务可用性
+# Service availability
 up{job="procscan"} and procscan_scanner_running == 1
 ```
 
-### 安全监控查询
+### Security Monitoring Queries
 ```promql
-# 最近1小时检测到的威胁
+# Threats detected in the last hour
 increase(procscan_threats_detected_total[1h])
 
-# 活跃威胁类型
+# Active threat types
 group by (threat_type) (rate(procscan_threats_by_type[5m]) > 0)
 
-# 高风险威胁
+# High-risk threats
 procscan_threats_by_severity{severity=~"critical|high"}
 
-# 威胁趋势分析
+# Threat trend analysis
 sum(increase(procscan_threats_detected_total[1h])) by (threat_type)
 ```
 
-### 性能监控查询
+### Performance Monitoring Queries
 ```promql
-# 扫描性能分析
+# Scan performance analysis
 histogram_quantile(0.95, rate(procscan_scan_duration_seconds_bucket[5m])) > 30
 
-# 资源使用监控
+# Resource usage monitoring
 (
-  procscan_memory_usage_bytes / (1024 * 1024) > 50  # 内存 > 50MB
+  procscan_memory_usage_bytes / (1024 * 1024) > 50  # Memory > 50MB
   or procscan_cpu_usage_percent > 50  # CPU > 50%
 )
 
-# 进程分析效率
+# Process analysis efficiency
 rate(procscan_processes_analyzed_total[5m]) / procscan_cpu_usage_percent
 ```
 
-## 🚨 推荐告警规则
+## Recommended Alert Rules
 
-### 关键告警
+### Critical Alerts
 ```yaml
 groups:
   - name: procscan-critical
     rules:
-      # 扫描器宕机
+      # Scanner down
       - alert: ProcScanDown
         expr: procscan_scanner_running == 0
         for: 1m
@@ -216,7 +216,7 @@ groups:
           summary: "ProcScan scanner is down"
           description: "ProcScan scanner has been down for more than 1 minute"
 
-      # 高严重性威胁
+      # High severity threat
       - alert: ProcScanHighSeverityThreat
         expr: increase(procscan_threats_by_severity{severity=~"critical|high"}[5m]) > 0
         for: 0m
@@ -226,7 +226,7 @@ groups:
           summary: "High severity threat detected"
           description: "{{ $labels.severity }} threat detected: {{ $value }}"
 
-      # 高错误率
+      # High error rate
       - alert: ProcScanHighErrorRate
         expr: rate(procscan_scan_errors_total[5m]) / rate(procscan_scan_total[5m]) > 0.2
         for: 2m
@@ -237,11 +237,11 @@ groups:
           description: "Scan error rate is {{ $value | humanizePercentage }}"
 ```
 
-### 警告告警
+### Warning Alerts
 ```yaml
   - name: procscan-warning
     rules:
-      # 扫描性能慢
+      # Slow scans
       - alert: ProcScanSlowScans
         expr: histogram_quantile(0.95, rate(procscan_scan_duration_seconds_bucket[5m])) > 60
         for: 3m
@@ -251,7 +251,7 @@ groups:
           summary: "ProcScan scans are slow"
           description: "95th percentile scan duration is {{ $value }}s"
 
-      # 威胁检测
+      # Threat detected
       - alert: ProcScanThreatDetected
         expr: increase(procscan_threats_detected_total[5m]) > 0
         for: 0m
@@ -261,7 +261,7 @@ groups:
           summary: "Threat detected"
           description: "{{ $value }} threats detected in the last 5 minutes"
 
-      # 资源使用高
+      # High resource usage
       - alert: ProcScanHighResourceUsage
         expr: procscan_memory_usage_bytes > 100 * 1024 * 1024 or procscan_cpu_usage_percent > 80
         for: 5m
@@ -271,7 +271,7 @@ groups:
           summary: "High resource usage"
           description: "Memory: {{ $value | humanize1024 }}B, CPU: {{ $value }}%"
 
-      # 通知失败
+      # Notification failures
       - alert: ProcScanNotificationFailure
         expr: rate(procscan_notifications_failed_total[5m]) > 0.05
         for: 2m
@@ -282,46 +282,46 @@ groups:
           description: "Notification failure rate: {{ $value | humanizePercentage }}"
 ```
 
-## 📊 Grafana 仪表板建议
+## Grafana Dashboard Recommendations
 
-### 面板配置
+### Panel Configuration
 
-1. **扫描器状态面板**
-   - 扫描器运行状态（单值统计）
-   - 运行时间（时间序列）
-   - 扫描次数趋势（时间序列）
+1. **Scanner Status Panel**
+   - Scanner running status (single stat)
+   - Uptime (time series)
+   - Scan count trends (time series)
 
-2. **性能监控面板**
-   - 扫描耗时分布（直方图）
-   - 内存使用趋势（时间序列）
-   - CPU使用率（时间序列）
-   - 错误率（时间序列）
+2. **Performance Monitoring Panel**
+   - Scan duration distribution (histogram)
+   - Memory usage trends (time series)
+   - CPU usage (time series)
+   - Error rate (time series)
 
-3. **安全监控面板**
-   - 威胁检测趋势（时间序列）
-   - 威胁类型分布（饼图）
-   - 严重程度分布（饼图）
-   - 可疑进程分布（热力图）
+3. **Security Monitoring Panel**
+   - Threat detection trends (time series)
+   - Threat type distribution (pie chart)
+   - Severity distribution (pie chart)
+   - Suspicious process distribution (heatmap)
 
-4. **自动化响应面板**
-   - 标签操作成功率（单值统计）
-   - 通知发送状态（时间序列）
-   - 响应动作频率（时间序列）
+4. **Automated Response Panel**
+   - Label action success rate (single stat)
+   - Notification sending status (time series)
+   - Response action frequency (time series)
 
-### 查询示例
+### Query Examples
 
 ```promql
-# 仪表板 - 扫描概览
+# Dashboard - Scan Overview
 Scans Rate: rate(procscan_scan_total[5m])
 Error Rate: rate(procscan_scan_errors_total[5m]) / rate(procscan_scan_total[5m])
 Avg Duration: avg(procscan_scan_duration_seconds_sum / procscan_scan_duration_seconds_count)
 
-# 仪表板 - 安全概览
+# Dashboard - Security Overview
 Threats Rate: rate(procscan_threats_detected_total[5m])
 Critical Threats: procscan_threats_by_severity{severity="critical"}
 Suspicious Processes: procscan_suspicious_processes_total
 
-# 仪表板 - 系统概览
+# Dashboard - System Overview
 Memory Usage: procscan_memory_usage_bytes / (1024*1024)
 CPU Usage: procscan_cpu_usage_percent
 Process Analysis Rate: rate(procscan_processes_analyzed_total[5m])
@@ -329,9 +329,9 @@ Process Analysis Rate: rate(procscan_processes_analyzed_total[5m])
 
 ---
 
-## 🔧 配置说明
+## Configuration Instructions
 
-### 启用 Metrics
+### Enable Metrics
 ```yaml
 metrics:
   enabled: true
@@ -343,9 +343,9 @@ metrics:
   retry_interval: "5s"
 ```
 
-### 指标端点
+### Metrics Endpoint
 - URL: `http://localhost:8080/metrics`
-- 格式: Prometheus 文本格式
-- 更新频率: 实时更新
+- Format: Prometheus text format
+- Update frequency: Real-time updates
 
-通过这套完整的指标体系，运维团队可以全面监控 ProcScan 的运行状态、性能表现和安全防护效果。
+With this complete metrics system, operations teams can comprehensively monitor ProcScan's operational status, performance, and security protection effectiveness.

@@ -1,3 +1,17 @@
+// Copyright 2025 CompliK Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package controller
 
 import (
@@ -22,52 +36,52 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-// MemoryEfficientController - 1GB 内存限制下的高效控制器
+// MemoryEfficientController - Memory-efficient controller with 1GB memory limit
 type MemoryEfficientController struct {
 	client.Client
 	Scheme *k8sruntime.Scheme
 
-	// 核心组件 (内存优化)
+	// Core components (memory optimized)
 	eventFilter    *EventFilter
 	processor      *StreamProcessor
 	namespaceIndex *NamespaceIndex
 	stringPool     *StringPool
 
-	// 并发控制
-	semaphore chan struct{} // 控制并发数
+	// Concurrency control
+	semaphore chan struct{} // Control concurrency
 	batchSize int
 
-	// 配置
-	maxMemoryMB int64 // 最大内存使用 (MB)
-	workerCount int   // 工作协程数量
+	// Configuration
+	maxMemoryMB int64 // Maximum memory usage (MB)
+	workerCount int   // Number of worker goroutines
 
-	// 监控和统计
-	apiCallCount int64 // API 调用计数
-	processCount int64 // 处理计数
-	errorCount   int64 // 错误计数
+	// Monitoring and statistics
+	apiCallCount int64 // API call count
+	processCount int64 // Processing count
+	errorCount   int64 // Error count
 	lastGC       time.Time
 
-	// 性能监控
+	// Performance monitoring
 	mu        sync.RWMutex
 	memStats  runtime.MemStats
 	startTime time.Time
 }
 
-// EventFilter - 高效的事件过滤器
+// EventFilter - Efficient event filter
 type EventFilter struct {
-	relevantNamespaces map[uint32]bool // namespace hash -> 是否相关
-	namespaceCount     int             // 计数器
+	relevantNamespaces map[uint32]bool // namespace hash -> whether relevant
+	namespaceCount     int             // counter
 	mu                 sync.RWMutex
 	lastUpdate         time.Time
 }
 
-// StreamProcessor - 流式工作负载处理器
+// StreamProcessor - Stream workload processor
 type StreamProcessor struct {
 	client client.Client
 	pool   sync.Pool
 }
 
-// NamespaceIndex - 轻量级命名空间索引
+// NamespaceIndex - Lightweight namespace index
 type NamespaceIndex struct {
 	states []NamespaceState
 	count  int32
@@ -75,22 +89,22 @@ type NamespaceIndex struct {
 	pool   sync.Pool
 }
 
-// NamespaceState - 紧凑的命名空间状态 (64 bytes)
+// NamespaceState - Compact namespace state (64 bytes)
 type NamespaceState struct {
-	Name      [32]byte // 固定长度字符串
+	Name      [32]byte // Fixed-length string
 	Status    uint8    // 0=unknown, 1=active, 2=locked
-	Timestamp int64    // Unix 时间戳
-	Hash      uint32   // 快速比较
+	Timestamp int64    // Unix timestamp
+	Hash      uint32   // Quick comparison
 }
 
-// StringPool - 字符串池避免重复分配
+// StringPool - String pool to avoid duplicate allocations
 type StringPool struct {
 	pool    map[string]string
 	mu      sync.RWMutex
 	maxSize int
 }
 
-// NewMemoryEfficientController 创建内存高效控制器
+// NewMemoryEfficientController Create memory-efficient controller
 func NewMemoryEfficientController(client client.Client, scheme *k8sruntime.Scheme, maxMemoryMB int64) *MemoryEfficientController {
 	controller := &MemoryEfficientController{
 		Client:         client,
@@ -98,9 +112,9 @@ func NewMemoryEfficientController(client client.Client, scheme *k8sruntime.Schem
 		maxMemoryMB:    maxMemoryMB,
 		eventFilter:    NewEventFilter(),
 		processor:      NewStreamProcessor(client),
-		namespaceIndex: NewNamespaceIndex(10000), // 初始容量
+		namespaceIndex: NewNamespaceIndex(10000), // Initial capacity
 		stringPool:     NewStringPool(50000),
-		semaphore:      make(chan struct{}, 20), // 限制并发数
+		semaphore:      make(chan struct{}, 20), // Limit concurrency
 		batchSize:      50,
 		workerCount:    10,
 		startTime:      time.Now(),
@@ -109,9 +123,9 @@ func NewMemoryEfficientController(client client.Client, scheme *k8sruntime.Schem
 	return controller
 }
 
-// SetupWithManager 设置控制器管理器
+// SetupWithManager Setup controller manager
 func (r *MemoryEfficientController) SetupWithManager(mgr ctrl.Manager) error {
-	// 创建控制器 - 监听 BlockRequest 事件（暂时移除 Namespace 监听）
+	// Create controller - listen to BlockRequest events (temporarily removed Namespace monitoring)
 	builder := ctrl.NewControllerManagedBy(mgr).
 		For(&v1.BlockRequest{}).
 		WithOptions(controller.Options{MaxConcurrentReconciles: r.workerCount}).
@@ -120,20 +134,20 @@ func (r *MemoryEfficientController) SetupWithManager(mgr ctrl.Manager) error {
 	return builder.Complete(r)
 }
 
-// namespaceMapper 将 namespace 事件映射为 reconcile 请求
+// namespaceMapper Map namespace events to reconcile requests
 func (r *MemoryEfficientController) namespaceMapper(obj client.Object) []reconcile.Request {
 	namespace := obj.(*corev1.Namespace)
 
-	// 检查是否有相关的标签或注解变化
+	// Check if there are relevant label or annotation changes
 	hasStatusLabel := namespace.Labels != nil && namespace.Labels[constants.StatusLabel] != ""
 	hasUnlockTimestamp := namespace.Annotations != nil && namespace.Annotations[constants.UnlockTimestampLabel] != ""
 
-	// 只处理有状态标签或解锁时间戳的 namespace
+	// Only process namespaces with status labels or unlock timestamps
 	if !hasStatusLabel && !hasUnlockTimestamp {
 		return nil
 	}
 
-	// 更新事件过滤器中的相关 namespace 列表
+	// Update relevant namespace list in event filter
 	r.eventFilter.UpdateRelevantNamespaces(map[string]bool{namespace.Name: true})
 
 	return []reconcile.Request{
@@ -145,43 +159,43 @@ func (r *MemoryEfficientController) namespaceMapper(obj client.Object) []reconci
 	}
 }
 
-// Reconcile 主要协调逻辑
+// Reconcile Main reconciliation logic
 func (r *MemoryEfficientController) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	atomic.AddInt64(&r.processCount, 1)
 	logger := log.FromContext(ctx).WithValues("namespace", req.Name)
 
-	// 快速路径：过滤无关事件
+	// Fast path: filter irrelevant events
 	if !r.eventFilter.ShouldProcess(req.Name) {
 		return ctrl.Result{}, nil
 	}
 
-	// 内存压力检查
+	// Memory pressure check
 	if r.isMemoryPressure() {
 		logger.Info("Memory pressure detected, delaying processing")
 		return ctrl.Result{RequeueAfter: time.Minute}, nil
 	}
 
-	// 获取信号量，控制并发
+	// Acquire semaphore, control concurrency
 	select {
 	case r.semaphore <- struct{}{}:
 		defer func() { <-r.semaphore }()
 	default:
-		// 并发数已满，稍后重试
+		// Concurrency limit reached, retry later
 		return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 	}
 
 	return r.processNamespace(ctx, req.Name)
 }
 
-// processNamespace 处理命名空间
+// processNamespace Process namespace
 func (r *MemoryEfficientController) processNamespace(ctx context.Context, namespaceName string) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithValues("namespace", namespaceName)
 
-	// 获取 namespace
+	// Get namespace
 	var ns corev1.Namespace
 	if err := r.Get(ctx, client.ObjectKey{Name: namespaceName}, &ns); err != nil {
 		if errors.IsNotFound(err) {
-			// namespace 已删除，清理索引
+			// namespace deleted, clean up index
 			r.namespaceIndex.Remove(namespaceName)
 		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -189,14 +203,14 @@ func (r *MemoryEfficientController) processNamespace(ctx context.Context, namesp
 
 	atomic.AddInt64(&r.apiCallCount, 1)
 
-	// 检查状态标签
+	// Check status label
 	status := ns.Labels[constants.StatusLabel]
 	if status == "" {
-		// 没有状态标签，确保解封状态
+		// No status label, ensure unlocked state
 		return r.ensureNamespaceUnlocked(ctx, &ns)
 	}
 
-	// 处理不同的状态
+	// Handle different states
 	switch status {
 	case constants.LockedStatus:
 		logger.Info("Processing locked namespace")
@@ -219,13 +233,13 @@ func (r *MemoryEfficientController) processNamespace(ctx context.Context, namesp
 		return r.ensureNamespaceUnlocked(ctx, &ns)
 	}
 
-	// 更新索引
+	// Update index
 	r.namespaceIndex.Update(namespaceName, status)
 
 	return ctrl.Result{}, nil
 }
 
-// handleNamespaceLocked 处理命名空间锁定
+// handleNamespaceLocked Process namespace锁定
 func (r *MemoryEfficientController) handleNamespaceLocked(ctx context.Context, namespace *corev1.Namespace) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
@@ -256,7 +270,7 @@ func (r *MemoryEfficientController) handleNamespaceLocked(ctx context.Context, n
 	return ctrl.Result{}, nil
 }
 
-// ensureNamespaceUnlocked 确保命名空间解封
+// ensureNamespaceUnlocked Ensure namespace unlocked
 func (r *MemoryEfficientController) ensureNamespaceUnlocked(ctx context.Context, namespace *corev1.Namespace) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
@@ -298,7 +312,7 @@ func (r *MemoryEfficientController) Start(ctx context.Context) error {
 	return nil
 }
 
-// isMemoryPressure 检查内存压力
+// isMemoryPressure Check memory pressure
 func (r *MemoryEfficientController) isMemoryPressure() bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -423,7 +437,7 @@ func (r *MemoryEfficientController) reportMetrics(ctx context.Context) {
 		"errors_total", atomic.LoadInt64(&r.errorCount))
 }
 
-// triggerSoftCleanup 触发软清理
+// triggerSoftCleanup Trigger soft cleanup
 func (r *MemoryEfficientController) triggerSoftCleanup() {
 	log.Log.Info("Triggering soft cleanup")
 	r.stringPool.CleanupOldEntries()
@@ -431,14 +445,14 @@ func (r *MemoryEfficientController) triggerSoftCleanup() {
 	r.namespaceIndex.Compact()
 }
 
-// triggerEmergencyCleanup 触发紧急清理
+// triggerEmergencyCleanup Trigger emergency cleanup
 func (r *MemoryEfficientController) triggerEmergencyCleanup() {
 	log.Log.Info("Triggering emergency cleanup")
 	r.stringPool.Reset()
 	r.eventFilter.Reset()
 	r.namespaceIndex.Reset()
 
-	// 强制 GC (谨慎使用)
+	// Force GC (谨慎使用)
 	runtime.GC()
 	r.lastGC = time.Now()
 }

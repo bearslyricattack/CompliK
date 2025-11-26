@@ -7,7 +7,7 @@ metadata:
     app.kubernetes.io/name: block-controller
     app.kubernetes.io/version: v0.1.2
 rules:
-# 命名空间权限
+# Namespace permissions
 - apiGroups:
   - ""
   resources:
@@ -18,7 +18,7 @@ rules:
   - patch
   - update
   - watch
-# BlockRequest 权限
+# BlockRequest permissions
 - apiGroups:
   - core.clawcloud.run
   resources:
@@ -39,7 +39,7 @@ rules:
   - get
   - patch
   - update
-# 工作负载权限（用于缩放操作）
+# Workload permissions (for scaling operations)
 - apiGroups:
   - apps
   resources:
@@ -52,7 +52,7 @@ rules:
   - patch
   - update
   - watch
-# CronJob 权限
+# CronJob permissions
 - apiGroups:
   - batch
   resources:
@@ -63,7 +63,7 @@ rules:
   - patch
   - update
   - watch
-# Pod 权限
+# Pod permissions
 - apiGroups:
   - ""
   resources:
@@ -73,7 +73,7 @@ rules:
   - list
   - delete
   - watch
-# ResourceQuota 权限
+# ResourceQuota permissions
 - apiGroups:
   - ""
   resources:
@@ -85,7 +85,7 @@ rules:
   - list
   - update
   - patch
-# 事件权限
+# Event permissions
 - apiGroups:
   - ""
   resources:
@@ -93,7 +93,7 @@ rules:
   verbs:
   - create
   - patch
-# 配置图权限
+# ConfigMap permissions
 - apiGroups:
   - ""
   resources:
@@ -104,7 +104,7 @@ rules:
   - create
   - update
   - patch
-# 密钥权限
+# Secret permissions
 - apiGroups:
   - ""
   resources:
@@ -112,7 +112,7 @@ rules:
   verbs:
   - get
   - list
-# 健康检查权限
+# Health check permissions
 - apiGroups:
   - ""
   resources:
@@ -120,7 +120,7 @@ rules:
   verbs:
   - get
   - list
-# 指标权限
+# Metrics permissions
 - apiGroups:
   - ""
   resources:
@@ -133,7 +133,7 @@ rules:
   - update
   - patch
   - delete
-# 最终izers权限
+# Finalizers permissions
 - apiGroups:
   - ""
   resources:
