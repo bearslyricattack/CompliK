@@ -132,8 +132,14 @@ func (p *Processor) AnalyzeProcess(pid int) (*models.ProcessInfo, error) {
 	}
 	processName := p.getProcessName(cmdline)
 
-	procLogger := legacy.L.WithFields(logrus.Fields{"pid": pid, "process_name": processName})
-	procLogger.Debug("Analyzing process...")
+	procLogger := legacy.L.WithFields(logrus.Fields{
+		"pid":            pid,
+		"process_name":   processName,
+		"cmdline":        cmdline,
+		"proc_dir":       procDir,
+		"cmdline_length": len(cmdline),
+	})
+	procLogger.Debug("Starting process analysis,Process Info:")
 
 	// Step 1: Check if process matches blacklist
 	isBlacklisted, message := p.isBlacklisted(processName, cmdline)

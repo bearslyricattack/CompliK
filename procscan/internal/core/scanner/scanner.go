@@ -165,12 +165,6 @@ func (s *Scanner) Start(ctx context.Context) error {
 		legacy.L.Warn("K8s client not initialized, labeling feature will be unavailable")
 	}
 
-	if s.notifier != nil {
-		legacy.L.Info("Notifier initialized successfully")
-	} else {
-		legacy.L.Info("Notifier not configured, notification feature will be unavailable")
-	}
-
 	// Start metrics server
 	if s.metricsSrv != nil {
 		go func() {
