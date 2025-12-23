@@ -31,13 +31,13 @@ type ViolationRecordsProvider interface {
 
 // Handler API 处理器
 type Handler struct {
-	provider ViolationRecordsProvider
+	Provider ViolationRecordsProvider
 }
 
 // NewHandler 创建新的 API 处理器
 func NewHandler(provider ViolationRecordsProvider) *Handler {
 	return &Handler{
-		provider: provider,
+		Provider: provider,
 	}
 }
 
@@ -48,7 +48,7 @@ func (h *Handler) GetViolationsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	records := h.provider.GetViolationRecords()
+	records := h.Provider.GetViolationRecords()
 
 	legacy.L.WithFields(logrus.Fields{
 		"count":  len(records),

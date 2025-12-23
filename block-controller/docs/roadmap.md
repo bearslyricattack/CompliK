@@ -100,7 +100,7 @@ spec:
   costStrategy:
     # Cost monitoring
     enabled: true
-    provider: "opencost"
+    Provider: "opencost"
 
     # Cost thresholds
     thresholds:
