@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bearslyricattack/CompliK/procscan/internal/api"
 	"github.com/bearslyricattack/CompliK/procscan/internal/core/alert"
 	k8sClient "github.com/bearslyricattack/CompliK/procscan/internal/core/k8s"
 	"github.com/bearslyricattack/CompliK/procscan/internal/core/processor"
@@ -35,14 +36,17 @@ import (
 )
 
 type Scanner struct {
-	config     *models.Config
-	processor  *processor.Processor
-	k8sClient  k8sClientInterface
-	notifier   notifierInterface
-	metrics    *metrics.Collector
-	metricsSrv *metrics.Server
-	mu         sync.RWMutex
-	ticker     *time.Ticker
+	config           *models.Config
+	processor        *processor.Processor
+	k8sClient        k8sClientInterface
+	notifier         notifierInterface
+	metrics          *metrics.Collector
+	metricsSrv       *metrics.Server
+	apiServer        *api.Server
+	mu               sync.RWMutex
+	ticker           *time.Ticker
+	violationRecords map[string]*models.ViolationRecord // 本地存储不合规记录，key 为 "namespace/pod/process"
+	violationMu      sync.RWMutex                       // 保护 violationRecords
 }
 
 // k8sClientInterface defines the interface for Kubernetes client operations
@@ -106,13 +110,24 @@ func NewScanner(config *models.Config) *Scanner {
 		legacy.L.Info("Metrics server disabled")
 	}
 
-	return &Scanner{
-		config:     config,
-		processor:  processor.NewProcessor(config),
-		k8sClient:  k8sAdapter,
-		metrics:    metricsCollector,
-		metricsSrv: metricsServer,
+	scanner := &Scanner{
+		config:           config,
+		processor:        processor.NewProcessor(config),
+		k8sClient:        k8sAdapter,
+		metrics:          metricsCollector,
+		metricsSrv:       metricsServer,
+		violationRecords: make(map[string]*models.ViolationRecord),
 	}
+
+	// Initialize API server
+	if config.API.Enabled {
+		scanner.apiServer = api.NewServer(scanner, config.API.Port)
+		legacy.L.WithField("port", config.API.Port).Info("API server configured")
+	} else {
+		legacy.L.Info("API server disabled")
+	}
+
+	return scanner
 }
 
 // UpdateConfig updates the scanner configuration and applies changes
@@ -174,6 +189,15 @@ func (s *Scanner) Start(ctx context.Context) error {
 		}()
 	}
 
+	// Start API server
+	if s.apiServer != nil {
+		go func() {
+			if err := s.apiServer.Start(ctx); err != nil {
+				legacy.L.WithError(err).Error("Failed to start API server")
+			}
+		}()
+	}
+
 	// Start metrics collector
 	if s.metrics != nil {
 		go s.metrics.StartMetricsUpdater(ctx, 30*time.Second)
@@ -209,6 +233,9 @@ func (s *Scanner) runScanLoop(ctx context.Context) error {
 			legacy.L.Info("Scanner stopped")
 			if s.metricsSrv != nil {
 				s.metricsSrv.Stop(ctx)
+			}
+			if s.apiServer != nil {
+				s.apiServer.Stop(ctx)
 			}
 			return ctx.Err()
 		case <-s.ticker.C:
@@ -275,6 +302,8 @@ func (s *Scanner) scanProcesses() error {
 	resultsByNamespace := make(map[string][]*models.ProcessInfo)
 	for processInfo := range resultsChan {
 		resultsByNamespace[processInfo.Namespace] = append(resultsByNamespace[processInfo.Namespace], processInfo)
+		// 更新本地违规记录存储
+		s.updateViolationRecord(processInfo)
 	}
 
 	if len(resultsByNamespace) == 0 {
@@ -343,4 +372,39 @@ func (s *Scanner) handleGroupedActions(namespace string, config *models.Config) 
 		labelResult = "Feature disabled"
 	}
 	return
+}
+
+// updateViolationRecord 更新本地违规记录
+func (s *Scanner) updateViolationRecord(processInfo *models.ProcessInfo) {
+	s.violationMu.Lock()
+	defer s.violationMu.Unlock()
+
+	// 生成唯一 key：namespace/pod/process
+	key := fmt.Sprintf("%s/%s/%s", processInfo.Namespace, processInfo.PodName, processInfo.ProcessName)
+
+	record := &models.ViolationRecord{
+		Pod:       processInfo.PodName,
+		Namespace: processInfo.Namespace,
+		Process:   processInfo.ProcessName,
+		Cmdline:   processInfo.Command,
+		Regex:     processInfo.MatchedRule,
+		Status:    "active", // 默认状态为 active
+		Type:      processInfo.AppType,
+		Name:      processInfo.AppName,
+		Timestamp: processInfo.Timestamp,
+	}
+
+	s.violationRecords[key] = record
+}
+
+// GetViolationRecords 返回当前所有违规记录
+func (s *Scanner) GetViolationRecords() []*models.ViolationRecord {
+	s.violationMu.RLock()
+	defer s.violationMu.RUnlock()
+
+	records := make([]*models.ViolationRecord, 0, len(s.violationRecords))
+	for _, record := range s.violationRecords {
+		records = append(records, record)
+	}
+	return records
 }

@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: procscan-aggregator
+  namespace: kube-system
+  labels:
+    app: procscan-aggregator
+spec:
+  replicas: 1  # 单副本即可
+  selector:
+    matchLabels:
+      app: procscan-aggregator
+  template:
+    metadata:
+      labels:
+        app: procscan-aggregator
+    spec:
+      serviceAccountName: procscan-aggregator
+      containers:
+      - name: aggregator
+        image: your-registry.com/procscan-aggregator:latest
+        imagePullPolicy: Always
+        args:
+          - "-config"
+          - "/app/config.yaml"
+        ports:
+        - name: http
+          containerPort: 8090
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        volumeMounts:
+        - name: config
+          mountPath: /app/config.yaml
+          subPath: config.yaml
+      volumes:
+      - name: config
+        configMap:
+          name: procscan-aggregator-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: procscan-aggregator
+  namespace: kube-system
+  labels:
+    app: procscan-aggregator
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8090
+    targetPort: http
+    protocol: TCP
+    name: http
+  selector:
+    app: procscan-aggregator

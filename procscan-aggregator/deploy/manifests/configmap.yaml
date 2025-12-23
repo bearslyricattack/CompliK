@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: procscan-aggregator-config
+  namespace: kube-system
+data:
+  config.yaml: |
+    # ProcScan Aggregator 配置
+    aggregator:
+      # 扫描间隔 - 多久聚合一次数据
+      scan_interval: "60s"
+      # HTTP 服务端口
+      port: 8090
+
+    # DaemonSet 配置
+    daemonset:
+      # DaemonSet 所在的命名空间
+      namespace: "kube-system"
+      # Service 名称
+      service_name: "procscan"
+      # API 端口
+      api_port: 9090
+      # API 路径
+      api_path: "/api/violations"
+
+    # 日志配置
+    logger:
+      level: "info"
+      format: "json"

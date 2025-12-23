@@ -27,33 +27,57 @@ import (
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
+// ContainerInfo 存储容器的完整信息
+type ContainerInfo struct {
+	PodName      string
+	PodNamespace string
+	Labels       map[string]string // Pod 的所有 label
+}
+
 // GetContainerInfo retrieves pod name and namespace for a given container ID via on-demand query
 func GetContainerInfo(containerID string) (string, string, error) {
+	info, err := GetContainerInfoDetailed(containerID)
+	if err != nil {
+		return "", "", err
+	}
+	return info.PodName, info.PodNamespace, nil
+}
+
+// GetContainerInfoDetailed 获取容器的详细信息，包括 Pod labels
+func GetContainerInfoDetailed(containerID string) (*ContainerInfo, error) {
 	conn, err := createGRPCConnection()
 	if err != nil {
-		return "", "", fmt.Errorf("failed to create connection: %v", err)
+		return nil, fmt.Errorf("failed to create connection: %v", err)
 	}
 	defer conn.Close()
 	client := runtimeapi.NewRuntimeServiceClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	statusReq := &runtimeapi.ContainerStatusRequest{ContainerId: containerID}
+	statusReq := &runtimeapi.ContainerStatusRequest{ContainerId: containerID, Verbose: true}
 	statusResp, err := client.ContainerStatus(ctx, statusReq)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to get container status: %v", err)
+		return nil, fmt.Errorf("failed to get container status: %v", err)
 	}
 	if statusResp.Status == nil {
-		return "", "", fmt.Errorf("container status is empty")
+		return nil, fmt.Errorf("container status is empty")
 	}
-	podNamespace := statusResp.Status.GetLabels()["io.kubernetes.pod.namespace"]
-	podName := statusResp.Status.GetLabels()["io.kubernetes.pod.name"]
+
+	labels := statusResp.Status.GetLabels()
+	podNamespace := labels["io.kubernetes.pod.namespace"]
+	podName := labels["io.kubernetes.pod.name"]
+
 	if podName == "" {
-		return "", "", fmt.Errorf("cannot find pod name (io.kubernetes.pod.name) in container labels")
+		return nil, fmt.Errorf("cannot find pod name (io.kubernetes.pod.name) in container labels")
 	}
 	if podNamespace == "" {
-		return "", "", fmt.Errorf("cannot find pod namespace (io.kubernetes.pod.namespace) in container labels")
+		return nil, fmt.Errorf("cannot find pod namespace (io.kubernetes.pod.namespace) in container labels")
 	}
-	return podName, podNamespace, nil
+
+	return &ContainerInfo{
+		PodName:      podName,
+		PodNamespace: podNamespace,
+		Labels:       labels,
+	}, nil
 }
 
 // createGRPCConnection establishes a gRPC connection to the container runtime

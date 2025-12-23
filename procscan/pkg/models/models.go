@@ -62,6 +62,12 @@ type MetricsConfig struct {
 	RetryInterval time.Duration `yaml:"retry_interval"`
 }
 
+// APIConfig contains configuration for the HTTP API server
+type APIConfig struct {
+	Enabled bool `yaml:"enabled"`
+	Port    int  `yaml:"port"`
+}
+
 // RuleSet defines a set of matching rules, all rules will be parsed as regular expressions
 type RuleSet struct {
 	Processes  []string `yaml:"processes"`
@@ -83,6 +89,7 @@ type Config struct {
 	Actions        ActionsConfig       `yaml:"actions"`
 	Notifications  NotificationsConfig `yaml:"notifications"`
 	Metrics        MetricsConfig       `yaml:"metrics"`
+	API            APIConfig           `yaml:"api"`
 	DetectionRules DetectionRules      `yaml:"detectionRules"`
 }
 
@@ -98,4 +105,22 @@ type ProcessInfo struct {
 	ContainerID string
 	Timestamp   string
 	Message     string
+	PodLabels   map[string]string // Pod 的 labels
+	AppType     string            // "app" 或 "devbox"
+	AppName     string            // 应用名称
+	MatchedRule string            // 匹配的正则规则
+}
+
+// ViolationRecord 表示不合规应用的完整记录信息
+// 用于API返回和聚合服务处理
+type ViolationRecord struct {
+	Pod       string `json:"pod"`       // Pod 名称
+	Namespace string `json:"namespace"` // 命名空间
+	Process   string `json:"process"`   // 进程名称
+	Cmdline   string `json:"cmdline"`   // 完整命令行
+	Regex     string `json:"regex"`     // 匹配的正则表达式规则
+	Status    string `json:"status"`    // 状态（例如：active, blocked）
+	Type      string `json:"type"`      // 类型（app 或 devbox）
+	Name      string `json:"name"`      // 应用名称（app label 或 devbox name）
+	Timestamp string `json:"timestamp"` // 检测时间
 }

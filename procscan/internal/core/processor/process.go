@@ -188,7 +188,7 @@ func (p *Processor) AnalyzeProcess(pid int) (*models.ProcessInfo, error) {
 	}
 
 	// Step 5: Query container info on-demand (no cache)
-	podName, namespace, err := container.GetContainerInfo(containerID)
+	containerInfo, err := container.GetContainerInfoDetailed(containerID)
 	if err != nil {
 		procLogger.WithFields(logrus.Fields{
 			"containerID": containerID,
@@ -196,6 +196,8 @@ func (p *Processor) AnalyzeProcess(pid int) (*models.ProcessInfo, error) {
 		}).Debug("Failed to get container info")
 		return nil, nil
 	}
+	podName := containerInfo.PodName
+	namespace := containerInfo.PodNamespace
 
 	// Step 6: Check infrastructure whitelist
 	if p.isInfraWhitelisted(namespace, podName) {
@@ -220,6 +222,10 @@ func (p *Processor) AnalyzeProcess(pid int) (*models.ProcessInfo, error) {
 		"main_process_pid": mainProcessPID,
 	}).Warn("Confirmed malicious process detected")
 
+	// 确定应用类型和名称
+	// 通过 label 判断是 app 还是 devbox
+	appType, appName := p.determineAppTypeAndName(containerInfo.Labels, podName)
+
 	return &models.ProcessInfo{
 		PID:         pid,
 		ProcessName: processName,
@@ -229,6 +235,10 @@ func (p *Processor) AnalyzeProcess(pid int) (*models.ProcessInfo, error) {
 		Message:     message,
 		PodName:     podName,
 		Namespace:   namespace,
+		PodLabels:   containerInfo.Labels,
+		AppType:     appType,
+		AppName:     appName,
+		MatchedRule: p.extractMatchedRule(message),
 	}, nil
 }
 
@@ -311,4 +321,36 @@ func isHexString(s string) bool {
 		}
 	}
 	return true
+}
+
+// determineAppTypeAndName 根据 Pod labels 确定应用类型和名称
+// 如果是 app，从 label 获取名称；如果是 devbox，使用 pod name
+func (p *Processor) determineAppTypeAndName(labels map[string]string, podName string) (appType, appName string) {
+	// 检查是否为 devbox（通过 label 判断）
+	if devboxName, ok := labels["devbox.sealos.io/name"]; ok && devboxName != "" {
+		return "devbox", devboxName
+	}
+
+	// 检查是否为 app（通过 app.kubernetes.io/name 或 app 等常见 label）
+	if appLabel, ok := labels["app.kubernetes.io/name"]; ok && appLabel != "" {
+		return "app", appLabel
+	}
+	if appLabel, ok := labels["app"]; ok && appLabel != "" {
+		return "app", appLabel
+	}
+
+	// 默认视为 app，使用 pod name 作为应用名
+	return "app", podName
+}
+
+// extractMatchedRule 从检测消息中提取匹配的正则规则
+func (p *Processor) extractMatchedRule(message string) string {
+	// 从 message 中提取规则信息
+	// 例如："Process name 'miner' matched blacklist rule '^miner$'"
+	// 提取最后一个单引号中的内容
+	parts := strings.Split(message, "'")
+	if len(parts) >= 4 {
+		return parts[len(parts)-2]
+	}
+	return ""
 }

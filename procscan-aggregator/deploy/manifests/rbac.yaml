@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: procscan-aggregator
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: procscan-aggregator
+rules:
+  # 读取 Endpoints 用于服务发现
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["get", "list", "watch"]
+
+  # 读取 Pods 信息
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+
+  # 创建和更新 CRD（根据实际 CRD 定义调整）
+  # Higress WASM Plugin CRD
+  - apiGroups: ["extensions.higress.io"]
+    resources: ["wasmplugins"]
+    verbs: ["create", "update", "patch", "get", "list"]
+
+  # Notification CRD
+  - apiGroups: ["notification.sealos.io"]
+    resources: ["notifications"]
+    verbs: ["create", "update", "patch", "get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: procscan-aggregator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: procscan-aggregator
+subjects:
+  - kind: ServiceAccount
+    name: procscan-aggregator
+    namespace: kube-system
