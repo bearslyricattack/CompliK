@@ -300,16 +300,26 @@ func (s *Scanner) scanProcesses() error {
 	legacy.L.Info("All process analysis completed")
 
 	resultsByNamespace := make(map[string][]*models.ProcessInfo)
+	processCount := 0
 	for processInfo := range resultsChan {
-		resultsByNamespace[processInfo.Namespace] = append(resultsByNamespace[processInfo.Namespace], processInfo)
-		// 更新本地违规记录存储
+		processCount++
+		legacy.L.WithFields(logrus.Fields{
+			"namespace":    processInfo.Namespace,
+			"process_name": processInfo.ProcessName,
+			"pid":          processInfo.PID,
+		}).Debug("接收进程信息")
+		resultsByNamespace[processInfo.Namespace] = append(
+			resultsByNamespace[processInfo.Namespace],
+			processInfo,
+		)
 		s.updateViolationRecord(processInfo)
 	}
 
-	if len(resultsByNamespace) == 0 {
-		legacy.L.Info("No suspicious processes found in this scan round")
-		return nil
-	}
+	// 最终统计
+	legacy.L.WithFields(logrus.Fields{
+		"total_processes": processCount,
+		"namespace_count": len(resultsByNamespace),
+	}).Info("进程信息处理完成")
 
 	// Record suspicious process metrics
 	if s.metrics != nil {
@@ -374,7 +384,6 @@ func (s *Scanner) handleGroupedActions(namespace string, config *models.Config) 
 	return
 }
 
-// updateViolationRecord 更新本地违规记录
 func (s *Scanner) updateViolationRecord(processInfo *models.ProcessInfo) {
 	s.violationMu.Lock()
 	defer s.violationMu.Unlock()
@@ -382,19 +391,34 @@ func (s *Scanner) updateViolationRecord(processInfo *models.ProcessInfo) {
 	// 生成唯一 key：namespace/pod/process
 	key := fmt.Sprintf("%s/%s/%s", processInfo.Namespace, processInfo.PodName, processInfo.ProcessName)
 
+	_, exists := s.violationRecords[key]
+
+	legacy.L.WithFields(logrus.Fields{
+		"key":       key,
+		"namespace": processInfo.Namespace,
+		"pod":       processInfo.PodName,
+		"process":   processInfo.ProcessName,
+		"is_new":    !exists,
+	}).Debug("更新违规记录")
+
 	record := &models.ViolationRecord{
 		Pod:       processInfo.PodName,
 		Namespace: processInfo.Namespace,
 		Process:   processInfo.ProcessName,
 		Cmdline:   processInfo.Command,
 		Regex:     processInfo.MatchedRule,
-		Status:    "active", // 默认状态为 active
+		Status:    "active",
 		Type:      processInfo.AppType,
 		Name:      processInfo.AppName,
 		Timestamp: processInfo.Timestamp,
 	}
 
 	s.violationRecords[key] = record
+
+	legacy.L.WithFields(logrus.Fields{
+		"key":           key,
+		"total_records": len(s.violationRecords),
+	}).Debug("违规记录已保存")
 }
 
 func (s *Scanner) GetViolationRecords() []*models.ViolationRecord {
