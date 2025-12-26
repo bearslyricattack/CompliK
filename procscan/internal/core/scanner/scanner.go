@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strconv"
 	"sync"
 	"time"
 
@@ -425,6 +426,7 @@ func (s *Scanner) GetViolationRecords() []*models.ViolationRecord {
 	s.violationMu.RLock()
 	defer s.violationMu.RUnlock()
 	fmt.Printf("进入")
+	fmt.Printf(strconv.Itoa(len(s.violationRecords)))
 	records := make([]*models.ViolationRecord, 0, len(s.violationRecords))
 	for _, record := range s.violationRecords {
 		records = append(records, record)
