@@ -47,7 +47,7 @@ func setDefaults(config *models.Config) {
 		config.Aggregator.Port = 8090
 	}
 	if config.DaemonSet.Namespace == "" {
-		config.DaemonSet.Namespace = "kube-system"
+		config.DaemonSet.Namespace = "block-system"
 	}
 	if config.DaemonSet.ServiceName == "" {
 		config.DaemonSet.ServiceName = "procscan"

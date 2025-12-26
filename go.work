@@ -6,4 +6,5 @@ use (
 	./block-controller
 	./complik
 	./procscan
+	procscan-aggregator
 )
