@@ -397,11 +397,10 @@ func (s *Scanner) updateViolationRecord(processInfo *models.ProcessInfo) {
 	s.violationRecords[key] = record
 }
 
-// GetViolationRecords 返回当前所有违规记录
 func (s *Scanner) GetViolationRecords() []*models.ViolationRecord {
 	s.violationMu.RLock()
 	defer s.violationMu.RUnlock()
-
+	fmt.Printf("进入")
 	records := make([]*models.ViolationRecord, 0, len(s.violationRecords))
 	for _, record := range s.violationRecords {
 		records = append(records, record)

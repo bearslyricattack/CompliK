@@ -34,14 +34,12 @@ type Handler struct {
 	Provider ViolationRecordsProvider
 }
 
-// NewHandler 创建新的 API 处理器
 func NewHandler(provider ViolationRecordsProvider) *Handler {
 	return &Handler{
 		Provider: provider,
 	}
 }
 
-// GetViolationsHandler 返回当前所有违规记录
 func (h *Handler) GetViolationsHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)

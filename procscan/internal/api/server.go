@@ -32,7 +32,6 @@ type Server struct {
 	port       int
 }
 
-// NewServer 创建新的 API 服务器
 func NewServer(provider ViolationRecordsProvider, port int) *Server {
 	handler := NewHandler(provider)
 	mux := http.NewServeMux()
