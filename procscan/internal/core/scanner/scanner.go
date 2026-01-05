@@ -313,6 +313,10 @@ func (s *Scanner) scanProcesses() error {
 			resultsByNamespace[processInfo.Namespace],
 			processInfo,
 		)
+		s.violationMu.Lock()
+		s.violationRecords = make(map[string]*models.ViolationRecord)
+		s.violationMu.Unlock()
+		legacy.L.Debug("已重置违规记录 map")
 		s.updateViolationRecord(processInfo)
 	}
 
