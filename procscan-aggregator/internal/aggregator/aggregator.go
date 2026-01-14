@@ -26,6 +26,7 @@ import (
 
 	"github.com/bearslyricattack/CompliK/procscan-aggregator/internal/crd"
 	"github.com/bearslyricattack/CompliK/procscan-aggregator/internal/k8s"
+	"github.com/bearslyricattack/CompliK/procscan-aggregator/pkg/config"
 	"github.com/bearslyricattack/CompliK/procscan-aggregator/pkg/logger"
 	"github.com/bearslyricattack/CompliK/procscan-aggregator/pkg/models"
 	"github.com/sirupsen/logrus"
@@ -60,9 +61,15 @@ func NewAggregator(config *models.Config, k8sClient *k8s.Client) *Aggregator {
 
 // Start 启动聚合器
 func (a *Aggregator) Start(ctx context.Context) error {
-	logger.L.WithField("interval", a.config.Aggregator.ScanInterval).Info("Starting aggregator")
+	// 解析扫描间隔
+	scanInterval, err := config.GetScanInterval(a.config)
+	if err != nil {
+		return fmt.Errorf("failed to parse scan interval: %w", err)
+	}
 
-	a.ticker = time.NewTicker(a.config.Aggregator.ScanInterval)
+	logger.L.WithField("interval", scanInterval).Info("Starting aggregator")
+
+	a.ticker = time.NewTicker(scanInterval)
 	defer a.ticker.Stop()
 
 	// 立即执行一次扫描

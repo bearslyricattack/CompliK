@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bearslyricattack/CompliK/complik/pkg/logger"
@@ -66,7 +67,13 @@ func (s *Collector) CollectorAndScreenshot(
 ) (*models.CollectorInfo, error) {
 	taskCtx, cancel := context.WithTimeout(ctx, duration)
 	defer cancel()
+
+	// Early return for empty PodCount
 	if discovery.PodCount == 0 {
+		s.log.Debug("Skipping collection for zero PodCount", logger.Fields{
+			"namespace": discovery.Namespace,
+			"name":      discovery.Name,
+		})
 		return &models.CollectorInfo{
 			DiscoveryName: discovery.DiscoveryName,
 			CollectorName: name,
@@ -80,44 +87,99 @@ func (s *Collector) CollectorAndScreenshot(
 			IsEmpty:       true,
 		}, nil
 	}
+
+	// Get browser instance
 	instance, err := browserPool.Get(taskCtx)
 	if err != nil {
+		s.log.Error("Failed to get browser instance from pool", logger.Fields{
+			"error":     err.Error(),
+			"namespace": discovery.Namespace,
+			"name":      discovery.Name,
+		})
 		return nil, fmt.Errorf("failed to get browser instance: %w", err)
 	}
 	defer browserPool.Put(instance)
+
+	// Setup page with proper cleanup tracking
 	page, err := s.setupPage(taskCtx, instance)
 	if err != nil {
+		s.log.Error("Failed to setup page", logger.Fields{
+			"error":     err.Error(),
+			"namespace": discovery.Namespace,
+			"name":      discovery.Name,
+		})
 		return nil, err
 	}
 	if page == nil {
 		return nil, errors.New("page object is nil")
 	}
-	defer func() {
-		if page != nil {
-			_ = page.Close()
+
+	// Ensure page is always closed, even on early returns
+	var pageClosedMu sync.Mutex
+	pageClosed := false
+	closePage := func() {
+		pageClosedMu.Lock()
+		defer pageClosedMu.Unlock()
+		if !pageClosed && page != nil {
+			if err := page.Close(); err != nil {
+				s.log.Warn("Failed to close page", logger.Fields{
+					"error":     err.Error(),
+					"namespace": discovery.Namespace,
+					"name":      discovery.Name,
+				})
+			} else {
+				s.log.Debug("Page closed successfully", logger.Fields{
+					"namespace": discovery.Namespace,
+					"name":      discovery.Name,
+				})
+			}
+			pageClosed = true
 		}
-	}()
+	}
+	defer closePage()
 	url := s.formatURL(discovery)
+
+	s.log.Debug("Starting page navigation", logger.Fields{
+		"url":       url,
+		"namespace": discovery.Namespace,
+		"name":      discovery.Name,
+	})
+
 	wait := page.EachEvent(func(e *proto.NetworkResponseReceived) {
 		if e.Type == proto.NetworkResourceTypeDocument && (e.Response.URL == url) {
 			if e.Response.Status == 502 || e.Response.Status == 503 || e.Response.Status == 504 ||
 				e.Response.Status == 404 {
-				s.log.Error("Detected error status code", logger.Fields{
+				s.log.Warn("Detected error status code, canceling context", logger.Fields{
 					"status_code": e.Response.Status,
 					"url":         url,
 					"namespace":   discovery.Namespace,
 					"name":        discovery.Name,
 				})
 				cancel()
+				// Immediately close page to free resources
+				closePage()
 			}
 		}
 	})
 	defer wait()
+
 	err = page.Navigate(url)
 	if err != nil {
+		s.log.Error("Page navigation failed", logger.Fields{
+			"error":     err.Error(),
+			"url":       url,
+			"namespace": discovery.Namespace,
+			"name":      discovery.Name,
+		})
 		return nil, fmt.Errorf("page navigation failed: %w", err)
 	}
+
 	if err := taskCtx.Err(); err != nil {
+		s.log.Debug("Context error detected", logger.Fields{
+			"error":     err.Error(),
+			"namespace": discovery.Namespace,
+			"name":      discovery.Name,
+		})
 		if errors.Is(err, context.Canceled) {
 			if discovery.PodCount == 0 {
 				return &models.CollectorInfo{
@@ -137,8 +199,15 @@ func (s *Collector) CollectorAndScreenshot(
 		return nil, err
 	}
 	if err := s.waitForPageLoad(taskCtx, page); err != nil {
+		s.log.Error("Failed to wait for page load", logger.Fields{
+			"error":     err.Error(),
+			"url":       url,
+			"namespace": discovery.Namespace,
+			"name":      discovery.Name,
+		})
 		return nil, err
 	}
+
 	content, err := page.HTML()
 	if err != nil {
 		s.log.Warn("Failed to get page content", logger.Fields{
@@ -149,8 +218,16 @@ func (s *Collector) CollectorAndScreenshot(
 		})
 		content = ""
 	}
+
 	if s.isErrorPage(content) {
+		s.log.Debug("Detected error page, returning empty result", logger.Fields{
+			"url":         url,
+			"namespace":   discovery.Namespace,
+			"name":        discovery.Name,
+			"content_len": len(content),
+		})
 		cancel()
+		closePage() // Explicitly close page before returning
 		return &models.CollectorInfo{
 			DiscoveryName: discovery.DiscoveryName,
 			CollectorName: name,
@@ -212,26 +289,42 @@ func (s *Collector) setupPage(
 ) (*rod.Page, error) {
 	var page *rod.Page
 	if instance == nil {
+		s.log.Error("Browser instance is nil")
 		return nil, errors.New("browser instance is nil")
 	}
 	if instance.Browser == nil {
+		s.log.Error("Browser object is nil", logger.Fields{
+			"pid": instance.PID,
+		})
 		return nil, errors.New("browser object is nil")
 	}
+
+	s.log.Debug("Creating new page", logger.Fields{
+		"pid": instance.PID,
+	})
+
 	err := rod.Try(func() {
 		page = instance.Browser.MustPage().Context(ctx)
 	})
 	if err != nil {
+		s.log.Error("Failed to create page", logger.Fields{
+			"error": err.Error(),
+			"pid":   instance.PID,
+		})
 		return nil, fmt.Errorf("failed to create page: %w", err)
 	}
+
 	err = page.SetUserAgent(&proto.NetworkSetUserAgentOverride{
 		UserAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36",
 	})
 	if err != nil {
 		s.log.Error("Failed to set user agent", logger.Fields{
 			"error": err.Error(),
+			"pid":   instance.PID,
 		})
 		return nil, err
 	}
+
 	err = page.SetViewport(&proto.EmulationSetDeviceMetricsOverride{
 		Width:             1366,
 		Height:            768,
@@ -243,9 +336,15 @@ func (s *Collector) setupPage(
 			"error":  err.Error(),
 			"width":  1366,
 			"height": 768,
+			"pid":    instance.PID,
 		})
 		return nil, err
 	}
+
+	s.log.Debug("Page setup completed", logger.Fields{
+		"pid": instance.PID,
+	})
+
 	return page, nil
 }
 

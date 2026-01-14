@@ -18,6 +18,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/bearslyricattack/CompliK/procscan-aggregator/pkg/models"
 	"gopkg.in/yaml.v3"
@@ -38,11 +39,19 @@ func LoadConfig(configPath string) (*models.Config, error) {
 	// 设置默认值
 	setDefaults(&config)
 
+	// 验证配置
+	if err := validateConfig(&config); err != nil {
+		return nil, fmt.Errorf("invalid config: %w", err)
+	}
+
 	return &config, nil
 }
 
 // setDefaults 设置默认配置值
 func setDefaults(config *models.Config) {
+	if config.Aggregator.ScanInterval == "" {
+		config.Aggregator.ScanInterval = "60s"
+	}
 	if config.Aggregator.Port == 0 {
 		config.Aggregator.Port = 8090
 	}
@@ -64,4 +73,37 @@ func setDefaults(config *models.Config) {
 	if config.Logger.Format == "" {
 		config.Logger.Format = "json"
 	}
+}
+
+// validateConfig 验证配置
+func validateConfig(config *models.Config) error {
+	// 验证 ScanInterval 是否为有效的 duration
+	if _, err := time.ParseDuration(config.Aggregator.ScanInterval); err != nil {
+		return fmt.Errorf("invalid scan_interval '%s': %w", config.Aggregator.ScanInterval, err)
+	}
+
+	// 验证端口范围
+	if config.Aggregator.Port < 1 || config.Aggregator.Port > 65535 {
+		return fmt.Errorf("invalid aggregator port %d: must be between 1 and 65535", config.Aggregator.Port)
+	}
+
+	if config.DaemonSet.APIPort < 1 || config.DaemonSet.APIPort > 65535 {
+		return fmt.Errorf("invalid daemonset api_port %d: must be between 1 and 65535", config.DaemonSet.APIPort)
+	}
+
+	// 验证必填字段
+	if config.DaemonSet.Namespace == "" {
+		return fmt.Errorf("daemonset namespace is required")
+	}
+
+	if config.DaemonSet.ServiceName == "" {
+		return fmt.Errorf("daemonset service_name is required")
+	}
+
+	return nil
+}
+
+// GetScanInterval 获取解析后的扫描间隔
+func GetScanInterval(config *models.Config) (time.Duration, error) {
+	return time.ParseDuration(config.Aggregator.ScanInterval)
 }

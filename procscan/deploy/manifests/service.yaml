@@ -15,11 +15,7 @@ spec:
     app: block-procscan
     component: security-scanner
   ports:
-    - name: metrics
-      port: 8080
-      targetPort: metrics
-      protocol: TCP
     - name: api
-      port: 9090
+      port: 8080
       targetPort: api
       protocol: TCP

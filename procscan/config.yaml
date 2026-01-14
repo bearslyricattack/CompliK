@@ -1,303 +1,2003 @@
-# =============================================================================
-# ProcScan Security Scanner Configuration File
-# =============================================================================
-# Used to detect suspicious process activities in containers and respond automatically
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaAlertRuleGroup
+metadata:
+  name: comprehensive-alerts
+  namespace: vm
+spec:
+  allowCrossNamespaceImport: false
+  folderRef: grafana
+  instanceSelector:
+    matchLabels:
+      dashboards: grafana
+  interval: 1m
+  resyncPeriod: 10m0s
+  rules:
+    - annotations:
+        Recover: 节点 {{ or $labels.nodename $labels.instance }} 根目录存储使用率已恢复正常
+        description: 节点 {{ or $labels.nodename $labels.instance }} 根目录剩余可用存储不足15%，请尽快修复
+        domain: usw-1.sealos.io
+        summary: 根目录文件系统使用率超过85%
+      condition: B
+      data:
+        - datasourceUid: __expr__
+          model:
+            conditions:
+              - evaluator:
+                  params:
+                    - 15
+                  type: lt
+                operator:
+                  type: and
+                query:
+                  params:
+                    - A
+                reducer:
+                  params: []
+                  type: max
+                type: query
+            datasource:
+              type: __expr__
+              uid: __expr__
+            expression: A
+            intervalMs: 60000
+            maxDataPoints: 43200
+            refId: B
+            type: threshold
+          refId: B
+          relativeTimeRange:
+            from: 600
+        - datasourceUid: vm
+          model:
+            datasource:
+              type: prometheus
+              uid: vm
+            editorMode: code
+            expr: >
+              max by (instance, nodename) (
+                ((node_filesystem_avail_bytes{mountpoint="/", receiver!="apecloudnode"} / 
+                  node_filesystem_size_bytes{mountpoint="/", receiver!="apecloudnode"}) * 100)
+                * on(instance) group_left(nodename) node_uname_info
+              )
+            instant: true
+            intervalMs: 60000
+            legendFormat: __auto
+            maxDataPoints: 43200
+            range: false
+            refId: A
+          refId: A
+          relativeTimeRange:
+            from: 600
+      execErrState: KeepLast
+      for: 8m
+      keepFiringFor: 10m
+      labels:
+        property: host_root
+        sealos: block
+        severity: critical
+      noDataState: OK
+      title: Root filesystem usage above 85%
+      uid: sealos-new-1
+    - annotations:
+        Recover: 节点 {{ or $labels.node $labels.instance }} vg 数据盘使用率已恢复正常
+        description: 节点 {{ or $labels.node $labels.instance }} vg 数据盘空间严重不足，剩余可用少于50GB。
+        domain: usw-1.sealos.io
+        summary: 节点vg数据盘剩余不足50GB
+      condition: B
+      data:
+        - datasourceUid: __expr__
+          model:
+            conditions:
+              - evaluator:
+                  params:
+                    - 50
+                  type: lt
+                operator:
+                  type: and
+                query:
+                  params:
+                    - A
+                reducer:
+                  params: []
+                  type: last
+                type: query
+            datasource:
+              type: __expr__
+              uid: __expr__
+            expression: A
+            intervalMs: 60000
+            maxDataPoints: 43200
+            refId: B
+            type: threshold
+          refId: B
+          relativeTimeRange:
+            from: 600
+        - datasourceUid: vm
+          model:
+            datasource:
+              type: prometheus
+              uid: vm
+            editorMode: code
+            expr: avg_over_time(lvm_vgs_total_free{}[5m]) / 1024 / 1024 / 1024
+            instant: true
+            intervalMs: 60000
+            legendFormat: __auto
+            maxDataPoints: 43200
+            range: false
+            refId: A
+          refId: A
+          relativeTimeRange:
+            from: 600
+      execErrState: KeepLast
+      for: 8m
+      keepFiringFor: 10m
+      labels:
+        property: host_pvc
+        sealos: block
+        severity: critical
+      noDataState: OK
+      title: Node vg storage less than 50GB
+      uid: sealos-vgs
+    - annotations:
+        Recover: 节点 {{ or $labels.nodename $labels.instance }} CPU使用率已恢复正常
+        description: 节点 {{ or $labels.nodename $labels.instance }} CPU使用已超过85%，请尽快修复
+        domain: usw-1.sealos.io
+        summary: 节点CPU使用率超过85%
+      condition: B
+      data:
+        - datasourceUid: __expr__
+          model:
+            conditions:
+              - evaluator:
+                  params:
+                    - 85
+                  type: gt
+                operator:
+                  type: and
+                query:
+                  params:
+                    - A
+                reducer:
+                  params: []
+                  type: avg
+                type: query
+            datasource:
+              type: __expr__
+              uid: __expr__
+            expression: A
+            intervalMs: 60000
+            maxDataPoints: 43200
+            refId: B
+            type: threshold
+          refId: B
+          relativeTimeRange:
+            from: 600
+        - datasourceUid: vm
+          model:
+            datasource:
+              type: prometheus
+              uid: vm
+            editorMode: code
+            expr: >
+              (
+                avg by (instance) (rate(node_cpu_seconds_total{job="node-exporter",mode="user"}[60s]))
+                +
+                avg by (instance) (rate(node_cpu_seconds_total{job="node-exporter",mode="system"}[60s]))
+              ) * 100
 
-# =============================================================================
-# Scanner Core Configuration (Scanner)
-# =============================================================================
-scanner:
-  # Process filesystem path (container needs to mount host's /proc)
-  # When containerized, mount host's /proc directory via volumeMounts
-  proc_path: "/host/proc"
-  # Scan interval (recommended: 30s-300s)
-  # Too short increases system load, too long may delay threat detection
-  scan_interval: "100s"
-  # Log level (debug, info, warn, error)
-  # debug: detailed debug info, suitable for development
-  # info:  general info, suitable for production
-  # warn:  warning messages
-  # error: error messages only
-  log_level: "debug"
-# =============================================================================
-# Automated Response Configuration (Actions)
-# =============================================================================
-actions:
-  # Namespace labeling feature (recommended to enable)
-  # When a threat is detected, add labels to the namespace for external controller processing
-  label:
-    # Whether to enable labeling
-    enabled: false
-    # Label data (will be added to affected namespaces)
-    data:
-      # Security status label (main identifier)
-      clawcloud.run/status: "locked"
+              * on(instance) group_left(nodename) node_uname_info
+            instant: true
+            intervalMs: 60000
+            legendFormat: __auto
+            maxDataPoints: 43200
+            range: false
+            refId: A
+          refId: A
+          relativeTimeRange:
+            from: 600
+      execErrState: KeepLast
+      for: 8m
+      keepFiringFor: 10m
+      labels:
+        sealos: cpu
+        severity: critical
+      noDataState: OK
+      title: Node CPU usage above 85%
+      uid: sealos-new-4
+    - annotations:
+        Recover: 节点 {{ or $labels.nodename $labels.instance }} 内存使用率已恢复正常
+        description: 节点 {{ or $labels.nodename $labels.instance }} 内存使用已超过85%，请尽快修复
+        domain: usw-1.sealos.io
+        summary: 节点内存使用率超过85%
+      condition: B
+      data:
+        - datasourceUid: __expr__
+          model:
+            conditions:
+              - evaluator:
+                  params:
+                    - 85
+                  type: gt
+                operator:
+                  type: and
+                query:
+                  params:
+                    - A
+                reducer:
+                  params: []
+                  type: avg
+                type: query
+            datasource:
+              type: __expr__
+              uid: __expr__
+            expression: A
+            intervalMs: 60000
+            maxDataPoints: 43200
+            refId: B
+            type: threshold
+          refId: B
+          relativeTimeRange:
+            from: 600
+        - datasourceUid: vm
+          model:
+            datasource:
+              type: prometheus
+              uid: vm
+            editorMode: code
+            expr: |
+              (1 - (
+                node_memory_MemAvailable_bytes{job=~"node-exporter"} / 
+                node_memory_MemTotal_bytes{job=~"node-exporter"}
+              )) * 100
+              * on(instance) group_left(nodename) node_uname_info
+            instant: true
+            intervalMs: 60000
+            legendFormat: __auto
+            maxDataPoints: 43200
+            range: false
+            refId: A
+          refId: A
+          relativeTimeRange:
+            from: 600
+      execErrState: KeepLast
+      for: 8m
+      keepFiringFor: 10m
+      labels:
+        sealos: mem
+        severity: critical
+      noDataState: OK
+      title: Node memory usage above 85%
+      uid: sealos-new-3
+    - annotations:
+        Recover: 节点 {{ or $labels.node $labels.instance }} 恢复ready
+        description: 节点 {{ or $labels.node $labels.instance }} not ready，请尽快修复！！
+        domain: usw-1.sealos.io
+        summary: k8s 节点 not ready
+      condition: B
+      data:
+        - datasourceUid: __expr__
+          model:
+            conditions:
+              - evaluator:
+                  params:
+                    - 1
+                  type: lt
+                operator:
+                  type: and
+                query:
+                  params:
+                    - A
+                reducer:
+                  params: []
+                  type: min
+                type: query
+            datasource:
+              type: __expr__
+              uid: __expr__
+            expression: A
+            intervalMs: 60000
+            maxDataPoints: 43200
+            refId: B
+            type: threshold
+          refId: B
+          relativeTimeRange:
+            from: 600
+        - datasourceUid: vm
+          model:
+            datasource:
+              type: prometheus
+              uid: vm
+            editorMode: code
+            expr: kube_node_status_condition{condition="Ready", status="true"}
+            instant: true
+            intervalMs: 60000
+            legendFormat: __auto
+            maxDataPoints: 43200
+            range: false
+            refId: A
+          refId: A
+          relativeTimeRange:
+            from: 600
+      execErrState: KeepLast
+      for: 8m
+      keepFiringFor: 10m
+      labels:
+        sealos: error
+        severity: critical
+      noDataState: OK
+      title: Node not ready
+      uid: sealos-new-2
+    - annotations:
+        Recover: 节点 {{ or $labels.nodename $labels.instance }} CPU使用率已恢复正常
+        description: 节点 {{ or $labels.nodename $labels.instance }}
+          CPU使用已超过95%，系统性能严重下降，请立即处理
+        domain: usw-1.sealos.io
+        summary: 节点CPU使用率超过95%
+      condition: B
+      data:
+        - datasourceUid: __expr__
+          model:
+            conditions:
+              - evaluator:
+                  params:
+                    - 95
+                  type: gt
+                operator:
+                  type: and
+                query:
+                  params:
+                    - A
+                reducer:
+                  params: []
+                  type: avg
+                type: query
+            datasource:
+              type: __expr__
+              uid: __expr__
+            expression: A
+            intervalMs: 60000
+            maxDataPoints: 43200
+            refId: B
+            type: threshold
+          refId: B
+          relativeTimeRange:
+            from: 600
+        - datasourceUid: vm
+          model:
+            datasource:
+              type: prometheus
+              uid: vm
+            editorMode: code
+            expr: >
+              (
+                avg by (instance) (rate(node_cpu_seconds_total{job="node-exporter",mode="user"}[60s]))
+                +
+                avg by (instance) (rate(node_cpu_seconds_total{job="node-exporter",mode="system"}[60s]))
+              ) * 100
 
-# =============================================================================
-# Notification Channel Configuration (Notifications)
-# =============================================================================
-notifications:
-  # Lark (Feishu) notification configuration
-  lark:
-    # Lark bot webhook URL (How to get: Lark group -> Settings -> Bot -> Custom bot)
-    # Leave empty to disable Lark notifications
-    webhook: "https://open.feishu.cn/open-apis/bot/v2/hook/de0df867-9457-49be-a747-e01274a319cc"
-    # HTTP request timeout (recommended: 10s-30s)
-    timeout: "30s"
-    # Retry count on send failure (recommended: 1-3 times)
-    retry_count: 3
-  # Region configuration
-  region: "hzh"
+              * on(instance) group_left(nodename) node_uname_info
+            instant: true
+            intervalMs: 60000
+            legendFormat: __auto
+            maxDataPoints: 43200
+            range: false
+            refId: A
+          refId: A
+          relativeTimeRange:
+            from: 600
+      execErrState: KeepLast
+      for: 5m
+      keepFiringFor: 10m
+      labels:
+        sealos: cpu
+        severity: critical
+      noDataState: OK
+      title: Node CPU usage above 95%
+      uid: sealos-new-6
+    - annotations:
+        Recover: 节点 {{ or $labels.nodename $labels.instance }} 内存使用率已恢复正常
+        description: 节点 {{ or $labels.nodename $labels.instance }}
+          内存使用已超过95%，系统可能出现OOM，请立即处理
+        domain: usw-1.sealos.io
+        summary: 节点内存使用率超过95%
+      condition: B
+      data:
+        - datasourceUid: __expr__
+          model:
+            conditions:
+              - evaluator:
+                  params:
+                    - 95
+                  type: gt
+                operator:
+                  type: and
+                query:
+                  params:
+                    - A
+                reducer:
+                  params: []
+                  type: avg
+                type: query
+            datasource:
+              type: __expr__
+              uid: __expr__
+            expression: A
+            intervalMs: 60000
+            maxDataPoints: 43200
+            refId: B
+            type: threshold
+          refId: B
+          relativeTimeRange:
+            from: 600
+        - datasourceUid: vm
+          model:
+            datasource:
+              type: prometheus
+              uid: vm
+            editorMode: code
+            expr: |
+              (1 - (
+                node_memory_MemAvailable_bytes{job=~"node-exporter"} / 
+                node_memory_MemTotal_bytes{job=~"node-exporter"}
+              )) * 100
+              * on(instance) group_left(nodename) node_uname_info
+            instant: true
+            intervalMs: 60000
+            legendFormat: __auto
+            maxDataPoints: 43200
+            range: false
+            refId: A
+          refId: A
+          relativeTimeRange:
+            from: 600
+      execErrState: KeepLast
+      for: 5m
+      keepFiringFor: 10m
+      labels:
+        sealos: mem
+        severity: critical
+      noDataState: OK
+      title: Node memory usage above 95%
+      uid: sealos-new-7
+    - annotations:
+        Recover: 节点 {{ or $labels.node $labels.instance }} 的Pod数量已恢复正常
+        description: 节点 {{ or $labels.node $labels.instance }}
+          的Pod数量已达到可分配限制的95%，即将达到上限，请立即处理！
+        domain: usw-1.sealos.io
+        summary: 节点Pod数量超过限制的95%
+      condition: B
+      data:
+        - datasourceUid: __expr__
+          model:
+            conditions:
+              - evaluator:
+                  params:
+                    - 95
+                  type: gt
+                operator:
+                  type: and
+                query:
+                  params:
+                    - A
+                reducer:
+                  params: []
+                  type: max
+                type: query
+            datasource:
+              type: __expr__
+              uid: __expr__
+            expression: A
+            intervalMs: 60000
+            maxDataPoints: 43200
+            refId: B
+            type: threshold
+          refId: B
+          relativeTimeRange:
+            from: 600
+        - datasourceUid: vm
+          model:
+            datasource:
+              type: prometheus
+              uid: vm
+            editorMode: code
+            expr: (sum by (node) (max by (node, instance, cluster) (kubelet_active_pods)) /
+              sum by (node) (kube_node_status_allocatable{resource="pods"})) *
+              100
+            instant: true
+            intervalMs: 60000
+            legendFormat: __auto
+            maxDataPoints: 43200
+            range: false
+            refId: A
+          refId: A
+          relativeTimeRange:
+            from: 600
+      execErrState: KeepLast
+      for: 5m
+      keepFiringFor: 10m
+      labels:
+        property: pod_limit
+        sealos: warn
+        severity: critical
+      noDataState: OK
+      title: Node pod count above 95% of limit
+      uid: sealos-new-9
+    - annotations:
+        Recover: 节点 {{ or $labels.node $labels.instance }} 的Pod数量已恢复正常
+        description: 节点 {{ or $labels.node $labels.instance }} 的Pod数量已达到可分配限制的98%
+        domain: usw-1.sealos.io
+        summary: 节点Pod数量超过限制的98%
+      condition: B
+      data:
+        - datasourceUid: __expr__
+          model:
+            conditions:
+              - evaluator:
+                  params:
+                    - 98
+                  type: gt
+                operator:
+                  type: and
+                query:
+                  params:
+                    - A
+                reducer:
+                  params: []
+                  type: max
+                type: query
+            datasource:
+              type: __expr__
+              uid: __expr__
+            expression: A
+            intervalMs: 60000
+            maxDataPoints: 43200
+            refId: B
+            type: threshold
+          refId: B
+          relativeTimeRange:
+            from: 600
+        - datasourceUid: vm
+          model:
+            datasource:
+              type: prometheus
+              uid: vm
+            editorMode: code
+            expr: (sum by (node) (max by (node, instance, cluster) (kubelet_active_pods)) /
+              sum by (node) (kube_node_status_allocatable{resource="pods"})) *
+              100
+            instant: true
+            intervalMs: 60000
+            legendFormat: __auto
+            maxDataPoints: 43200
+            range: false
+            refId: A
+          refId: A
+          relativeTimeRange:
+            from: 600
+      execErrState: KeepLast
+      for: 3m
+      keepFiringFor: 10m
+      labels:
+        property: pod_limit
+        sealos: error
+        severity: critical
+      noDataState: OK
+      title: Node pod count above 98% of limit
+      uid: sealos-new-8
+    - annotations:
+        Recover: pvc {{ $labels.persistentvolumeclaim }} 存储不足已恢复
+        description: |
+          pvc剩余存储不足5%，请及时修复:
+          namespace: {{ $labels.namespace }}
+          node: {{ $labels.node }}
+          pvc-name: {{ $labels.persistentvolumeclaim }}
+        domain: usw-1.sealos.io
+        summary: 系统组件pvc剩余存储不足 5%
+      condition: B
+      data:
+        - datasourceUid: __expr__
+          model:
+            conditions:
+              - evaluator:
+                  params:
+                    - 5
+                  type: lt
+                operator:
+                  type: and
+                query:
+                  params:
+                    - A
+                reducer:
+                  params: []
+                  type: max
+                type: query
+            datasource:
+              type: __expr__
+              uid: __expr__
+            expression: A
+            intervalMs: 60000
+            maxDataPoints: 43200
+            refId: B
+            type: threshold
+          refId: B
+          relativeTimeRange:
+            from: 900
+        - datasourceUid: vm
+          model:
+            datasource:
+              type: prometheus
+              uid: vm
+            editorMode: code
+            expr: max_over_time(kubelet_volume_stats_available_bytes{namespace!~"^ns-.*"}[15m]
+              / kubelet_volume_stats_capacity_bytes{namespace!~"^ns-.*"}[15m]) *
+              100
+            instant: true
+            intervalMs: 60000
+            legendFormat: __auto
+            maxDataPoints: 43200
+            range: false
+            refId: A
+          refId: A
+          relativeTimeRange:
+            from: 900
+      execErrState: KeepLast
+      for: 8m
+      keepFiringFor: 10m
+      labels:
+        propery: ns_pvc
+        sealos: block
+        severity: critical
+      noDataState: OK
+      title: Storage available less than 5%
+      uid: sealos-new-5
+    - annotations:
+        Recover: 节点 {{ or $labels.nodename $labels.instance }} 的监控数据已恢复
+        description: 节点 {{ or $labels.nodename $labels.instance }}
+          的监控数据已缺失超过8分钟，请检查node-exporter状态
+        domain: usw-1.sealos.io
+        summary: 节点监控数据缺失
+      condition: B
+      data:
+        - datasourceUid: __expr__
+          model:
+            conditions:
+              - evaluator:
+                  params:
+                    - 1
+                  type: lt
+                operator:
+                  type: and
+                query:
+                  params:
+                    - A
+                reducer:
+                  params: []
+                  type: min
+                type: query
+            datasource:
+              type: __expr__
+              uid: __expr__
+            expression: A
+            intervalMs: 60000
+            maxDataPoints: 43200
+            refId: B
+            type: threshold
+          refId: B
+          relativeTimeRange:
+            from: 180
+        - datasourceUid: vm
+          model:
+            datasource:
+              type: prometheus
+              uid: vm
+            editorMode: code
+            expr: up{job="node-exporter"} == 0
+            instant: true
+            intervalMs: 60000
+            legendFormat: __auto
+            maxDataPoints: 43200
+            range: false
+            refId: A
+          refId: A
+          relativeTimeRange:
+            from: 180
+      execErrState: Error
+      for: 8m
+      keepFiringFor: 10m
+      labels:
+        property: metrics_missing
+        sealos: error
+        severity: critical
+      noDataState: OK
+      title: Node CPU metrics missing
+      uid: sealos-new-10
+    - annotations:
+        Recover: 节点 {{ or $labels.nodename $labels.instance }} 的 /var/lib/containerd
+          存储使用率已恢复正常
+        description: 节点 {{ or $labels.nodename $labels.instance }} 的 /var/lib/containerd
+          挂载点剩余可用存储不足20%，请及时清理或扩容
+        domain: usw-1.sealos.io
+        summary: Containerd存储空间不足20%
+      condition: B
+      data:
+        - datasourceUid: __expr__
+          model:
+            conditions:
+              - evaluator:
+                  params:
+                    - 20
+                  type: lt
+                operator:
+                  type: and
+                query:
+                  params:
+                    - A
+                reducer:
+                  params: []
+                  type: max
+                type: query
+            datasource:
+              type: __expr__
+              uid: __expr__
+            expression: A
+            intervalMs: 60000
+            maxDataPoints: 43200
+            refId: B
+            type: threshold
+          refId: B
+          relativeTimeRange:
+            from: 600
+        - datasourceUid: vm
+          model:
+            datasource:
+              type: prometheus
+              uid: vm
+            editorMode: code
+            expr: >
+              max by (instance, nodename) (
+                ((node_filesystem_avail_bytes{mountpoint="/var/lib/containerd", receiver!="apecloudnode"} /
+                  node_filesystem_size_bytes{mountpoint="/var/lib/containerd", receiver!="apecloudnode"}) * 100)
+                * on(instance) group_left(nodename) node_uname_info
+              )
+            instant: true
+            intervalMs: 60000
+            legendFormat: __auto
+            maxDataPoints: 43200
+            range: false
+            refId: A
+          refId: A
+          relativeTimeRange:
+            from: 600
+      execErrState: KeepLast
+      for: 8m
+      keepFiringFor: 10m
+      labels:
+        property: containerd_storage
+        sealos: containerd
+        severity: warning
+      noDataState: OK
+      title: Containerd storage below 20%
+      uid: sealos-containerd-warn
+    - annotations:
+        Recover: 节点 {{ or $labels.nodename $labels.instance }} 的 /var/lib/containerd
+          存储使用率已恢复正常
+        description: 节点 {{ or $labels.nodename $labels.instance }} 的 /var/lib/containerd
+          挂载点剩余可用存储不足5%，容器运行可能受影响，请立即处理！
+        domain: usw-1.sealos.io
+        summary: Containerd存储空间严重不足
+      condition: B
+      data:
+        - datasourceUid: __expr__
+          model:
+            conditions:
+              - evaluator:
+                  params:
+                    - 5
+                  type: lt
+                operator:
+                  type: and
+                query:
+                  params:
+                    - A
+                reducer:
+                  params: []
+                  type: max
+                type: query
+            datasource:
+              type: __expr__
+              uid: __expr__
+            expression: A
+            intervalMs: 60000
+            maxDataPoints: 43200
+            refId: B
+            type: threshold
+          refId: B
+          relativeTimeRange:
+            from: 600
+        - datasourceUid: vm
+          model:
+            datasource:
+              type: prometheus
+              uid: vm
+            editorMode: code
+            expr: >
+              max by (instance, nodename) (
+                ((node_filesystem_avail_bytes{mountpoint="/var/lib/containerd", receiver!="apecloudnode"} /
+                  node_filesystem_size_bytes{mountpoint="/var/lib/containerd", receiver!="apecloudnode"}) * 100)
+                * on(instance) group_left(nodename) node_uname_info
+              )
+            instant: true
+            intervalMs: 60000
+            legendFormat: __auto
+            maxDataPoints: 43200
+            range: false
+            refId: A
+          refId: A
+          relativeTimeRange:
+            from: 600
+      execErrState: KeepLast
+      for: 5m
+      keepFiringFor: 10m
+      labels:
+        property: containerd_storage
+        sealos: block
+        severity: critical
+      noDataState: OK
+      title: Containerd storage below 5%
+      uid: sealos-containerd-error
+    - annotations:
+        Recover: 节点 {{ or $labels.nodename $labels.instance }} 根目录存储使用率已恢复正常
+        description: 节点 {{ or $labels.nodename $labels.instance }}
+          根目录剩余可用存储不足5%，系统可能无法正常运行，请立即处理！
+        domain: usw-1.sealos.io
+        summary: 根目录文件系统严重不足
+      condition: B
+      data:
+        - datasourceUid: __expr__
+          model:
+            conditions:
+              - evaluator:
+                  params:
+                    - 5
+                  type: lt
+                operator:
+                  type: and
+                query:
+                  params:
+                    - A
+                reducer:
+                  params: []
+                  type: max
+                type: query
+            datasource:
+              type: __expr__
+              uid: __expr__
+            expression: A
+            intervalMs: 60000
+            maxDataPoints: 43200
+            refId: B
+            type: threshold
+          refId: B
+          relativeTimeRange:
+            from: 600
+        - datasourceUid: vm
+          model:
+            datasource:
+              type: prometheus
+              uid: vm
+            editorMode: code
+            expr: >
+              max by (instance, nodename) (
+                ((node_filesystem_avail_bytes{mountpoint="/", receiver!="apecloudnode"} / 
+                  node_filesystem_size_bytes{mountpoint="/", receiver!="apecloudnode"}) * 100)
+                * on(instance) group_left(nodename) node_uname_info
+              )
+            instant: true
+            intervalMs: 60000
+            legendFormat: __auto
+            maxDataPoints: 43200
+            range: false
+            refId: A
+          refId: A
+          relativeTimeRange:
+            from: 600
+      execErrState: KeepLast
+      for: 5m
+      keepFiringFor: 10m
+      labels:
+        property: host_root
+        sealos: block
+        severity: critical
+      noDataState: OK
+      title: Root filesystem usage above 95%
+      uid: sealos-root-critical
+    - annotations:
+        Recover: 节点 {{ or $labels.nodename $labels.instance }} CPU iowait率已恢复正常
+        description: 节点 {{ or $labels.nodename $labels.instance }} CPU
+          iowait率高于70%，系统处于高度阻塞状态，可能导致服务响应缓慢或无响应，请立即处理！
+        domain: usw-1.sealos.io
+        summary: 节点CPU iowait率高于70% - 系统阻塞风险
+      condition: B
+      data:
+        - datasourceUid: __expr__
+          model:
+            conditions:
+              - evaluator:
+                  params:
+                    - 70
+                  type: gt
+                operator:
+                  type: and
+                query:
+                  params:
+                    - A
+                reducer:
+                  params: []
+                  type: avg
+                type: query
+            datasource:
+              type: __expr__
+              uid: __expr__
+            expression: A
+            intervalMs: 60000
+            maxDataPoints: 43200
+            refId: B
+            type: threshold
+          refId: B
+          relativeTimeRange:
+            from: 600
+        - datasourceUid: vm
+          model:
+            datasource:
+              type: prometheus
+              uid: vm
+            editorMode: code
+            expr: >
+              avg by (instance, nodename) (
+                rate(node_cpu_seconds_total{job="node-exporter",mode="iowait"}[60s])
+              ) * 100
 
-# =============================================================================
-# Metrics Configuration (Metrics)
-# =============================================================================
-metrics:
-  enabled: true
-  port: 8080
-  path: "/metrics"
+              * on(instance) group_left(nodename) node_uname_info
+            instant: true
+            intervalMs: 60000
+            legendFormat: __auto
+            maxDataPoints: 43200
+            range: false
+            refId: A
+          refId: A
+          relativeTimeRange:
+            from: 600
+      execErrState: KeepLast
+      for: 5m
+      keepFiringFor: 10m
+      labels:
+        property: cpu_iowait
+        sealos: block
+        severity: critical
+      noDataState: OK
+      title: CPU iowait above 50% - System Block
+      uid: sealos-cpu-iowait-block-70
+    - annotations:
+        Recover: 节点 {{ or $labels.nodename $labels.instance }} CPU iowait已恢复正常
+        description: 节点 {{ or $labels.nodename $labels.instance }} CPU
+          iowait已超过50%，系统存在严重的I/O阻塞，磁盘或网络I/O可能存在瓶颈，请立即检查！
+        domain: usw-1.sealos.io
+        summary: 节点CPU iowait超过50% - I/O严重阻塞
+      condition: B
+      data:
+        - datasourceUid: __expr__
+          model:
+            conditions:
+              - evaluator:
+                  params:
+                    - 50
+                  type: gt
+                operator:
+                  type: and
+                query:
+                  params:
+                    - A
+                reducer:
+                  params: []
+                  type: avg
+                type: query
+            datasource:
+              type: __expr__
+              uid: __expr__
+            expression: A
+            intervalMs: 60000
+            maxDataPoints: 43200
+            refId: B
+            type: threshold
+          refId: B
+          relativeTimeRange:
+            from: 600
+        - datasourceUid: vm
+          model:
+            datasource:
+              type: prometheus
+              uid: vm
+            editorMode: code
+            expr: >
+              avg by (instance, nodename) (
+                rate(node_cpu_seconds_total{job="node-exporter",mode="iowait"}[60s])
+              ) * 100
 
-# =============================================================================
-# API Server Configuration (API)
-# =============================================================================
-# HTTP API 服务器，用于聚合服务查询违规记录
-api:
-  enabled: true
-  port: 9090
-
-# =============================================================================
-# Detection Rules Configuration (Detection Rules)
-# =============================================================================
-detectionRules:
-  # Blacklist rules (Blacklist)
-  # Processes matching blacklist rules will be marked as threats
-  blacklist:
-    # Blacklist process names (supports regex)
-    # Processes with names fully matching regex will be marked
-    processes:
-      # Mining software
-      - "^miner$"                    # miner mining program
-      - "^xmrig$"                    # XMRig Monero mining program
-      - "^xmrig-vrl$"                # XMRig variant
-      - "^argosb$"                   # Argos mining program
-      - "^asd$"                      # unknown mining program
-      - "^kdevtmpfsi$"               # Kinsing mining program
-      - "^kinsing$"                  # Kinsing mining program
-      - "^crypto-miner$"             # generic cryptocurrency mining program
-      - "^ccminer$"                  # ccminer mining program
-      - "^cpuminer$"                 # cpuminer mining program
-      - "^bfgminer$"                  # bfgminer mining program
-      - "^nsgminer$"                  # nsgminer mining program
-      - "^teamredminer$"             # Team Red Miner mining program
-      - "^nbminer$"                  # NBMiner mining program
-      - "^t-rex$"                    # T-Rex mining program
-      # Reverse shells and backdoor programs
-      - "^bash.*reverse.*shell"      # bash reverse shell
-      - "^nc.*-l.*-p"                # netcat listening mode
-      - "^socat.*TCP-LISTEN"          # socat port forwarding
-      - "^python.*socket.*"          # Python socket programming
-      - "^perl.*socket.*"            # Perl socket programming
-      # Other malicious programs
-      - "^masscan$"                  # port scanning tool
-      - "^nmap$"                     # network scanning tool
-      - "^sqlmap$"                   # SQL injection tool
-      - "^nikto$"                    # web vulnerability scanning tool
-      - "^hydra$"                    # brute force tool
-
-    # Blacklist command keywords (supports string matching, not regex)
-    # Processes with command line containing these keywords will be marked
-    keywords:
-      # Mining-related keywords
-      - "stratum+tcp"                # mining protocol
-      - "pool."                      # mining pool address
-      - "monero"                     # Monero
-      - "cryptonight"                # CryptoNight algorithm
-      - "ethash"                     # Ethash algorithm
-      - "scrypt"                     # Scrypt algorithm
-      - "wallet"                     # wallet address
-      - "donate-level"               # donation level
-      # Network attack keywords
-      - "reverse shell"              # reverse shell
-      - "bind shell"                 # bind shell
-      - "port scan"                  # port scanning
-      - "ddos"                       # DDoS attack
-      - "botnet"                     # botnet
-      # Other suspicious keywords
-      - "password"                   # password related
-      - "shadow"                     # system password file
-      - "/etc/passwd"                # system user file
-      - "/etc/shadow"                # system password file
-      - "rootkit"                    # Rootkit
-      - "backdoor"                   # backdoor program
-
-  # Whitelist rules (Whitelist)
-  # Processes matching whitelist rules will be ignored, even if they match blacklist
-  whitelist:
-    # Whitelist process names (supports regex)
-    # Critical system processes with high false positive rate, recommended to add to whitelist
-    processes:
-      # Kubernetes system components
-      - "^kubelet$"                  # Kubelet node agent
-      - "^kube-proxy$"               # Kube-proxy network proxy
-      - "^containerd$"               # containerd container runtime
-      - "^containerd-shim$"          # containerd shim
-      - "^dockerd$"                  # Docker daemon
-      - "^docker-proxy$"            # Docker network proxy
-      - "^runc$"                     # runc container runtime
-      - "^crictl$"                   # containerd CLI
-      - "^nerdctl$"                  # containerd CLI
-
-      # Critical system processes
-      - "^init$"                     # system initialization process (PID 1)
-      - "^systemd$"                  # systemd system manager
-      - "^bash$"                     # Bash shell
-      - "^sh$"                       # Shell
-      - "^zsh$"                      # Zsh shell
-      - "^dash$"                     # Debian Almquist Shell
-      - "^ksh$"                      # KornShell
-      - "^tcsh$"                     # TENEX C Shell
-      - "^csh$"                      # C Shell
-      - "^fish$"                     # Fish shell
-      - "^busybox$"                  # BusyBox
-      - "^coreutils$"                # GNU core utilities
-      - "^util-linux$"               # Linux utility tools
-      - "^procps$"                   # process tools (ps, top, etc.)
-
-      # Monitoring and logging related
-      - "^prometheus-node-exporter$" # Prometheus node exporter
-      - "^fluentd$"                  # Fluentd log collector
-      - "^filebeat$"                 # Filebeat log collector
-      - "^metricbeat$"               # Metricbeat metrics collector
-      - "^jaeger-agent$"             # Jaeger tracing agent
-      - "^istio-proxy$"              # Istio sidecar proxy
-      - "^envoy$"                    # Envoy proxy
-      - "^linkerd-proxy$"            # Linkerd proxy
-
-      # Application frameworks
-      - "^java$"                     # Java application
-      - "^node$"                     # Node.js application
-      - "^npm$"                      # Node Package Manager
-      - "^yarn$"                     # Yarn Package Manager
-      - "^python$"                   # Python application
-      - "^pip$"                      # Python Package Installer
-      - "^go$"                       # Go application
-      - "^java$"                     # Java Virtual Machine
-      - "^nginx$"                    # Nginx web server
-      - "^apache$"                   # Apache web server
-      - "^httpd$"                    # HTTP daemon
-      - "^redis-server$"             # Redis server
-      - "^mysqld$"                   # MySQL server
-      - "^postgres$"                 # PostgreSQL server
-      - "^mongodb$"                  # MongoDB server
-
-    # Whitelist command keywords (supports string matching)
-    # Processes with command line containing these keywords will be ignored
-    commands:
-      # System maintenance commands
-      - "apt-get"                    # APT package manager
-      - "yum"                        # YUM package manager
-      - "dnf"                        # DNF package manager
-      - "pacman"                     # Pacman package manager
-      - "systemctl"                  # systemd control command
-      - "service"                    # service control command
-      - "journalctl"                 # systemd journal command
-
-      # Development tools commands
-      - "git"                        # Git version control
-      - "make"                       # Make build tool
-      - "cmake"                      # CMake build tool
-      - "gcc"                        # GCC compiler
-      - "g++"                        # G++ compiler
-      - "mvn"                        # Maven build tool
-      - "gradle"                     # Gradle build tool
-      - "npm"                        # Node.js package manager
-      - "pip"                        # Python package manager
-      - "docker"                     # Docker command
-
-      # Monitoring and logging commands
-      - "kubectl"                    # Kubernetes CLI
-      - "helm"                       # Helm package manager
-      - "kustomize"                  # Kustomize configuration management
-      - "istioctl"                   # Istio CLI
-      - "linkerd"                    # Linkerd CLI
-
-    # Whitelist namespaces (supports regex)
-    # Processes in these namespaces will be ignored
-    namespaces:
-      # Kubernetes system namespaces
-      - "^kube-system$"              # Kubernetes system components
-      - "^kube-public$"              # Kubernetes public resources
-      - "^kube-node-lease$"          # Kubernetes node lease
-      - "^istio-system$"             # Istio service mesh
-      - "^linkerd$"                  # Linkerd service mesh
-      - "^gatekeeper-system$"        # Gatekeeper policy enforcer
-      - "^cert-manager$"             # cert-manager certificate management
-      - "^nginx-ingress$"             # NGINX Ingress controller
-      - "^traefik$"                  # Traefik Ingress controller
-      - "^prometheus-operator$"      # Prometheus operator
-      - "^monitoring$"               # monitoring system
-      - "^logging$"                  # logging system
-      - "^kubevirt$"                 # Kubevirt virtualization
-      - "^rook-ceph$"                # Rook Ceph storage
-
-      # Application system namespaces
-      - "^default$"                  # default namespace
-      - "^ingress-nginx$"            # NGINX Ingress
-      - "^kube-dns$"                 # CoreDNS
-
-    # Whitelist Pod names (supports regex)
-    # Processes in these Pods will be ignored
-    podNames:
-      # System Pods
-      - "^coredns-.*"                # CoreDNS Pod
-      - "^etcd-.*"                   # etcd Pod
-      - "^kube-apiserver-.*"         # Kubernetes API Server
-      - "^kube-controller-manager-.*" # Controller manager
-      - "^kube-scheduler-.*"         # Scheduler
-      - "^kube-proxy-.*"             # Network proxy
-      - "^fluentd-.*"                # Fluentd log collector
-      - "^node-exporter-.*"          # Node exporter
-      - "^prometheus-.*"             # Prometheus monitoring
-      - "^grafana-.*"                # Grafana visualization
-      - "^alertmanager-.*"           # Alert manager
-
-      # Network-related Pods
-      - "^nginx-ingress-controller-.*" # NGINX Ingress controller
-      - "^traefik-.*"                # Traefik reverse proxy
-      - "^envoy-.*"                  # Envoy proxy
-      - "^istio-proxy-.*"           # Istio sidecar proxy
-
-      # Application Pods
-      - "^jenkins-.*"                # Jenkins CI/CD
-      - "^gitlab-runner-.*"          # GitLab Runner
-      - "^elasticsearch-.*"          # Elasticsearch search engine
-      - "^kibana-.*"                 # Kibana visualization
-      - "^logstash-.*"               # Logstash log processing
-      - "^redis-.*"                  # Redis cache
-      - "^postgresql-.*"             # PostgreSQL database
-      - "^mysql-.*"                  # MySQL database
-      - "^mongodb-.*"                # MongoDB database
-
-# =============================================================================
-# Configuration File Description
-# =============================================================================
-#
-# Usage:
-# 1. Mount this config file to /app/config.yaml in the Pod
-# 2. Or specify config file path via APROCSCAN_CONFIG_PATH environment variable
-# 3. Or override config items individually via environment variables
-#
-# Environment variable override rules:
-# - PROCSCAN_SCANNER_PROC_PATH: override scanner.proc_path
-# - PROCSCAN_SCANNER_SCAN_INTERVAL: override scanner.scan_interval
-# - PROCSCAN_SCANNER_LOG_LEVEL: override scanner.log_level
-# - PROCSCAN_ACTIONS_LABEL_ENABLED: override actions.label.enabled
-# - PROCSCAN_NOTIFICATIONS_LARK_WEBHOOK: override notifications.lark.webhook
-#
-# Deployment recommendations:
-# 1. Production environment scan interval: 60s-300s
-# 2. Development/test environment can use shorter interval: 30s
-# 3. Production log level: info or warn
-# 4. Whitelist rules need to be adjusted based on actual environment
-# 5. Regularly update blacklist rules to address new threats
-# =============================================================================
+              * on(instance) group_left(nodename) node_uname_info
+            instant: true
+            intervalMs: 60000
+            legendFormat: __auto
+            maxDataPoints: 43200
+            range: false
+            refId: A
+          refId: A
+          relativeTimeRange:
+            from: 600
+      execErrState: KeepLast
+      for: 5m
+      keepFiringFor: 10m
+      labels:
+        property: cpu_iowait
+        sealos: block
+        severity: critical
+      noDataState: OK
+      title: CPU iowait above 50% - I/O Block
+      uid: sealos-cpu-iowait-block-50
+    - annotations:
+        Recover: 节点 {{ $labels.node }} 的 CPU Request 使用率已恢复正常
+        description: 节点 {{ $labels.node }} 的 CPU Request 已达到可分配资源的 95%，新的 Pod 可能无法调度，请立即处理！
+        domain: usw-1.sealos.io
+        summary: 节点 CPU Request 使用率超过 95%
+      condition: B
+      data:
+        - datasourceUid: __expr__
+          model:
+            conditions:
+              - evaluator:
+                  params:
+                    - 95
+                  type: gt
+                operator:
+                  type: and
+                query:
+                  params:
+                    - A
+                reducer:
+                  params: []
+                  type: max
+                type: query
+            datasource:
+              type: __expr__
+              uid: __expr__
+            expression: A
+            intervalMs: 60000
+            maxDataPoints: 43200
+            refId: B
+            type: threshold
+          refId: B
+          relativeTimeRange:
+            from: 600
+        - datasourceUid: vm
+          model:
+            datasource:
+              type: prometheus
+              uid: vm
+            editorMode: code
+            expr: >
+              (
+                sum by (node) (kube_pod_container_resource_requests{resource="cpu", unit="core"})
+                / 
+                sum by (node) (kube_node_status_allocatable{resource="cpu", unit="core"})
+              ) * 100
+            instant: true
+            intervalMs: 60000
+            legendFormat: __auto
+            maxDataPoints: 43200
+            range: false
+            refId: A
+          refId: A
+          relativeTimeRange:
+            from: 600
+      execErrState: KeepLast
+      for: 5m
+      keepFiringFor: 10m
+      labels:
+        property: cpu_request
+        sealos: cpu
+        severity: critical
+      noDataState: OK
+      title: Node CPU Request above 95%
+      uid: sealos-cpu-request-95
+    - annotations:
+        Recover: 节点 {{ $labels.node }} 的内存 Request 使用率已恢复正常
+        description: 节点 {{ $labels.node }} 的内存 Request 已达到可分配资源的 95%，新的 Pod 可能无法调度，请立即处理！
+        domain: usw-1.sealos.io
+        summary: 节点内存 Request 使用率超过 95%
+      condition: B
+      data:
+        - datasourceUid: __expr__
+          model:
+            conditions:
+              - evaluator:
+                  params:
+                    - 95
+                  type: gt
+                operator:
+                  type: and
+                query:
+                  params:
+                    - A
+                reducer:
+                  params: []
+                  type: max
+                type: query
+            datasource:
+              type: __expr__
+              uid: __expr__
+            expression: A
+            intervalMs: 60000
+            maxDataPoints: 43200
+            refId: B
+            type: threshold
+          refId: B
+          relativeTimeRange:
+            from: 600
+        - datasourceUid: vm
+          model:
+            datasource:
+              type: prometheus
+              uid: vm
+            editorMode: code
+            expr: >
+              (
+                sum by (node) (kube_pod_container_resource_requests{resource="memory", unit="byte"})
+                / 
+                sum by (node) (kube_node_status_allocatable{resource="memory", unit="byte"})
+              ) * 100
+            instant: true
+            intervalMs: 60000
+            legendFormat: __auto
+            maxDataPoints: 43200
+            range: false
+            refId: A
+          refId: A
+          relativeTimeRange:
+            from: 600
+      execErrState: KeepLast
+      for: 5m
+      keepFiringFor: 10m
+      labels:
+        property: memory_request
+        sealos: mem
+        severity: critical
+      noDataState: OK
+      title: Node Memory Request above 95%
+      uid: sealos-mem-request-95
+    - annotations:
+        Recover: 节点 {{ $labels.node }} 的临时存储 Request 使用率已恢复正常
+        description: 节点 {{ $labels.node }} 的临时存储 Request 已达到可分配资源的 95%，新的 Pod 可能无法调度，请立即处理！
+        domain: usw-1.sealos.io
+        summary: 节点临时存储 Request 使用率超过 95%
+      condition: B
+      data:
+        - datasourceUid: __expr__
+          model:
+            conditions:
+              - evaluator:
+                  params:
+                    - 95
+                  type: gt
+                operator:
+                  type: and
+                query:
+                  params:
+                    - A
+                reducer:
+                  params: []
+                  type: max
+                type: query
+            datasource:
+              type: __expr__
+              uid: __expr__
+            expression: A
+            intervalMs: 60000
+            maxDataPoints: 43200
+            refId: B
+            type: threshold
+          refId: B
+          relativeTimeRange:
+            from: 600
+        - datasourceUid: vm
+          model:
+            datasource:
+              type: prometheus
+              uid: vm
+            editorMode: code
+            expr: >
+              (
+                sum by (node) (kube_pod_container_resource_requests{resource="ephemeral_storage", unit="byte"})
+                / 
+                sum by (node) (kube_node_status_allocatable{resource="ephemeral_storage", unit="byte"})
+              ) * 100
+            instant: true
+            intervalMs: 60000
+            legendFormat: __auto
+            maxDataPoints: 43200
+            range: false
+            refId: A
+          refId: A
+          relativeTimeRange:
+            from: 600
+      execErrState: KeepLast
+      for: 5m
+      keepFiringFor: 10m
+      labels:
+        property: ephemeral_storage_request
+        sealos: block
+        severity: critical
+      noDataState: OK
+      title: Node Ephemeral Storage Request above 95%
+      uid: sealos-storage-request-95
+    - annotations:
+        Recover: 集群节点(非devbox节点) CPU Request 使用率已恢复到正常水平
+        description: >
+          集群中有 {{ printf "%.1f" $values.A }}% 的节点(非devbox节点) CPU Request 使用率超过
+          95%
+        domain: usw-1.sealos.io
+        summary: 集群超过半数节点(非devbox节点) CPU Request 使用率超过 95%
+      condition: B
+      data:
+        - datasourceUid: __expr__
+          model:
+            conditions:
+              - evaluator:
+                  params:
+                    - 50
+                  type: gt
+                operator:
+                  type: and
+                query:
+                  params:
+                    - A
+                reducer:
+                  params: []
+                  type: last
+                type: query
+            datasource:
+              type: __expr__
+              uid: __expr__
+            expression: A
+            intervalMs: 60000
+            maxDataPoints: 43200
+            refId: B
+            type: threshold
+          refId: B
+          relativeTimeRange:
+            from: 600
+        - datasourceUid: vm
+          model:
+            datasource:
+              type: prometheus
+              uid: vm
+            editorMode: code
+            expr: >
+              (
+                count(
+                  (sum by (node) (kube_pod_container_resource_requests{resource="cpu", unit="core", node!=".*devbox.*"})
+                  / 
+                  sum by (node) (kube_node_status_allocatable{resource="cpu", unit="core", node!=".*devbox.*"})) > 0.95
+                )
+                /
+                count(kube_node_info{node!=".*devbox.*"})
+              ) * 100
+            instant: true
+            intervalMs: 60000
+            legendFormat: __auto
+            maxDataPoints: 43200
+            range: false
+            refId: A
+          refId: A
+          relativeTimeRange:
+            from: 600
+      execErrState: KeepLast
+      for: 8m
+      keepFiringFor: 10m
+      labels:
+        property: cluster_cpu_request
+        scope: cluster
+        sealos: cpu
+        severity: critical
+      noDataState: OK
+      title: Majority Nodes CPU Request above 95%
+      uid: sealos-cpu-request-majority
+    - annotations:
+        Recover: 集群节点(非devbox节点)内存 Request 使用率已恢复到正常水平
+        description: |
+          集群中有 {{ printf "%.1f" $values.A }}% 的节点(非devbox节点)内存 Request 使用率超过 95%
+        domain: usw-1.sealos.io
+        summary: 集群超过半数节点(非devbox节点)内存 Request 使用率超过 95%
+      condition: B
+      data:
+        - datasourceUid: __expr__
+          model:
+            conditions:
+              - evaluator:
+                  params:
+                    - 50
+                  type: gt
+                operator:
+                  type: and
+                query:
+                  params:
+                    - A
+                reducer:
+                  params: []
+                  type: last
+                type: query
+            datasource:
+              type: __expr__
+              uid: __expr__
+            expression: A
+            intervalMs: 60000
+            maxDataPoints: 43200
+            refId: B
+            type: threshold
+          refId: B
+          relativeTimeRange:
+            from: 600
+        - datasourceUid: vm
+          model:
+            datasource:
+              type: prometheus
+              uid: vm
+            editorMode: code
+            expr: >
+              (
+                count(
+                  (sum by (node) (kube_pod_container_resource_requests{resource="memory", unit="byte", node!=".*devbox.*"})
+                  / 
+                  sum by (node) (kube_node_status_allocatable{resource="memory", unit="byte", node!=".*devbox.*"})) > 0.95
+                )
+                /
+                count(kube_node_info{node!=".*devbox.*"})
+              ) * 100
+            instant: true
+            intervalMs: 60000
+            legendFormat: __auto
+            maxDataPoints: 43200
+            range: false
+            refId: A
+          refId: A
+          relativeTimeRange:
+            from: 600
+      execErrState: KeepLast
+      for: 8m
+      keepFiringFor: 10m
+      labels:
+        property: cluster_memory_request
+        scope: cluster
+        sealos: mem
+        severity: critical
+      noDataState: OK
+      title: Majority Nodes Memory Request above 95%
+      uid: sealos-mem-request-majority
+    - annotations:
+        Recover: 集群节点(非devbox节点)临时存储 Request 使用率已恢复到正常水平
+        description: >
+          集群中有 {{ printf "%.1f" $values.A }}% 的节点(非devbox节点)临时存储 Request 使用率超过
+          95%
+        domain: usw-1.sealos.io
+        summary: 集群超过半数节点(非devbox节点)临时存储 Request 使用率超过 95%
+      condition: B
+      data:
+        - datasourceUid: __expr__
+          model:
+            conditions:
+              - evaluator:
+                  params:
+                    - 50
+                  type: gt
+                operator:
+                  type: and
+                query:
+                  params:
+                    - A
+                reducer:
+                  params: []
+                  type: last
+                type: query
+            datasource:
+              type: __expr__
+              uid: __expr__
+            expression: A
+            intervalMs: 60000
+            maxDataPoints: 43200
+            refId: B
+            type: threshold
+          refId: B
+          relativeTimeRange:
+            from: 600
+        - datasourceUid: vm
+          model:
+            datasource:
+              type: prometheus
+              uid: vm
+            editorMode: code
+            expr: >
+              (
+                count(
+                  (sum by (node) (kube_pod_container_resource_requests{resource="ephemeral_storage", unit="byte", node!=".*devbox.*"})
+                  / 
+                  sum by (node) (kube_node_status_allocatable{resource="ephemeral_storage", unit="byte", node!=".*devbox.*"})) > 0.95
+                )
+                /
+                count(kube_node_info{node!=".*devbox.*"})
+              ) * 100
+            instant: true
+            intervalMs: 60000
+            legendFormat: __auto
+            maxDataPoints: 43200
+            range: false
+            refId: A
+          refId: A
+          relativeTimeRange:
+            from: 600
+      execErrState: KeepLast
+      for: 8m
+      keepFiringFor: 10m
+      labels:
+        property: cluster_storage_request
+        scope: cluster
+        sealos: block
+        severity: critical
+      noDataState: OK
+      title: Majority Nodes Ephemeral Storage Request above 95%
+      uid: sealos-storage-request-majority
+    - annotations:
+        Recover: 集群节点(devbox节点) CPU Request 使用率已恢复到正常水平
+        description: >
+          集群中有 {{ printf "%.1f" $values.A }}% 的节点(devbox节点) CPU Request 使用率超过 95%
+        domain: usw-1.sealos.io
+        summary: 集群超过半数节点(devbox节点) CPU Request 使用率超过 95%
+      condition: B
+      data:
+        - datasourceUid: __expr__
+          model:
+            conditions:
+              - evaluator:
+                  params:
+                    - 50
+                  type: gt
+                operator:
+                  type: and
+                query:
+                  params:
+                    - A
+                reducer:
+                  params: []
+                  type: last
+                type: query
+            datasource:
+              type: __expr__
+              uid: __expr__
+            expression: A
+            intervalMs: 60000
+            maxDataPoints: 43200
+            refId: B
+            type: threshold
+          refId: B
+          relativeTimeRange:
+            from: 600
+        - datasourceUid: vm
+          model:
+            datasource:
+              type: prometheus
+              uid: vm
+            editorMode: code
+            expr: >
+              (
+                count(
+                  (sum by (node) (kube_pod_container_resource_requests{resource="cpu", unit="core", node=~".*devbox.*"})
+                  / 
+                  sum by (node) (kube_node_status_allocatable{resource="cpu", unit="core", node=~".*devbox.*"})) > 0.95
+                )
+                /
+                count(kube_node_info{node=~".*devbox.*"})
+              ) * 100
+            instant: true
+            intervalMs: 60000
+            legendFormat: __auto
+            maxDataPoints: 43200
+            range: false
+            refId: A
+          refId: A
+          relativeTimeRange:
+            from: 600
+      execErrState: KeepLast
+      for: 8m
+      keepFiringFor: 10m
+      labels:
+        property: cluster_cpu_request
+        scope: cluster
+        sealos: cpu
+        severity: critical
+      noDataState: OK
+      title: Majority Devbox Nodes CPU Request above 95%
+      uid: sealos-cpu-request-majority-devbox
+    - annotations:
+        Recover: 集群节点(devbox节点)内存 Request 使用率已恢复到正常水平
+        description: |
+          集群中有 {{ printf "%.1f" $values.A }}% 的节点(devbox节点)内存 Request 使用率超过 95%
+        domain: usw-1.sealos.io
+        summary: 集群超过半数节点(devbox节点)内存 Request 使用率超过 95%
+      condition: B
+      data:
+        - datasourceUid: __expr__
+          model:
+            conditions:
+              - evaluator:
+                  params:
+                    - 50
+                  type: gt
+                operator:
+                  type: and
+                query:
+                  params:
+                    - A
+                reducer:
+                  params: []
+                  type: last
+                type: query
+            datasource:
+              type: __expr__
+              uid: __expr__
+            expression: A
+            intervalMs: 60000
+            maxDataPoints: 43200
+            refId: B
+            type: threshold
+          refId: B
+          relativeTimeRange:
+            from: 600
+        - datasourceUid: vm
+          model:
+            datasource:
+              type: prometheus
+              uid: vm
+            editorMode: code
+            expr: >
+              (
+                count(
+                  (sum by (node) (kube_pod_container_resource_requests{resource="memory", unit="byte", node=~".*devbox.*"})
+                  / 
+                  sum by (node) (kube_node_status_allocatable{resource="memory", unit="byte", node=~".*devbox.*"})) > 0.95
+                )
+                /
+                count(kube_node_info{node=~".*devbox.*"})
+              ) * 100
+            instant: true
+            intervalMs: 60000
+            legendFormat: __auto
+            maxDataPoints: 43200
+            range: false
+            refId: A
+          refId: A
+          relativeTimeRange:
+            from: 600
+      execErrState: KeepLast
+      for: 8m
+      keepFiringFor: 10m
+      labels:
+        property: cluster_memory_request
+        scope: cluster
+        sealos: mem
+        severity: critical
+      noDataState: OK
+      title: Majority Devbox Nodes Memory Request above 95%
+      uid: sealos-mem-request-majority-devbox
+    - annotations:
+        Recover: 集群节点(devbox节点)临时存储 Request 使用率已恢复到正常水平
+        description: >
+          集群中有 {{ printf "%.1f" $values.A }}% 的节点(devbox节点)临时存储 Request 使用率超过 95%
+        domain: usw-1.sealos.io
+        summary: 集群超过半数节点(devbox节点)临时存储 Request 使用率超过 95%
+      condition: B
+      data:
+        - datasourceUid: __expr__
+          model:
+            conditions:
+              - evaluator:
+                  params:
+                    - 50
+                  type: gt
+                operator:
+                  type: and
+                query:
+                  params:
+                    - A
+                reducer:
+                  params: []
+                  type: last
+                type: query
+            datasource:
+              type: __expr__
+              uid: __expr__
+            expression: A
+            intervalMs: 60000
+            maxDataPoints: 43200
+            refId: B
+            type: threshold
+          refId: B
+          relativeTimeRange:
+            from: 600
+        - datasourceUid: vm
+          model:
+            datasource:
+              type: prometheus
+              uid: vm
+            editorMode: code
+            expr: >
+              (
+                count(
+                  (sum by (node) (kube_pod_container_resource_requests{resource="ephemeral_storage", unit="byte", node=~".*devbox.*"})
+                  / 
+                  sum by (node) (kube_node_status_allocatable{resource="ephemeral_storage", unit="byte", node=~".*devbox.*"})) > 0.95
+                )
+                /
+                count(kube_node_info{node=~".*devbox.*"})
+              ) * 100
+            instant: true
+            intervalMs: 60000
+            legendFormat: __auto
+            maxDataPoints: 43200
+            range: false
+            refId: A
+          refId: A
+          relativeTimeRange:
+            from: 600
+      execErrState: KeepLast
+      for: 8m
+      keepFiringFor: 10m
+      labels:
+        property: cluster_storage_request
+        scope: cluster
+        sealos: block
+        severity: critical
+      noDataState: OK
+      title: Majority Devbox Nodes Ephemeral Storage Request above 95%
+      uid: sealos-storage-request-majority-devbox
+    - annotations:
+        Recover: 节点 {{ or $labels.nodename $labels.instance }} 的 /data 存储使用率已恢复正常
+        description: 节点 {{ or $labels.nodename $labels.instance }} 的 /data
+          挂载点剩余可用存储不足15%，请及时清理或扩容
+        domain: usw-1.sealos.io
+        summary: /data存储空间不足15%
+      condition: B
+      data:
+        - datasourceUid: __expr__
+          model:
+            conditions:
+              - evaluator:
+                  params:
+                    - 15
+                  type: lt
+                operator:
+                  type: and
+                query:
+                  params:
+                    - A
+                reducer:
+                  params: []
+                  type: max
+                type: query
+            datasource:
+              type: __expr__
+              uid: __expr__
+            expression: A
+            intervalMs: 60000
+            maxDataPoints: 43200
+            refId: B
+            type: threshold
+          refId: B
+          relativeTimeRange:
+            from: 600
+        - datasourceUid: vm
+          model:
+            datasource:
+              type: prometheus
+              uid: vm
+            editorMode: code
+            expr: >
+              max by (instance, nodename) (
+                ((node_filesystem_avail_bytes{mountpoint="/data", receiver!="apecloudnode"} / 
+                  node_filesystem_size_bytes{mountpoint="/data", receiver!="apecloudnode"}) * 100)
+                * on(instance) group_left(nodename) node_uname_info
+              )
+            instant: true
+            intervalMs: 60000
+            legendFormat: __auto
+            maxDataPoints: 43200
+            range: false
+            refId: A
+          refId: A
+          relativeTimeRange:
+            from: 600
+      execErrState: KeepLast
+      for: 8m
+      keepFiringFor: 10m
+      labels:
+        property: containerd_storage
+        sealos: block
+        severity: warning
+      noDataState: OK
+      title: /data storage below 15%
+      uid: sealos-data-warn
+    - annotations:
+        Recover: 节点 {{ or $labels.nodename $labels.instance }} 的 /data 存储使用率已恢复正常
+        description: 节点 {{ or $labels.nodename $labels.instance }} 的 /data
+          挂载点剩余可用存储不足5%，容器运行可能受影响，请立即处理！
+        domain: usw-1.sealos.io
+        summary: /data存储空间严重不足
+      condition: B
+      data:
+        - datasourceUid: __expr__
+          model:
+            conditions:
+              - evaluator:
+                  params:
+                    - 5
+                  type: lt
+                operator:
+                  type: and
+                query:
+                  params:
+                    - A
+                reducer:
+                  params: []
+                  type: max
+                type: query
+            datasource:
+              type: __expr__
+              uid: __expr__
+            expression: A
+            intervalMs: 60000
+            maxDataPoints: 43200
+            refId: B
+            type: threshold
+          refId: B
+          relativeTimeRange:
+            from: 600
+        - datasourceUid: vm
+          model:
+            datasource:
+              type: prometheus
+              uid: vm
+            editorMode: code
+            expr: >
+              max by (instance, nodename) (
+                ((node_filesystem_avail_bytes{mountpoint="/data", receiver!="apecloudnode"} / 
+                  node_filesystem_size_bytes{mountpoint="/data", receiver!="apecloudnode"}) * 100)
+                * on(instance) group_left(nodename) node_uname_info
+              )
+            instant: true
+            intervalMs: 60000
+            legendFormat: __auto
+            maxDataPoints: 43200
+            range: false
+            refId: A
+          refId: A
+          relativeTimeRange:
+            from: 600
+      execErrState: KeepLast
+      for: 5m
+      keepFiringFor: 10m
+      labels:
+        property: containerd_storage
+        sealos: block
+        severity: critical
+      noDataState: OK
+      title: /data storage below 5%
+      uid: sealos-data-error
+    - annotations:
+        Recover: 镜像源 {{ $labels.registry }} 拉取错误已恢复正常
+        description: |
+          镜像源: {{ $labels.registry }}
+          当前错误数: {{ $values.A }}
+          该镜像源在过去3分钟内出现了大量拉取错误
+        domain: usw-1.sealos.io
+        summary: 镜像源 {{ $labels.registry }} 拉取错误过多
+      condition: B
+      data:
+        - datasourceUid: __expr__
+          model:
+            conditions:
+              - evaluator:
+                  params:
+                    - 15
+                  type: gt
+                operator:
+                  type: and
+                query:
+                  params:
+                    - A
+                reducer:
+                  params: []
+                  type: last
+                type: query
+            datasource:
+              type: __expr__
+              uid: __expr__
+            expression: A
+            intervalMs: 60000
+            maxDataPoints: 43200
+            refId: B
+            type: threshold
+          refId: B
+          relativeTimeRange:
+            from: 180
+        - datasourceUid: vm
+          model:
+            datasource:
+              type: prometheus
+              uid: vm
+            editorMode: code
+            expr: |
+              sum by (registry) (
+                k8s_pod_image_pull_failure_total{
+                  reason!="image_not_found",
+                  reason!="back_off_pulling_image"
+                } OR on() vector(0)
+              )
+            instant: true
+            intervalMs: 60000
+            legendFormat: __auto
+            maxDataPoints: 43200
+            range: false
+            refId: A
+          refId: A
+          relativeTimeRange:
+            from: 180
+      execErrState: KeepLast
+      for: 3m
+      keepFiringFor: 10m
+      labels:
+        property: image_pull
+        sealos: warn
+        severity: warning
+      noDataState: OK
+      title: Registry image pull failure too many
+      uid: sealos-registry-pull-failure
+    - annotations:
+        Recover: 节点 {{ $labels.node }} 镜像拉取错误已恢复正常
+        description: |
+          节点: {{ $labels.node }}
+          当前错误总数: {{ $values.A }}
+          该节点在过去3分钟内出现了大量镜像拉取错误
+        domain: usw-1.sealos.io
+        summary: 节点 {{ $labels.node }} 镜像拉取错误过多
+      condition: B
+      data:
+        - datasourceUid: __expr__
+          model:
+            conditions:
+              - evaluator:
+                  params:
+                    - 15
+                  type: gt
+                operator:
+                  type: and
+                query:
+                  params:
+                    - A
+                reducer:
+                  params: []
+                  type: last
+                type: query
+            datasource:
+              type: __expr__
+              uid: __expr__
+            expression: A
+            intervalMs: 60000
+            maxDataPoints: 43200
+            refId: B
+            type: threshold
+          refId: B
+          relativeTimeRange:
+            from: 180
+        - datasourceUid: vm
+          model:
+            datasource:
+              type: prometheus
+              uid: vm
+            editorMode: code
+            expr: |
+              sum by (node) (
+                k8s_pod_image_pull_failure_total{
+                  reason!="image_not_found",
+                  reason!="back_off_pulling_image"
+                } OR on() vector(0)
+              )
+            instant: true
+            intervalMs: 60000
+            legendFormat: __auto
+            maxDataPoints: 43200
+            range: false
+            refId: A
+          refId: A
+          relativeTimeRange:
+            from: 180
+      execErrState: KeepLast
+      for: 3m
+      keepFiringFor: 10m
+      labels:
+        property: image_pull
+        sealos: warn
+        severity: warning
+      noDataState: OK
+      title: Node image pull failure too many
+      uid: sealos-node-pull-failure
+    - annotations:
+        Recover: 镜像源 {{ $labels.registry }} 慢拉取已恢复正常
+        description: |
+          镜像源: {{ $labels.registry }}
+          当前慢拉取数: {{ $values.A }}
+          该镜像源在过去3分钟内出现了大量慢拉取
+        domain: usw-1.sealos.io
+        summary: 镜像源 {{ $labels.registry }} 慢拉取过多
+      condition: B
+      data:
+        - datasourceUid: __expr__
+          model:
+            conditions:
+              - evaluator:
+                  params:
+                    - 15
+                  type: gt
+                operator:
+                  type: and
+                query:
+                  params:
+                    - A
+                reducer:
+                  params: []
+                  type: last
+                type: query
+            datasource:
+              type: __expr__
+              uid: __expr__
+            expression: A
+            intervalMs: 60000
+            maxDataPoints: 43200
+            refId: B
+            type: threshold
+          refId: B
+          relativeTimeRange:
+            from: 180
+        - datasourceUid: vm
+          model:
+            datasource:
+              type: prometheus
+              uid: vm
+            editorMode: code
+            expr: |
+              sum by (registry) (
+                k8s_pod_image_pull_slow_total OR on() vector(0)
+              )
+            instant: true
+            intervalMs: 60000
+            legendFormat: __auto
+            maxDataPoints: 43200
+            range: false
+            refId: A
+          refId: A
+          relativeTimeRange:
+            from: 180
+      execErrState: KeepLast
+      for: 3m
+      keepFiringFor: 10m
+      labels:
+        property: image_pull_slow
+        sealos: warn
+        severity: warning
+      noDataState: OK
+      title: Registry slow image pull too many
+      uid: sealos-registry-slow-pull

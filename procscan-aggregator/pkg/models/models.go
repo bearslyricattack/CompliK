@@ -11,8 +11,8 @@ type Config struct {
 
 // AggregatorConfig 聚合器配置
 type AggregatorConfig struct {
-	ScanInterval time.Duration `yaml:"scan_interval"` // 扫描间隔
-	Port         int           `yaml:"port"`          // HTTP 服务端口
+	ScanInterval string `yaml:"scan_interval"` // 扫描间隔（字符串格式，如 "60s"）
+	Port         int    `yaml:"port"`          // HTTP 服务端口
 }
 
 // DaemonSetConfig DaemonSet 配置
